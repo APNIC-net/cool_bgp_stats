@@ -1,0 +1,365 @@
+collection,APEC,Organizations/APEC/APEC.txt
+collection,ASEAN,Organizations/ASEAN/ASEAN.txt
+collection,BASIC,Organizations/BASIC/BASIC.txt
+collection,BRIC,Organizations/BRIC/BRIC.txt
+collection,BRICS,Organizations/BRICS/BRICS.txt
+collection,EEC,Organizations/EEC/EEC.txt
+collection,G20,Organizations/G20/G20.txt
+collection,G8+5,Organizations/G8+5/G8+5.txt
+collection,G8,Organizations/G8/G8.txt
+collection,IBSA,Organizations/IBSA/IBSA.txt
+collection,NAFTA,Organizations/NAFTA/NAFTA.txt
+collection,APNIC,Organizations/NRO/APNIC/APNIC.txt
+collection,ARIN,Organizations/NRO/ARIN/ARIN.txt
+collection,AfriNIC,Organizations/NRO/AfriNIC/AfriNIC.txt
+collection,LacNIC,Organizations/NRO/LacNIC/LacNIC.txt
+collection,RIPE-NCC,Organizations/NRO/RIPE-NCC/RIPE-NCC.txt
+collection,OECD,Organizations/OECD/OECD.txt
+collection,PIGS,Organizations/PIGS/PIGS.txt
+collection,PIIGS,Organizations/PIIGS/PIIGS.txt
+collection,001 World,Regions/001 World/001 World.txt
+collection,002 Africa,Regions/001 World/002 Africa/002 Africa.txt
+collection,011 Western Africa,Regions/001 World/002 Africa/011 Western Africa/011 Western Africa.txt
+collection,014 Eastern Africa,Regions/001 World/002 Africa/014 Eastern Africa/014 Eastern Africa.txt
+collection,015 Northern Africa,Regions/001 World/002 Africa/015 Northern Africa/015 Northern Africa.txt
+collection,017 Middle Africa,Regions/001 World/002 Africa/017 Middle Africa/017 Middle Africa.txt
+collection,018 Southern Africa,Regions/001 World/002 Africa/018 Southern Africa/018 Southern Africa.txt
+collection,009 Oceania,Regions/001 World/009 Oceania/009 Oceania.txt
+collection,053 Australia and New Zealand,Regions/001 World/009 Oceania/053 Australia and New Zealand/053 Australia and New Zealand.txt
+collection,054 Melanesia,Regions/001 World/009 Oceania/054 Melanesia/054 Melanesia.txt
+collection,057 Micronesia,Regions/001 World/009 Oceania/057 Micronesia/057 Micronesia.txt
+collection,061 Polynesia,Regions/001 World/009 Oceania/061 Polynesia/061 Polynesia.txt
+collection,019 Americas,Regions/001 World/019 Americas/019 Americas.txt
+collection,021 Northern America,Regions/001 World/019 Americas/021 Northern America/021 Northern America.txt
+collection,005 South America,Regions/001 World/019 Americas/419 Latin America and the Caribbean/005 South America/005 South America.txt
+collection,013 Central America,Regions/001 World/019 Americas/419 Latin America and the Caribbean/013 Central America/013 Central America.txt
+collection,029 Caribbean,Regions/001 World/019 Americas/419 Latin America and the Caribbean/029 Caribbean/029 Caribbean.txt
+collection,419 Latin America and the Caribbean,Regions/001 World/019 Americas/419 Latin America and the Caribbean/419 Latin America and the Caribbean.txt
+collection,030 Eastern Asia,Regions/001 World/142 Asia/030 Eastern Asia/030 Eastern Asia.txt
+collection,034 Southern Asia,Regions/001 World/142 Asia/034 Southern Asia/034 Southern Asia.txt
+collection,035 South-Eastern Asia,Regions/001 World/142 Asia/035 South-Eastern Asia/035 South-Eastern Asia.txt
+collection,142 Asia,Regions/001 World/142 Asia/142 Asia.txt
+collection,143 Central Asia,Regions/001 World/142 Asia/143 Central Asia/143 Central Asia.txt
+collection,145 Western Asia,Regions/001 World/142 Asia/145 Western Asia/145 Western Asia.txt
+collection,039 Southern Europe,Regions/001 World/150 Europe/039 Southern Europe/039 Southern Europe.txt
+collection,150 Europe,Regions/001 World/150 Europe/150 Europe.txt
+collection,151 Eastern Europe,Regions/001 World/150 Europe/151 Eastern Europe/151 Eastern Europe.txt
+collection,154 Northern Europe,Regions/001 World/150 Europe/154 Northern Europe/154 Northern Europe.txt
+collection,155 Western Europe,Regions/001 World/150 Europe/155 Western Europe/155 Western Europe.txt
+collection,199 Least developed countries,Regions/199 Least developed countries/199 Least developed countries.txt
+collection,432 Landlocked developing countries,Regions/432 Landlocked developing countries/432 Landlocked developing countries.txt
+collection,722 Small island developing States,Regions/722 Small island developing States/722 Small island developing States.txt
+collection,172 Commonwealth of Independent States,Regions/778 Transition countries/172 Commonwealth of Independent States/172 Commonwealth of Independent States.txt
+collection,778 Transition countries,Regions/778 Transition countries/778 Transition countries.txt
+collection,Transition countries of South-Eastern Europe,Regions/778 Transition countries/Transition countries of South-Eastern Europe/Transition countries of South-Eastern Europe.txt
+collection,Developed Regions,Regions/Developed Regions/Developed Regions.txt
+collection,Developing Regions,Regions/Developing Regions/Developing Regions.txt
+collection,SACU,Organizations/SACU/SACU.txt
+member,AD,RIPE-NCC,001 World,039 Southern Europe,150 Europe,Developed Regions
+member,AE,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
+member,AF,APNIC,001 World,034 Southern Asia,142 Asia,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,AG,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,AI,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,AL,RIPE-NCC,001 World,039 Southern Europe,150 Europe,778 Transition countries,Transition countries of South-Eastern Europe,Developed Regions
+member,AM,RIPE-NCC,001 World,142 Asia,145 Western Asia,432 Landlocked developing countries,172 Commonwealth of Independent States,778 Transition countries
+member,AN,LacNIC,722 Small island developing States
+member,AO,AfriNIC,001 World,002 Africa,017 Middle Africa,199 Least developed countries,Developing Regions
+member,AQ,ARIN
+member,AR,G20,LacNIC,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,Developing Regions
+member,AS,APNIC,001 World,009 Oceania,061 Polynesia,722 Small island developing States,Developing Regions
+member,AT,EEC,RIPE-NCC,OECD,001 World,150 Europe,155 Western Europe,Developed Regions
+member,AU,APEC,G20,APNIC,OECD,001 World,009 Oceania,053 Australia and New Zealand,Developed Regions
+member,AW,LacNIC,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,AX,RIPE-NCC,001 World,150 Europe,154 Northern Europe,Developed Regions
+member,AZ,RIPE-NCC,001 World,142 Asia,145 Western Asia,432 Landlocked developing countries,172 Commonwealth of Independent States,778 Transition countries
+member,BA,RIPE-NCC,001 World,039 Southern Europe,150 Europe,778 Transition countries,Transition countries of South-Eastern Europe,Developed Regions,Developing Regions
+member,BB,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,BD,APNIC,001 World,034 Southern Asia,142 Asia,199 Least developed countries,Developing Regions
+member,BE,EEC,RIPE-NCC,OECD,001 World,150 Europe,155 Western Europe,Developed Regions
+member,BF,AfriNIC,001 World,002 Africa,011 Western Africa,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,BG,EEC,RIPE-NCC,001 World,150 Europe,151 Eastern Europe
+member,BH,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
+member,BI,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,BJ,AfriNIC,001 World,002 Africa,011 Western Africa,199 Least developed countries,Developing Regions
+member,BL,ARIN
+member,BM,ARIN,001 World,019 Americas,021 Northern America,Developed Regions
+member,BN,APEC,ASEAN,APNIC,001 World,035 South-Eastern Asia,142 Asia,Developing Regions
+member,BO,LacNIC,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,432 Landlocked developing countries,Developing Regions
+member,BQ,Developing Regions
+member,BR,BASIC,BRIC,BRICS,G20,G8+5,IBSA,LacNIC,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,Developing Regions
+member,BS,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,BT,APNIC,001 World,034 Southern Asia,142 Asia,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,BV,ARIN
+member,BW,AfriNIC,001 World,002 Africa,018 Southern Africa,432 Landlocked developing countries,Developed Regions,SACU
+member,BY,RIPE-NCC,001 World,150 Europe,151 Eastern Europe,172 Commonwealth of Independent States,778 Transition countries
+member,BZ,LacNIC,001 World,019 Americas,013 Central America,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,CA,APEC,G20,G8+5,G8,NAFTA,ARIN,OECD,001 World,019 Americas,021 Northern America,Developed Regions
+member,CD,AfriNIC,001 World,002 Africa,017 Middle Africa,199 Least developed countries,Developing Regions
+member,CF,AfriNIC,001 World,002 Africa,017 Middle Africa,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,CG,AfriNIC,001 World,002 Africa,017 Middle Africa,Developing Regions
+member,CH,RIPE-NCC,OECD,001 World,150 Europe,155 Western Europe,Developed Regions
+member,CI,AfriNIC,001 World,002 Africa,011 Western Africa,Developing Regions
+member,CK,001 World,009 Oceania,061 Polynesia,722 Small island developing States,Developing Regions
+member,CL,APEC,LacNIC,OECD,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,Developing Regions
+member,CM,AfriNIC,001 World,002 Africa,017 Middle Africa,Developing Regions
+member,CN,APEC,BASIC,BRIC,BRICS,G20,G8+5,APNIC,001 World,030 Eastern Asia,142 Asia,Developing Regions
+member,CO,LacNIC,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,Developing Regions
+member,CR,LacNIC,001 World,019 Americas,013 Central America,419 Latin America and the Caribbean,Developing Regions
+member,CU,LacNIC,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,CV,AfriNIC,001 World,002 Africa,011 Western Africa,722 Small island developing States,Developing Regions
+member,CW,Developing Regions
+member,CX,APNIC
+member,CY,EEC,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
+member,CZ,EEC,RIPE-NCC,OECD,001 World,150 Europe,151 Eastern Europe
+member,DE,EEC,G20,G8+5,G8,RIPE-NCC,OECD,001 World,150 Europe,155 Western Europe,Developed Regions
+member,DJ,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,Developing Regions
+member,DK,EEC,RIPE-NCC,OECD,001 World,150 Europe,154 Northern Europe,Developed Regions
+member,DM,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,DO,LacNIC,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,DZ,AfriNIC,001 World,002 Africa,015 Northern Africa,Developing Regions
+member,EC,LacNIC,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,Developing Regions
+member,EE,EEC,RIPE-NCC,OECD,001 World,150 Europe,154 Northern Europe,Developed Regions
+member,EG,AfriNIC,001 World,002 Africa,015 Northern Africa,Developing Regions
+member,EH,AfriNIC,001 World,002 Africa,015 Northern Africa,Developing Regions
+member,ER,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,Developing Regions
+member,ES,EEC,G20,RIPE-NCC,OECD,001 World,039 Southern Europe,150 Europe,Developed Regions
+member,ET,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,FI,EEC,RIPE-NCC,OECD,001 World,150 Europe,154 Northern Europe,Developed Regions
+member,FJ,APNIC,001 World,009 Oceania,054 Melanesia,722 Small island developing States,Developing Regions
+member,FK,LacNIC,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,Developing Regions
+member,FM,APNIC,001 World,009 Oceania,057 Micronesia,722 Small island developing States,Developing Regions
+member,FO,RIPE-NCC,001 World,150 Europe,154 Northern Europe,Developed Regions
+member,FR,EEC,G20,G8+5,G8,RIPE-NCC,OECD,001 World,150 Europe,155 Western Europe,Developed Regions
+member,GA,AfriNIC,001 World,002 Africa,017 Middle Africa,Developing Regions
+member,GB,EEC,G20,G8+5,G8,RIPE-NCC,OECD,001 World,150 Europe,154 Northern Europe,Developed Regions
+member,GD,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,GE,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
+member,GF,LacNIC,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,Developing Regions
+member,GG,RIPE-NCC,Developed Regions
+member,GH,AfriNIC,001 World,002 Africa,011 Western Africa,Developing Regions
+member,GI,RIPE-NCC,001 World,039 Southern Europe,150 Europe,Developed Regions
+member,GL,RIPE-NCC,001 World,019 Americas,021 Northern America,Developed Regions
+member,GM,AfriNIC,001 World,002 Africa,011 Western Africa,199 Least developed countries,Developing Regions
+member,GN,AfriNIC,001 World,002 Africa,011 Western Africa,199 Least developed countries,Developing Regions
+member,GP,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,Developing Regions
+member,GQ,AfriNIC,001 World,002 Africa,017 Middle Africa,199 Least developed countries,Developing Regions
+member,GR,EEC,RIPE-NCC,OECD,PIGS,PIIGS,001 World,039 Southern Europe,150 Europe,Developed Regions
+member,GS,LacNIC
+member,GT,LacNIC,001 World,019 Americas,013 Central America,419 Latin America and the Caribbean,Developing Regions
+member,GU,APNIC,001 World,009 Oceania,057 Micronesia,722 Small island developing States,Developing Regions
+member,GW,AfriNIC,001 World,002 Africa,011 Western Africa,199 Least developed countries,722 Small island developing States,Developing Regions
+member,GY,LacNIC,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,HK,APEC,APNIC,001 World,030 Eastern Asia,142 Asia,Developing Regions
+member,HM,ARIN
+member,HN,LacNIC,001 World,019 Americas,013 Central America,419 Latin America and the Caribbean,Developing Regions
+member,HR,RIPE-NCC,001 World,039 Southern Europe,150 Europe,778 Transition countries,Transition countries of South-Eastern Europe,Developed Regions,Developing Regions
+member,HT,LacNIC,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,199 Least developed countries,722 Small island developing States,Developing Regions
+member,HU,EEC,RIPE-NCC,OECD,001 World,150 Europe,151 Eastern Europe
+member,ID,APEC,ASEAN,G20,APNIC,001 World,035 South-Eastern Asia,142 Asia,Developing Regions
+member,IE,EEC,RIPE-NCC,001 World,150 Europe,154 Northern Europe,Developed Regions
+member,IL,RIPE-NCC,OECD,001 World,142 Asia,145 Western Asia,Developed Regions
+member,IM,RIPE-NCC,Developed Regions
+member,IN,BASIC,BRIC,BRICS,G20,G8+5,IBSA,APNIC,001 World,034 Southern Asia,142 Asia,Developing Regions
+member,IO,APNIC
+member,IQ,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
+member,IR,RIPE-NCC,OECD,PIIGS,001 World,034 Southern Asia,142 Asia,Developing Regions
+member,IS,RIPE-NCC,OECD,001 World,150 Europe,154 Northern Europe,Developed Regions
+member,ISLANDS,APNIC
+member,IT,EEC,G20,G8+5,G8,RIPE-NCC,OECD,PIGS,PIIGS,001 World,039 Southern Europe,150 Europe,Developed Regions
+member,JE,RIPE-NCC,Developed Regions
+member,JM,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,JO,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
+member,JP,APEC,G20,G8+5,G8,APNIC,OECD,001 World,030 Eastern Asia,142 Asia,Developed Regions
+member,KE,AfriNIC,001 World,002 Africa,014 Eastern Africa,Developing Regions
+member,KG,RIPE-NCC,001 World,142 Asia,143 Central Asia,432 Landlocked developing countries,172 Commonwealth of Independent States,778 Transition countries
+member,KH,ASEAN,APNIC,001 World,035 South-Eastern Asia,142 Asia,199 Least developed countries,Developing Regions
+member,KI,APNIC,001 World,009 Oceania,057 Micronesia,199 Least developed countries,722 Small island developing States,Developing Regions
+member,KM,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,722 Small island developing States,Developing Regions
+member,KN,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,KP,APNIC,001 World,030 Eastern Asia,142 Asia,Developing Regions
+member,KR,APEC,G20,APNIC,OECD,001 World,030 Eastern Asia,142 Asia,Developing Regions
+member,KW,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
+member,KY,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,Developing Regions
+member,KZ,RIPE-NCC,001 World,142 Asia,143 Central Asia,432 Landlocked developing countries,172 Commonwealth of Independent States,778 Transition countries
+member,LA,ASEAN,APNIC,001 World,035 South-Eastern Asia,142 Asia,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,LB,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
+member,LC,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,LI,RIPE-NCC,001 World,150 Europe,155 Western Europe,Developed Regions
+member,LK,APNIC,001 World,034 Southern Asia,142 Asia,Developing Regions
+member,LR,AfriNIC,001 World,002 Africa,011 Western Africa,199 Least developed countries,Developing Regions
+member,LS,AfriNIC,001 World,002 Africa,018 Southern Africa,199 Least developed countries,432 Landlocked developing countries,Developed Regions,SACU
+member,LT,EEC,RIPE-NCC,001 World,150 Europe,154 Northern Europe,Developed Regions
+member,LU,EEC,RIPE-NCC,OECD,001 World,150 Europe,155 Western Europe,Developed Regions
+member,LV,EEC,RIPE-NCC,001 World,150 Europe,154 Northern Europe,Developed Regions
+member,LY,AfriNIC,001 World,002 Africa,015 Northern Africa,Developing Regions
+member,MA,AfriNIC,001 World,002 Africa,015 Northern Africa,Developing Regions
+member,MC,RIPE-NCC,001 World,150 Europe,155 Western Europe,Developed Regions
+member,MD,RIPE-NCC,001 World,150 Europe,151 Eastern Europe,432 Landlocked developing countries,172 Commonwealth of Independent States,778 Transition countries
+member,ME,RIPE-NCC,778 Transition countries,Transition countries of South-Eastern Europe,Developed Regions,Developing Regions
+member,MF,ARIN,Developing Regions
+member,MG,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,Developing Regions
+member,MH,APNIC,001 World,009 Oceania,057 Micronesia,722 Small island developing States,Developing Regions
+member,MK,RIPE-NCC,001 World,039 Southern Europe,150 Europe,432 Landlocked developing countries,778 Transition countries,Transition countries of South-Eastern Europe,Developed Regions,Developing Regions
+member,ML,AfriNIC,001 World,002 Africa,011 Western Africa,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,MM,ASEAN,APNIC,001 World,035 South-Eastern Asia,142 Asia,199 Least developed countries,Developing Regions
+member,MN,APNIC,001 World,030 Eastern Asia,142 Asia,432 Landlocked developing countries,Developing Regions
+member,MO,APNIC,001 World,030 Eastern Asia,142 Asia,Developing Regions
+member,MP,APNIC,001 World,009 Oceania,057 Micronesia,722 Small island developing States,Developing Regions
+member,MQ,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,Developing Regions
+member,MR,AfriNIC,001 World,002 Africa,011 Western Africa,199 Least developed countries,Developing Regions
+member,MS,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,MT,EEC,RIPE-NCC,001 World,039 Southern Europe,150 Europe,Developed Regions
+member,MU,AfriNIC,001 World,002 Africa,014 Eastern Africa,722 Small island developing States,Developing Regions
+member,MV,APNIC,001 World,034 Southern Asia,142 Asia,722 Small island developing States,Developing Regions
+member,MW,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,MX,APEC,G20,G8+5,NAFTA,LacNIC,OECD,001 World,019 Americas,013 Central America,419 Latin America and the Caribbean,Developing Regions
+member,MY,APEC,ASEAN,APNIC,001 World,035 South-Eastern Asia,142 Asia,Developing Regions
+member,MZ,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,Developing Regions
+member,NA,AfriNIC,001 World,002 Africa,018 Southern Africa,Developing Regions
+member,NC,APNIC,001 World,009 Oceania,054 Melanesia,722 Small island developing States,Developing Regions
+member,NE,AfriNIC,001 World,002 Africa,011 Western Africa,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,NF,APNIC,001 World,009 Oceania,053 Australia and New Zealand,Developed Regions,Developing Regions
+member,NG,AfriNIC,001 World,002 Africa,011 Western Africa,Developing Regions
+member,NI,LacNIC,001 World,019 Americas,013 Central America,419 Latin America and the Caribbean,Developing Regions
+member,NL,EEC,G20,RIPE-NCC,OECD,001 World,150 Europe,155 Western Europe,Developed Regions
+member,NO,RIPE-NCC,OECD,001 World,150 Europe,154 Northern Europe,Developed Regions
+member,NP,APNIC,001 World,034 Southern Asia,142 Asia,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,NR,APNIC,001 World,009 Oceania,057 Micronesia,722 Small island developing States,Developing Regions
+member,NU,APNIC,001 World,009 Oceania,061 Polynesia,722 Small island developing States,Developing Regions
+member,NZ,APEC,APNIC,OECD,001 World,009 Oceania,053 Australia and New Zealand,Developed Regions
+member,OM,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
+member,Organizations/APEC/APEC.txt,Organizations
+member,Organizations/ASEAN/ASEAN.txt,Organizations
+member,Organizations/BASIC/BASIC.txt,Organizations
+member,Organizations/BRIC/BRIC.txt,Organizations
+member,Organizations/BRICS/BRICS.txt,Organizations
+member,Organizations/EEC/EEC.txt,Organizations
+member,Organizations/G20/G20.txt,Organizations
+member,Organizations/G8+5/G8+5.txt,Organizations
+member,Organizations/G8/G8.txt,Organizations
+member,Organizations/IBSA/IBSA.txt,Organizations
+member,Organizations/NAFTA/NAFTA.txt,Organizations
+member,Organizations/NRO/APNIC/APNIC.txt,Organizations
+member,Organizations/NRO/ARIN/ARIN.txt,Organizations
+member,Organizations/NRO/AfriNIC/AfriNIC.txt,Organizations
+member,Organizations/NRO/LacNIC/LacNIC.txt,Organizations
+member,Organizations/NRO/RIPE-NCC/RIPE-NCC.txt,Organizations
+member,Organizations/OECD/OECD.txt,Organizations
+member,Organizations/PIGS/PIGS.txt,Organizations
+member,Organizations/PIIGS/PIIGS.txt,Organizations
+member,PA,LacNIC,001 World,019 Americas,013 Central America,419 Latin America and the Caribbean,Developing Regions
+member,PE,APEC,LacNIC,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,Developing Regions
+member,PF,APNIC,001 World,009 Oceania,061 Polynesia,722 Small island developing States,Developing Regions
+member,PG,APEC,APNIC,001 World,009 Oceania,054 Melanesia,722 Small island developing States,Developing Regions
+member,PH,APEC,ASEAN,APNIC,001 World,035 South-Eastern Asia,142 Asia,Developing Regions
+member,PK,APNIC,001 World,034 Southern Asia,142 Asia,Developing Regions
+member,PL,EEC,RIPE-NCC,OECD,001 World,150 Europe,151 Eastern Europe
+member,PM,ARIN,001 World,019 Americas,021 Northern America,Developed Regions
+member,PN,APNIC,001 World,009 Oceania,061 Polynesia,Developing Regions
+member,PR,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,PS,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
+member,PT,EEC,RIPE-NCC,PIGS,PIIGS,001 World,039 Southern Europe,150 Europe,Developed Regions
+member,PW,APNIC,001 World,009 Oceania,057 Micronesia,722 Small island developing States,Developing Regions
+member,PY,LacNIC,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,432 Landlocked developing countries,Developing Regions
+member,QA,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
+member,RE,APNIC,001 World,002 Africa,014 Eastern Africa,Developing Regions
+member,RO,EEC,RIPE-NCC,001 World,150 Europe,151 Eastern Europe
+member,RS,RIPE-NCC,778 Transition countries,Transition countries of South-Eastern Europe,Developed Regions,Developing Regions
+member,RU,APEC,BRIC,BRICS,G20,G8+5,G8,RIPE-NCC,001 World,150 Europe,151 Eastern Europe,172 Commonwealth of Independent States,778 Transition countries
+member,RW,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,Regions/001_World/001_World.txt,Regions
+member,Regions/001_World/002_Africa/002_Africa.txt,Regions
+member,Regions/001_World/002_Africa/011_Western_Africa/011_Western_Africa.txt,Regions
+member,Regions/001_World/002_Africa/014_Eastern_Africa/014_Eastern_Africa.txt,Regions
+member,Regions/001_World/002_Africa/015_Northern_Africa/015_Northern_Africa.txt,Regions
+member,Regions/001_World/002_Africa/017_Middle_Africa/017_Middle_Africa.txt,Regions
+member,Regions/001_World/002_Africa/018_Southern_Africa/018_Southern_Africa.txt,Regions
+member,Regions/001_World/009_Oceania/009_Oceania.txt,Regions
+member,Regions/001_World/009_Oceania/053_Australia_and_New_Zealand/053_Australia_and_New_Zealand.txt,Regions
+member,Regions/001_World/009_Oceania/054_Melanesia/054_Melanesia.txt,Regions
+member,Regions/001_World/009_Oceania/057_Micronesia/057_Micronesia.txt,Regions
+member,Regions/001_World/009_Oceania/061_Polynesia/061_Polynesia.txt,Regions
+member,Regions/001_World/019_Americas/019_Americas.txt,Regions
+member,Regions/001_World/019_Americas/021_Northern_America/021_Northern_America.txt,Regions
+member,Regions/001_World/019_Americas/419_Latin_America_and_the_Caribbean/005_South_America/005_South_America.txt,Regions
+member,Regions/001_World/019_Americas/419_Latin_America_and_the_Caribbean/013_Central_America/013_Central_America.txt,Regions
+member,Regions/001_World/019_Americas/419_Latin_America_and_the_Caribbean/029_Caribbean/029_Caribbean.txt,Regions
+member,Regions/001_World/019_Americas/419_Latin_America_and_the_Caribbean/419_Latin_America_and_the_Caribbean.txt,Regions
+member,Regions/001_World/142_Asia/030_Eastern_Asia/030_Eastern_Asia.txt,Regions
+member,Regions/001_World/142_Asia/034_Southern_Asia/034_Southern_Asia.txt,Regions
+member,Regions/001_World/142_Asia/035_South-Eastern_Asia/035_South-Eastern_Asia.txt,Regions
+member,Regions/001_World/142_Asia/142_Asia.txt,Regions
+member,Regions/001_World/142_Asia/143_Central_Asia/143_Central_Asia.txt,Regions
+member,Regions/001_World/142_Asia/145_Western_Asia/145_Western_Asia.txt,Regions
+member,Regions/001_World/150_Europe/039_Southern_Europe/039_Southern_Europe.txt,Regions
+member,Regions/001_World/150_Europe/150_Europe.txt,Regions
+member,Regions/001_World/150_Europe/151_Eastern_Europe/151_Eastern_Europe.txt,Regions
+member,Regions/001_World/150_Europe/154_Northern_Europe/154_Northern_Europe.txt,Regions
+member,Regions/001_World/150_Europe/155_Western_Europe/155_Western_Europe.txt,Regions
+member,Regions/199_Least_developed_countries/199_Least_developed_countries.txt,Regions
+member,Regions/432_Landlocked_developing_countries/432_Landlocked_developing_countries.txt,Regions
+member,Regions/722_Small_island_developing_States/722_Small_island_developing_States.txt,Regions
+member,Regions/778_Transition_countries/172_Commonwealth_of_Independent_States/172_Commonwealth_of_Independent_States.txt,Regions
+member,Regions/778_Transition_countries/778_Transition_countries.txt,Regions
+member,Regions/778_Transition_countries/Transition_countries_of_South-Eastern_Europe/Transition_countries_of_South-Eastern_Europe.txt,Regions
+member,Regions/Developed_Regions/Developed_Regions.txt,Regions
+member,Regions/Developing_Regions/Developing_Regions.txt,Regions
+member,Regions/Organizations/SACU/SACU.txt,Regions
+member,SA,G20,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
+member,SB,APNIC,001 World,009 Oceania,054 Melanesia,199 Least developed countries,722 Small island developing States,Developing Regions
+member,SC,AfriNIC,001 World,002 Africa,014 Eastern Africa,722 Small island developing States,Developing Regions
+member,SD,AfriNIC,199 Least developed countries,Developing Regions
+member,SE,EEC,RIPE-NCC,OECD,001 World,150 Europe,154 Northern Europe,Developed Regions
+member,SG,APEC,ASEAN,APNIC,001 World,035 South-Eastern Asia,142 Asia,722 Small island developing States,Developing Regions
+member,SH,ARIN,001 World,002 Africa,011 Western Africa,Developing Regions
+member,SI,EEC,RIPE-NCC,OECD,001 World,039 Southern Europe,150 Europe,Developed Regions
+member,SJ,RIPE-NCC,001 World,150 Europe,154 Northern Europe,Developed Regions
+member,SK,EEC,RIPE-NCC,OECD,001 World,150 Europe,151 Eastern Europe
+member,SL,AfriNIC,001 World,002 Africa,011 Western Africa,199 Least developed countries,Developing Regions
+member,SM,RIPE-NCC,001 World,039 Southern Europe,150 Europe,Developed Regions
+member,SN,AfriNIC,001 World,002 Africa,011 Western Africa,199 Least developed countries,Developing Regions
+member,SO,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,Developing Regions
+member,SP,PIGS,PIIGS
+member,SR,LacNIC,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,SS,199 Least developed countries,Developing Regions
+member,ST,AfriNIC,001 World,002 Africa,017 Middle Africa,199 Least developed countries,722 Small island developing States,Developing Regions
+member,SV,LacNIC,001 World,019 Americas,013 Central America,419 Latin America and the Caribbean,Developing Regions
+member,SX,Developing Regions
+member,SY,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
+member,SZ,AfriNIC,001 World,002 Africa,018 Southern Africa,432 Landlocked developing countries,Developed Regions,SACU
+member,TC,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,Developing Regions
+member,TD,AfriNIC,001 World,002 Africa,017 Middle Africa,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,TF,APNIC
+member,TG,AfriNIC,001 World,002 Africa,011 Western Africa,199 Least developed countries,Developing Regions
+member,TH,APEC,ASEAN,APNIC,001 World,035 South-Eastern Asia,142 Asia,Developing Regions
+member,TJ,RIPE-NCC,001 World,142 Asia,143 Central Asia,432 Landlocked developing countries,172 Commonwealth of Independent States,778 Transition countries
+member,TK,APNIC,001 World,009 Oceania,061 Polynesia,Developing Regions
+member,TL,APNIC,001 World,035 South-Eastern Asia,142 Asia,199 Least developed countries,722 Small island developing States,Developing Regions
+member,TM,RIPE-NCC,001 World,142 Asia,143 Central Asia,432 Landlocked developing countries,172 Commonwealth of Independent States,778 Transition countries
+member,TN,AfriNIC,001 World,002 Africa,015 Northern Africa,Developing Regions
+member,TO,APNIC,001 World,009 Oceania,061 Polynesia,722 Small island developing States,Developing Regions
+member,TR,G20,RIPE-NCC,OECD,001 World,142 Asia,145 Western Asia,Developing Regions
+member,TT,LacNIC,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,TV,APNIC,001 World,009 Oceania,061 Polynesia,199 Least developed countries,722 Small island developing States,Developing Regions
+member,TW,APEC,APNIC,030 Eastern Asia,142 Asia
+member,TZ,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,Developing Regions
+member,UA,RIPE-NCC,001 World,150 Europe,151 Eastern Europe,172 Commonwealth of Independent States,778 Transition countries
+member,UG,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,UM,ARIN
+member,US,APEC,G20,G8+5,G8,NAFTA,ARIN,OECD,001 World,019 Americas,021 Northern America,Developed Regions
+member,UY,LacNIC,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,Developing Regions
+member,UZ,RIPE-NCC,001 World,142 Asia,143 Central Asia,432 Landlocked developing countries,172 Commonwealth of Independent States,778 Transition countries
+member,VA,RIPE-NCC,001 World,039 Southern Europe,150 Europe,Developed Regions
+member,VC,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,VE,LacNIC,001 World,019 Americas,005 South America,419 Latin America and the Caribbean,Developing Regions
+member,VG,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,VI,ARIN,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
+member,VN,APEC,ASEAN,APNIC,001 World,035 South-Eastern Asia,142 Asia,Developing Regions
+member,VU,APNIC,001 World,009 Oceania,054 Melanesia,199 Least developed countries,722 Small island developing States,Developing Regions
+member,WF,APNIC,001 World,009 Oceania,061 Polynesia,Developing Regions
+member,WS,APNIC,001 World,009 Oceania,061 Polynesia,199 Least developed countries,722 Small island developing States,Developing Regions
+member,YE,RIPE-NCC,001 World,142 Asia,145 Western Asia,199 Least developed countries,Developing Regions
+member,YT,APNIC,001 World,002 Africa,014 Eastern Africa,Developing Regions
+member,ZA,BASIC,BRICS,G20,G8+5,IBSA,AfriNIC,001 World,002 Africa,018 Southern Africa,Developed Regions,SACU
+member,ZM,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,432 Landlocked developing countries,Developing Regions
+member,ZW,AfriNIC,001 World,002 Africa,014 Eastern Africa,432 Landlocked developing countries,Developing Regions

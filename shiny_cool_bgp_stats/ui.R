@@ -1,9 +1,14 @@
 library(shiny)
 #library(DT)
-library(plotly)
+#library(plotly)
+library(dygraphs)
 
-shiny_app_path = '/Users/sofiasilva/GitHub/cool_bgp_stats/shiny_cool_bgp_stats/'
-load(paste(c(shiny_app_path, '/delegated.RData'), collapse=''))
+#project_path = '/Users/sofiasilva/GitHub/cool_bgp_stats'
+shiny_app_path = paste(c(project_path, '/shiny_cool_bgp_stats/'), collapse='')
+#load(paste(c(shiny_app_path, '/delegated.RData'), collapse=''))
+
+delegated_stats_file = '/Users/sofiasilva/BGP_files/delegated_stats_20170126.csv'
+del_stats = read.csv2(delegated_stats_file, header = F, sep = ',')
 
 shinyUI(fluidPage(
   

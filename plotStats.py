@@ -22,7 +22,7 @@ from datetime import datetime
 
 def generatePlot(stats_file, country, res_type, status, org, granularity,\
                     initial_date, final_date, stat):
-                        
+                       
 #    stats_df = pd.read_json(stats_file, orient = 'index')
     stats_df = pd.read_csv(stats_file, sep = ',')
     
