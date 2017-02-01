@@ -341,7 +341,7 @@ member,TO,APNIC,001 World,009 Oceania,061 Polynesia,722 Small island developing 
 member,TR,G20,RIPE-NCC,OECD,001 World,142 Asia,145 Western Asia,Developing Regions
 member,TT,LacNIC,001 World,019 Americas,029 Caribbean,419 Latin America and the Caribbean,722 Small island developing States,Developing Regions
 member,TV,APNIC,001 World,009 Oceania,061 Polynesia,199 Least developed countries,722 Small island developing States,Developing Regions
-member,TW,APEC,APNIC,030 Eastern Asia,142 Asia
+member,TW,APEC,APNIC,001 World,030 Eastern Asia,142 Asia
 member,TZ,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,Developing Regions
 member,UA,RIPE-NCC,001 World,150 Europe,151 Eastern Europe,172 Commonwealth of Independent States,778 Transition countries
 member,UG,AfriNIC,001 World,002 Africa,014 Eastern Africa,199 Least developed countries,432 Landlocked developing countries,Developing Regions
