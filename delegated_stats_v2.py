@@ -117,6 +117,9 @@ def getAndTidyData(DEBUG, EXTENDED, INCREMENTAL, final_existing_date, del_file, 
     # We take the subset corresponding to the year of interest
     delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.year) == year]
     
+    if delegated_df.empty:
+        return pd.DataFrame()
+        
     if DEBUG:
         asn_subset = delegated_df[delegated_df['resource_type']=='asn']
         ipv4_subset = delegated_df[delegated_df['resource_type']=='ipv4']
@@ -498,8 +501,8 @@ def main(argv):
             print 'y = Year to compute statistics for'
             print 'd = DEBUG mode. Provide path to delegated file.'
             print 'e = Use Extended file'
-            print "If option -e is used, file must be extended file."
-            print "If option -e is not used, file must be delegated file not extended."
+            print "If option -e is used in DEBUG mode, delegated file must be a extended file."
+            print "If option -e is not used in DEBUG mode, delegated file must be delegated file not extended."
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print "i = Incremental. Compute incremental statistics from existing stats file (CSV)."
             print "If option -i is used, a statistics file MUST be provided."
@@ -575,13 +578,18 @@ def main(argv):
             
     delegated_df = getAndTidyData(DEBUG, EXTENDED, INCREMENTAL, final_existing_date,\
                                                     del_file, year)
-    stats_df = initializeStatsDF(EXTENDED, stat)
+    if not delegated_df.empty:
+        stats_df = initializeStatsDF(EXTENDED, stat)
+        stats_df = computeStatistics(delegated_df, stats_df, stats_of_interest)
  
-    stats_df = computeStatistics(delegated_df, stats_df, stats_of_interest)
- 
-    if INCREMENTAL:
-        stats_df = pd.concat([existing_stats_df, stats_df])
-        
+        if INCREMENTAL:
+            stats_df = pd.concat([existing_stats_df, stats_df])
+    else:
+        if INCREMENTAL:
+            stats_df = existing_stats_df
+        else:
+            sys.exit()
+            
     if DEBUG:
         file_name = '%s/delegated_stats_test_%s_%s' % (files_path, year, today)
     else:
