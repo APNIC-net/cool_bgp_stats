@@ -155,6 +155,8 @@ def getAndTidyData(DEBUG, EXTENDED, INCREMENTAL, final_existing_date, del_file, 
                 else:
                     country_regions[cc] = 'Reg_%s' % region
 
+    country_regions['AP'] = 'AP Region'
+    
     areas = ['All'] + CCs + list(set(country_regions.values()))
     
     delegated_df.ix[pd.isnull(delegated_df.opaque_id), 'opaque_id'] = 'NA'
@@ -171,8 +173,10 @@ def getAndTidyData(DEBUG, EXTENDED, INCREMENTAL, final_existing_date, del_file, 
 
             org_areas = []
             for country in org_countries:
-                org_areas.extend([country_regions[country]])
-
+                if country in country_regions.keys():
+                    org_areas.extend([country_regions[country]])
+                else:
+                    print 'Unknown CC: %s' % country
             orgs_areas[o] = ['All'] + org_countries + org_areas
     
     delegated_df['region'] = delegated_df['cc'].apply(lambda c: country_regions[c])
