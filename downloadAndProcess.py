@@ -4,17 +4,18 @@
 import sys, getopt
 import os, subprocess, shlex
 import re
-from get_file import get_file
-
 # Just for DEBUG
-#project_path = '/Users/sofiasilva/GitHub/cool_bgp_stats'
-#sys.path.append(project_path)
-#from get_file import get_file
+#os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
+from get_file import get_file
+from DelegatedHandler import DelegatedHandler
+import ipaddress
+import math
 
-# TODO Check if bgpdump is in a folder included in the path
-# If it is not, include it or provide path to the binary
+# For some reason in my computer os.getenv('PATH') differs from echo $PATH
+# /usr/local/bin is not in os.getenv('PATH')
 bgpdump = '/usr/local/bin/bgpdump'
 
+   
 def downloadAndUnzip(url, files_path, routing_file, KEEP):
     if routing_file == '':
         routing_file = '%s/%s' % (files_path, url.split('/')[-1])
@@ -31,10 +32,11 @@ def downloadAndUnzip(url, files_path, routing_file, KEEP):
     
     return '.'.join(routing_file.split('.')[:-1]) # Path to decompressed file
     
-def decodeAndProcess(decomp_file_name, KEEP):
+def decodeAndParse(decomp_file_name, KEEP):
     readable_file_name = '%s.readable' % decomp_file_name    
     cmd = shlex.split('%s -m -O %s %s' % (bgpdump, readable_file_name, decomp_file_name))
-
+#    cmd = shlex.split('bgpdump -m -O %s %s' % (readable_file_name, decomp_file_name))   
+    
     #  BGPDUMP
     #  -m         one-line per entry with unix timestamps
     #  -O <file>  output to <file> instead of STDOUT
@@ -63,7 +65,6 @@ def decodeAndProcess(decomp_file_name, KEEP):
             else:
                 prefixes_dic[prefix] = [originAS]
 
-
     readable_file_obj.close()
     
     if not KEEP:
@@ -72,38 +73,73 @@ def decodeAndProcess(decomp_file_name, KEEP):
             os.remove(readable_file_name)
         except OSError:
             pass
+    
+    return prefixes_dic
+    
+def computeRoutingStats(url, files_path, routing_file, KEEP):
+    decomp_file_name = downloadAndUnzip(url, files_path, routing_file, KEEP)
+    prefixes_ASes_dic = decodeAndParse(decomp_file_name)
+    
+    # For DEBUG
+    DEBUG = True
+    EXTENDED = True
+    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170201.txt'
+    INCREMENTAL = False
+    final_existing_date = ''
+    year = 2016
+    
+    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year)
+
+    ipv4_subset = del_handler.delegated_df[del_handler.delegated_df['resource_type'] == 'ipv4']
+    ipv6_subset = del_handler.delegated_df[del_handler.delegated_df['resource_type'] == 'ipv6']
+    
+    for index, row in ipv4_subset.iterrows():
+        initial_ip = ipaddress.ip_address(unicode(row['initial_resource'], "utf-8"))
+        count = int(row['count'])
+        prefix_len = int(32 - math.log(count, 2))
+        ip_network = ipaddress.ip_network('%s/%s' % (initial_ip, prefix_len))
+        final_ip = initial_ip + count - 1
+        
+        if ip_network.broadcast_address != final_ip:
+            print "Not a CIDR block"
+            print initial_ip
+            print count
+            # TODO Convertir a bloque CIDR (Ver cómo!)
+            # crear líneas nuevas en ipv4_subset copiando el resto de la info
+        
+        
 
 def main(argv):
     
-    url = ''
+    urls_file = ''
     files_path = ''
     routing_file = ''
     KEEP = False
     
+    #For DEBUG
     files_path = '/Users/sofiasilva/BGP_files'
-    
-    # TODO By now we work with a specific file.
-    # In the future I have to list the contents of the folder and look for the most recent file?
-    file_name = 'bview.20170112.0800'
-    url = 'http://data.ris.ripe.net/rrc00/2017.01/%s.gz' % file_name
+    urls_file = './Collectors.txt'     # TODO modificar URL para usar colector de APNIC
+    routing_file = '/Users/sofiasilva/BGP_files/bview.20170112.0800.gz'
+    KEEP = True
+
     
     try:
-        opts, args = getopt.getopt(argv, "hu:r:kp:", ["url=", "routing_file=", "files_path="])
+        opts, args = getopt.getopt(argv, "hu:r:kp:", ["urls_file=", "routing_file=", "files_path="])
     except getopt.GetoptError:
-        print 'Usage: downloadAndProcess.py -h | [-u <url>] [-k] -p <files path>'
+        print 'Usage: downloadAndProcess.py -h | -u <urls file> [-r <routing file>] [-k] -p <files path>'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script downloads a file with Internet routing data, uncompresses it and decodes it using BGPDump"
-            print 'Usage: downloadAndProcess.py -h | [-u <year>] -p <files path>'
+            print 'Usage: downloadAndProcess.py -h | -u <urls file> [-k] -p <files path>'
             print 'h = Help'
-            print 'u = URL of the file to be downloaded.'
-            print 'r = Use specific Internet Routing data file.'
+            print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
+            print 'r = Use already downloaded Internet Routing data file.'
             print 'k = Keep downloaded Internet routing data file.'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             sys.exit()
         elif opt == '-u':
-            url = arg
+            urls_file = arg
         elif opt == '-r':
             routing_file = arg
         elif opt == '-k':
@@ -113,16 +149,25 @@ def main(argv):
         else:
             assert False, 'Unhandled option'
             
-    if url == '':
-        print "You must provide the URL from which you want a file to be downloaded."
+    if urls_file == '':
+        print "You must provide the path to a file with the URLs of the files to be downloaded."
         sys.exit()
         
     if files_path == '':
-        print "You must provide a folder to save files."
+        print "You must provide the path to a folder to save files."
         sys.exit()
+    
+    if routing_file == '':
+        urls_file_obj = open(urls_file, 'r')
+    
+        for line in urls_file_obj:
+            sys.stderr.write("Starting to work with %s" % line)
+            computeRoutingStats(line.strip(), files_path, routing_file, KEEP)           
         
-    decomp_file_name = downloadAndUnzip(url, files_path, routing_file, KEEP)
-    decodeAndProcess(decomp_file_name)
+        urls_file_obj.close()
+        
+    else:
+        computeRoutingStats('', files_path, routing_file, KEEP)
     
         
 if __name__ == "__main__":

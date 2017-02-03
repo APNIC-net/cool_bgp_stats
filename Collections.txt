@@ -158,7 +158,7 @@ member,HU,EEC,RIPE-NCC,OECD,001 World,150 Europe,151 Eastern Europe
 member,ID,APEC,ASEAN,G20,APNIC,001 World,035 South-Eastern Asia,142 Asia,Developing Regions
 member,IE,EEC,RIPE-NCC,001 World,150 Europe,154 Northern Europe,Developed Regions
 member,IL,RIPE-NCC,OECD,001 World,142 Asia,145 Western Asia,Developed Regions
-member,IM,RIPE-NCC,Developed Regions
+member,IM,RIPE-NCC,001 World,Developed Regions
 member,IN,BASIC,BRIC,BRICS,G20,G8+5,IBSA,APNIC,001 World,034 Southern Asia,142 Asia,Developing Regions
 member,IO,APNIC
 member,IQ,RIPE-NCC,001 World,142 Asia,145 Western Asia,Developing Regions
