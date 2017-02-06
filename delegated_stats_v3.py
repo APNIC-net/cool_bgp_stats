@@ -312,14 +312,14 @@ def main(argv):
     try:
         opts, args = getopt.getopt(argv, "hy:d:ep:i:t:", ["year=", "del_file=", "files_path=", "stats_file=", "statistic="])
     except getopt.GetoptError:
-        print 'Usage: delegatd_stats_v2.py -h | -y <year> [-d <delegated file>] [-e] -p <files path [-i <stats file>] [-t <statistic>]'
+        print 'Usage: delegatd_stats_v2.py -h | [-y <year>] [-d <delegated file>] [-e] -p <files path [-i <stats file>] [-t <statistic>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes daily statistics from the delegated files provided by the RIRs"
-            print 'Usage: delegatd_stats_v2.py -h | -y <year> [-d <delegated file>] [-e] -p <files path [-i <stats file>] [-t <statistic>]'
+            print 'Usage: delegatd_stats_v2.py -h | [-y <year>] [-d <delegated file>] [-e] -p <files path [-i <stats file>] [-t <statistic>]'
             print 'h = Help'
-            print 'y = Year to compute statistics for'
+            print 'y = Year to compute statistics for. If a year is not provided, statistics will be computed for all the available years.'
             print 'd = DEBUG mode. Provide path to delegated file.'
             print 'e = Use Extended file'
             print "If option -e is used in DEBUG mode, delegated file must be a extended file."
@@ -345,11 +345,6 @@ def main(argv):
             stat = arg
         else:
             assert False, 'Unhandled option'
-            
-    if year == '':
-        print "You must provide the year for which you want the statistics to\
-                be computed."
-        sys.exit()
 
     if DEBUG and del_file == '':
         print "If you choose to run in DEBUG mode you must provide the path to\

@@ -9,10 +9,17 @@ Files for Shiny app to create interactive plots of stats.
 Development of this app was suspended after deciding to implement the computation of statistics using Python and not R.
 
 * downloadAndProcess.py
-Basic script that downloads a file with BGP routing data, unzips it and decodes it using BGPDump. (Under development)
+	- Basic script that downloads a file with BGP routing data, unzips it and decodes it using BGPDump.
+	- Each line of the decoded routing data is parsed in order to extract the announced prefix and the AS originating it. A dictionary is created using the announced prefixes as keys and having a list of ASes originating each prefix as data.
+	- Then, the DelegatedHandler class is instantiated in order to get recent delegated info. Each line in the delegated file corresponding to IPv4 resources is converted into as many lines including CIDR blocks as necessary.
+	- The resources (both IPv4 and IPv6) delegated to each organization are aggregated as much as possible.
+	- Each aggregated delegated block is compared to routed blocks to determine how it is being routed.
+	- Once we have all the sub-blocks being routed for each aggregated delegated block, the visibility and the deaggregation for the delegated block are computed.
+	- The visibility of a blocks measures how much of a delegated block is being announced.
+	- The deaggregation of a delegated block is computed as 1 minus the ratio between the number of aggregated routed blocks over the number of blocks actually being routed.
+	- Finally, for each organization we generate a summary including all the blocks that were delegated to it, all the blocks being routed, the average visibility and the average deaggregation.  
 
-* processDump.py
-Basic script that reads dump file line by line extracting peer, prefix, AS path, origin AS and origin data source. (Under development)
+(Under development)
 
 * get_file.py
 Script that downloads content provided its URL, after checking if file has already been downloaded and if it is still fresh.
@@ -49,6 +56,12 @@ Besides, it performs much better as the only granularity considered is daily and
 statistics are computed for a specific year.
 Then the statistics can be aggregated in order to get statistics with other granularities.
 Has to be executed separately for the different years of interest.
+
+* delegated_stats_v3.py
+Third version of delegated_stats.py script. Now this script doesn't include all the variables and methods related to delegated file handling as they were extracted to a the DelegatedHandler class in a separate script. This script instantiates DelegatedHandler and then computes the statistics. Now the '-y' option is not mandatory anymore. If the script is executed without using the '-y' option, the statistics will be computed for all the years available in the delegated file.
+
+* DelegatedHandler.py
+Script that defined DelegatedHanlder class which includes all the variables and methods related to delegated file handling.
 
 * plotStats.py
 Basic script that reads file with statistics, filters the stats for the specific values of the different variables provided

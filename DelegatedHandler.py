@@ -113,8 +113,9 @@ class DelegatedHandler:
         
         delegated_df['date'] = pd.to_datetime(delegated_df['date'], format='%Y%m%d')
         
-        # We take the subset corresponding to the year of interest
-        delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.year) == year]
+        if year != '':
+            # We take the subset corresponding to the year of interest
+            delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.year) == year]
         
         if delegated_df.empty:
             return pd.DataFrame()
@@ -145,11 +146,15 @@ class DelegatedHandler:
             for line in coll_file:
                 cc = line.split(',')[1]
                 if cc in self.CCs:
-                    region = line.split('001 World,')[1].split(',')[0][4:]
-                    if region not in self.AP_regions:
-                        country_regions[cc] = 'Reg_Out of APNIC region'
-                    else:
-                        country_regions[cc] = 'Reg_%s' % region
+                    try:
+                        region = line.split('001 World,')[1].split(',')[0][4:]
+                        if region not in self.AP_regions:
+                            country_regions[cc] = 'Reg_Out of APNIC region'
+                        else:
+                            country_regions[cc] = 'Reg_%s' % region
+                    except IndexError:
+                            country_regions[cc] = 'NA'                        
+      
     
         country_regions['AP'] = 'AP Region'
         country_regions['XX'] = 'NA'
