@@ -11,6 +11,7 @@ from DelegatedHandler import DelegatedHandler
 import ipaddress
 import pandas as pd
 import numpy as np
+import pickle
 
 # For some reason in my computer os.getenv('PATH') differs from echo $PATH
 # /usr/local/bin is not in os.getenv('PATH')
@@ -48,7 +49,8 @@ def decodeAndParse(decomp_file_name, KEEP):
     
     readable_file_obj = open(readable_file_name, 'r')
 
-    prefixes_dic = dict()
+    prefixes_ASes_dic = dict()
+    ASes_prefixes_dic = dict()
     
     for line in readable_file_obj.readlines():
         pattern = re.compile("^TABLE_DUMP.?\|\d+\|B\|(.+?)\|.+?\|(.+?)\|(.+?)\|(.+?)\|.+")
@@ -60,12 +62,17 @@ def decodeAndParse(decomp_file_name, KEEP):
             path = s.group(3)
             originAS = path.split(' ')[-1]
 #            origin = s.group(4)
-            if prefix in prefixes_dic.keys():
-                if originAS not in prefixes_dic[prefix]:
-                    prefixes_dic[prefix].extend([originAS])
+            if prefix in prefixes_ASes_dic.keys():
+                if originAS not in prefixes_ASes_dic[prefix]:
+                    prefixes_ASes_dic[prefix].append(originAS)
             else:
-                prefixes_dic[prefix] = [originAS]
-
+                prefixes_ASes_dic[prefix] = [originAS]
+                
+            if originAS in ASes_prefixes_dic.keys():
+                if prefix not in ASes_prefixes_dic[originAS]:
+                    ASes_prefixes_dic[originAS].append(prefix)
+            else:
+                ASes_prefixes_dic[originAS] = [prefix]
     readable_file_obj.close()
     
     if not KEEP:
@@ -75,7 +82,7 @@ def decodeAndParse(decomp_file_name, KEEP):
         except OSError:
             pass
     
-    return prefixes_dic
+    return prefixes_ASes_dic, ASes_prefixes_dic
     
 def getAggregatedNetworks(del_df, orgs_aggr_networks):
     orgs_groups = del_df.groupby(del_df['opaque_id'])
@@ -86,7 +93,11 @@ def getAggregatedNetworks(del_df, orgs_aggr_networks):
         networks_list = []        
         for index, row in org_subset.iterrows():
             networks_list.append(ipaddress.ip_network(u'%s/%s' % (row['initial_resource'], int(row['count']))))
-        
+        # TODO Keep CC and region
+        # Two lists. One of aggregated networks and one of delegated networks
+        # For aggregated networks, add a note in a separate field saying they include
+        # blocks coming from distinct delegations and if they are announced from
+        # different origin ASes
         aggregated_networks = [ipaddr for ipaddr in ipaddress.collapse_addresses(networks_list)]
         
         for aggr_net in aggregated_networks:
@@ -96,7 +107,10 @@ def getAggregatedNetworks(del_df, orgs_aggr_networks):
 
 def computeRoutingStats(url, files_path, routing_file, KEEP):
     decomp_file_name = downloadAndUnzip(url, files_path, routing_file, KEEP)
-    prefixes_ASes_dic = decodeAndParse(decomp_file_name)
+    prefixes_ASes_dic, ASes_prefixes_dic = decodeAndParse(decomp_file_name)
+    
+    # TODO Stats related to prefix/originAS (?)
+    # Refactor prefix/origin-as pairs to generate data which is tagged by member, economy, region
     
     # For DEBUG
     DEBUG = False
@@ -137,7 +151,8 @@ def computeRoutingStats(url, files_path, routing_file, KEEP):
                                                                 row['opaque_id'],\
                                                                 row['region']]       
     
-    orgs_aggr_networks = pd.DataFrame(columns=['opaque_id', 'del_network', 'visibility', 'deaggregation'])
+    orgs_aggr_networks = pd.DataFrame(columns=['opaque_id', 'cc', 'region',\
+                                'del_network', 'visibility', 'deaggregation'])
     orgs_aggr_networks = getAggregatedNetworks(ipv4_cidr_del_df, orgs_aggr_networks)
     ipv6_subset = delegated_df_copy[delegated_df_copy['resource_type'] == 'ipv6']
     orgs_aggr_networks = getAggregatedNetworks(ipv6_subset, orgs_aggr_networks)
@@ -156,11 +171,26 @@ def computeRoutingStats(url, files_path, routing_file, KEEP):
                 del_routed_dic[del_net].append(routed_network)
                 ips_routed += routed_network.num_addresses
         
+        # TODO Both for visibility and for deaggregation, consider the case in which
+        # a delegated block is covered by more than one overlapping announces.
+        # For visibility, we cannot count those IP addresses more than onces.
+        # For deaggregation, how should this be computed?
+
+        # From http://www.eecs.qmul.ac.uk/~steve/papers/JSAC-deaggregation.pdf
+        # • Lonely: a prefix that does not overlap with any other prefix.
+        # • Top: a prefix that covers one or more smaller prefix blocks,
+        # but is not itself covered by a less specific.
+        # • Deaggregated: a prefix that is covered by a less specific prefix,
+        # and this less specific is originated by the same AS as the deaggregated prefix.
+        # • Delegated: a prefix that is covered by a less specific, and this
+        # less specific is not originated by the same AS as the delegated prefix.
+        
         visibility = (ips_routed*100)/ips_delegated
 
         deaggregation = float(np.nan)
         routed_count = len(del_routed_dic[del_net])
-        if routed_count > 0:               
+        if routed_count > 0: # block is being deaggregated
+            # TODO check if the origin ASes are different
             aggregated_count = float(len([ipaddr for ipaddr in\
                             ipaddress.collapse_addresses(del_routed_dic[del_net])]))
             deaggregation = (1 - (aggregated_count/routed_count))*100
@@ -194,18 +224,19 @@ def main(argv):
     files_path = ''
     routing_file = ''
     KEEP = False
+    COMPUTE = True
     
     #For DEBUG
-    files_path = '/Users/sofiasilva/BGP_files'
-    urls_file = './Collectors.txt'     # TODO modificar URL para usar colector de APNIC
-    routing_file = '/Users/sofiasilva/BGP_files/bview.20170112.0800.gz'
-    KEEP = True
+#    files_path = '/Users/sofiasilva/BGP_files'
+#    urls_file = './Collectors.txt'     # TODO modificar URL para usar colector de APNIC
+#    routing_file = '/Users/sofiasilva/BGP_files/bview.20170112.0800.gz'
+#    KEEP = True
 
     
     try:
-        opts, args = getopt.getopt(argv, "hu:r:kp:", ["urls_file=", "routing_file=", "files_path="])
+        opts, args = getopt.getopt(argv, "hu:r:knp:", ["urls_file=", "routing_file=", "files_path="])
     except getopt.GetoptError:
-        print 'Usage: downloadAndProcess.py -h | -u <urls file> [-r <routing file>] [-k] -p <files path>'
+        print 'Usage: downloadAndProcess.py -h | -u <urls file> [-r <routing file>] [-k] [-n] -p <files path>'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
@@ -223,6 +254,8 @@ def main(argv):
             routing_file = arg
         elif opt == '-k':
             KEEP = True
+        elif opt == '-n':
+            COMPUTE = False
         elif opt == '-p':
             files_path = arg
         else:
@@ -236,18 +269,38 @@ def main(argv):
         print "You must provide the path to a folder to save files."
         sys.exit()
     
-    if routing_file == '':
-        urls_file_obj = open(urls_file, 'r')
-    
-        for line in urls_file_obj:
-            sys.stderr.write("Starting to work with %s" % line)
-            computeRoutingStats(line.strip(), files_path, routing_file, KEEP)           
+    if COMPUTE:    
+        if routing_file == '':
+            urls_file_obj = open(urls_file, 'r')
         
-        urls_file_obj.close()
-        
+            for line in urls_file_obj:
+                sys.stderr.write("Starting to work with %s" % line)
+                computeRoutingStats(line.strip(), files_path, routing_file, KEEP)           
+            
+            urls_file_obj.close()
+            
+        else:
+            computeRoutingStats('', files_path, routing_file, KEEP)
     else:
-        computeRoutingStats('', files_path, routing_file, KEEP)
-    
+        if routing_file == '':
+            urls_file_obj = open(urls_file, 'r')
+        
+            for line in urls_file_obj:
+                sys.stderr.write("Starting to work with %s" % line)
+                decomp_file_name = downloadAndUnzip(line, files_path, routing_file, KEEP)
+                prefixes_ASes_dic, ASes_prefixes_dic = decodeAndParse(decomp_file_name)
+
+            urls_file_obj.close()
+            
+        else:
+            decomp_file_name = downloadAndUnzip('', files_path, routing_file, KEEP)
+            prefixes_ASes_dic, ASes_prefixes_dic = decodeAndParse(decomp_file_name)
+            
+        with open('%s/prefixes_ASes.pkl' % files_path, 'wb') as f:
+            pickle.dump(prefixes_ASes_dic, f, pickle.HIGHEST_PROTOCOL)
+            
+        with open('%s/ASes_prefixes.pkl' % files_path, 'wb') as f:
+            pickle.dump(ASes_prefixes_dic, f, pickle.HIGHEST_PROTOCOL)
         
 if __name__ == "__main__":
     main(sys.argv[1:])
