@@ -6,6 +6,7 @@ Created on Fri Feb  3 11:09:35 2017
 
 @author: sofiasilva
 """
+import sys
 import pandas as pd
 from get_file import get_file
 
@@ -68,7 +69,7 @@ class DelegatedHandler:
         self.status_notdel = ['All', 'available', 'reserved']
         
         self.getAndTidyData(DEBUG, EXTENDED, download_url, del_file, col_names, INCREMENTAL, final_existing_date, year)
-    
+        sys.stderr.write("DelegatedHandler instantiated successfully!")
     
     def getAndTidyData(self, DEBUG, EXTENDED, download_url, del_file, col_names, INCREMENTAL, final_existing_date, year):
         if not DEBUG:

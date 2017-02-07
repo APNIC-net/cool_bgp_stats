@@ -394,8 +394,9 @@ def main(argv):
         
     if not del_handler.delegated_df.empty:
         stats_df = initializeStatsDF(del_handler, EXTENDED, stat)
+        sys.stderr.write("Stats Data Frame initialized successfully!")
         stats_df = computeStatistics(del_handler, stats_df, stats_of_interest)
- 
+        
         if INCREMENTAL:
             stats_df = pd.concat([existing_stats_df, stats_df])
     else:
@@ -403,6 +404,8 @@ def main(argv):
             stats_df = existing_stats_df
         else:
             sys.exit()
+            
+    sys.stderr.write("Stats computed successfully!")
             
     if DEBUG:
         file_name = '%s/delegated_stats_test_%s_%s' % (files_path, year, today)
@@ -412,7 +415,9 @@ def main(argv):
         
     stats_df.to_csv('%s.csv' % file_name)
     stats_df.reset_index().to_json('%s.json' % file_name, orient='index')
-    
+    sys.stderr.write("Stats saved to files successfully!")
+    sys.stderr.write("(%s.csv and %s.json)" % (file_name, file_name))
+
         
 if __name__ == "__main__":
     main(sys.argv[1:])
