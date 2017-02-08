@@ -12,6 +12,7 @@ import ipaddress
 import pandas as pd
 import numpy as np
 import pickle
+import pytricia
 
 # For some reason in my computer os.getenv('PATH') differs from echo $PATH
 # /usr/local/bin is not in os.getenv('PATH')
@@ -49,7 +50,7 @@ def decodeAndParse(decomp_file_name, KEEP):
     
     readable_file_obj = open(readable_file_name, 'r')
 
-    prefixes_ASes_dic = dict()
+    prefixes_ASes_pyt = pytricia.PyTricia()
     ASes_prefixes_dic = dict()
     
     for line in readable_file_obj.readlines():
@@ -62,11 +63,11 @@ def decodeAndParse(decomp_file_name, KEEP):
             path = s.group(3)
             originAS = path.split(' ')[-1]
 #            origin = s.group(4)
-            if prefix in prefixes_ASes_dic.keys():
-                if originAS not in prefixes_ASes_dic[prefix]:
-                    prefixes_ASes_dic[prefix].append(originAS)
+            if prefixes_ASes_pyt.has_key(prefix): 
+                if originAS not in prefixes_ASes_pyt[prefix]:
+                    prefixes_ASes_pyt[prefix].append(originAS)
             else:
-                prefixes_ASes_dic[prefix] = [originAS]
+                prefixes_ASes_pyt[prefix] = [originAS]
                 
             if originAS in ASes_prefixes_dic.keys():
                 if prefix not in ASes_prefixes_dic[originAS]:
@@ -82,32 +83,43 @@ def decodeAndParse(decomp_file_name, KEEP):
         except OSError:
             pass
     
-    return prefixes_ASes_dic, ASes_prefixes_dic
+    return prefixes_ASes_pyt, ASes_prefixes_dic
     
-def getAggregatedNetworks(del_df, orgs_aggr_networks):
+def getDelAndAggrNetworks(del_df, orgs_aggr_networks):
     orgs_groups = del_df.groupby(del_df['opaque_id'])
     
     for org in list(set(del_df['opaque_id'])):
         org_subset = orgs_groups.get_group(org)
 
-        networks_list = []        
+        del_networks_list = []
+        del_networks_info = pytricia.PyTricia()
+
         for index, row in org_subset.iterrows():
-            networks_list.append(ipaddress.ip_network(u'%s/%s' % (row['initial_resource'], int(row['count']))))
-        # TODO Keep CC and region
-        # Two lists. One of aggregated networks and one of delegated networks
-        # For aggregated networks, add a note in a separate field saying they include
-        # blocks coming from distinct delegations and if they are announced from
-        # different origin ASes
-        aggregated_networks = [ipaddr for ipaddr in ipaddress.collapse_addresses(networks_list)]
+            ip_block = u'%s/%s' % (row['initial_resource'], int(row['count']))
+            cc = row['cc']
+            region = row['region']
+            del_networks_info[str(ip_block)] = {'cc':cc, 'region':region}
+
+            orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, cc, region, str(ip_block), False, [], 0, 0]
+            del_networks_list.append(ipaddress.ip_network(ip_block))
+     
+        aggregated_networks = [ipaddr for ipaddr in ipaddress.collapse_addresses(del_networks_list)]
         
         for aggr_net in aggregated_networks:
-            orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, str(aggr_net), [], 0, 0]
+            ccs = set()
+            regions = set()
+            for del_block in del_networks_list:
+                del_block_str = str(del_block)
+                if aggr_net.supernet_of(del_block):
+                    ccs.add(del_networks_info[del_block_str]['cc'])
+                    regions.add(del_networks_info[del_block_str]['region'])
+            orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, list(ccs), list(regions), str(aggr_net), True, [], 0, 0]
     
     return orgs_aggr_networks
 
 def computeRoutingStats(url, files_path, routing_file, KEEP):
     decomp_file_name = downloadAndUnzip(url, files_path, routing_file, KEEP)
-    prefixes_ASes_dic, ASes_prefixes_dic = decodeAndParse(decomp_file_name, KEEP)
+    prefixes_ASes_pyt, ASes_prefixes_dic = decodeAndParse(decomp_file_name, KEEP)
     
     # TODO Stats related to prefix/originAS (?)
     # Refactor prefix/origin-as pairs to generate data which is tagged by member, economy, region
@@ -151,27 +163,36 @@ def computeRoutingStats(url, files_path, routing_file, KEEP):
                                                                 row['opaque_id'],\
                                                                 row['region']]       
     
-    orgs_aggr_networks = pd.DataFrame(columns=['opaque_id', 'cc', 'region',\
-                                'del_network', 'visibility', 'deaggregation'])
-    orgs_aggr_networks = getAggregatedNetworks(ipv4_cidr_del_df, orgs_aggr_networks)
+    orgs_aggr_networks = pd.DataFrame(columns=['opaque_id',\
+                                                'cc',\
+                                                'region',\
+                                                'ip_block',\
+                                                'aggregated',\
+                                                'routed_blocks',\
+                                                'visibility',\
+                                                'deaggregation'])
+    orgs_aggr_networks = getDelAndAggrNetworks(ipv4_cidr_del_df, orgs_aggr_networks)
     ipv6_subset = delegated_df_copy[delegated_df_copy['resource_type'] == 'ipv6']
-    orgs_aggr_networks = getAggregatedNetworks(ipv6_subset, orgs_aggr_networks)
+    orgs_aggr_networks = getDelAndAggrNetworks(ipv6_subset, orgs_aggr_networks)
     
-    del_routed_dic = dict()
+    del_routed_pyt = pytricia.PyTricia()
     
-    for del_net in orgs_aggr_networks['del_network']:
-        del_network = ipaddress.ip_network(unicode(del_net, "utf-8"))
-        ips_delegated = del_network.num_addresses
+    for net in orgs_aggr_networks['ip_block']:
+        network = ipaddress.ip_network(unicode(net, "utf-8"))
+        ips_delegated = network.num_addresses
         ips_routed = 0
-        del_routed_dic[del_net] = []
+        del_routed_pyt[net] = []
         
-        for routed_net in prefixes_ASes_dic.keys():
+        for routed_net in prefixes_ASes_pyt:
             routed_network = ipaddress.ip_network(unicode(routed_net, "utf-8"))
-            if(del_network.overlaps(routed_network)):
-                del_routed_dic[del_net].append(routed_network)
+            if(network.overlaps(routed_network)):
+                del_routed_pyt[net].append(routed_network)
                 ips_routed += routed_network.num_addresses
         
         # TODO Check if prefix and origin AS were delegated to the same organization
+        
+        # TODO Check if all the announced prefixes for an aggregated block
+        # have the same origin AS
         
         # TODO Both for visibility and for deaggregation, consider the case in which
         # a delegated block is covered by more than one overlapping announces.
@@ -240,14 +261,14 @@ def computeRoutingStats(url, files_path, routing_file, KEEP):
         visibility = (ips_routed*100)/ips_delegated
 
         deaggregation = float(np.nan)
-        routed_count = len(del_routed_dic[del_net])
+        routed_count = len(del_routed_pyt[net])
         if routed_count > 0: # block is being deaggregated
             # TODO check if the origin ASes are different
             aggregated_count = float(len([ipaddr for ipaddr in\
-                            ipaddress.collapse_addresses(del_routed_dic[del_net])]))
+                            ipaddress.collapse_addresses(del_routed_pyt[net])]))
             deaggregation = (1 - (aggregated_count/routed_count))*100
         
-        curr_index = np.flatnonzero(orgs_aggr_networks['del_network'] == del_net)[0]
+        curr_index = np.flatnonzero(orgs_aggr_networks['ip_block'] == net)[0]
         orgs_aggr_networks.ix[curr_index, 'visibility'] = visibility
         orgs_aggr_networks.ix[curr_index, 'deaggregation'] = deaggregation
                     
@@ -257,11 +278,11 @@ def computeRoutingStats(url, files_path, routing_file, KEEP):
     for org in list(set(orgs_aggr_networks['opaque_id'])):
         org_rows = orgs_aggr_networks[orgs_aggr_networks['opaque_id'] == org]
         orgs_stats[org] = dict()
-        delegated_blocks = list(org_rows['del_network'])
+        delegated_blocks = list(org_rows['ip_block'])
         orgs_stats[org]['del_blocks_aggr'] = delegated_blocks
         routed_blocks = []
         for d in delegated_blocks:
-            routed_blocks.extend(del_routed_dic[d])
+            routed_blocks.extend(del_routed_pyt[d])
             orgs_stats[org]['routed_blocks'] = routed_blocks
         orgs_stats[org]['visibility'] = np.mean(org_rows['visibility'])
         deagg_list = list(org_rows['deaggregation'])
@@ -341,16 +362,16 @@ def main(argv):
             for line in urls_file_obj:
                 sys.stderr.write("Starting to work with %s" % line)
                 decomp_file_name = downloadAndUnzip(line.strip(), files_path, routing_file, KEEP)
-                prefixes_ASes_dic, ASes_prefixes_dic = decodeAndParse(decomp_file_name, KEEP)
+                prefixes_ASes_pyt, ASes_prefixes_dic = decodeAndParse(decomp_file_name, KEEP)
 
             urls_file_obj.close()
             
         else:
             decomp_file_name = downloadAndUnzip('', files_path, routing_file, KEEP)
-            prefixes_ASes_dic, ASes_prefixes_dic = decodeAndParse(decomp_file_name, KEEP)
+            prefixes_ASes_pyt, ASes_prefixes_dic = decodeAndParse(decomp_file_name, KEEP)
             
         with open('%s/prefixes_ASes.pkl' % files_path, 'wb') as f:
-            pickle.dump(prefixes_ASes_dic, f, pickle.HIGHEST_PROTOCOL)
+            pickle.dump(prefixes_ASes_pyt, f, pickle.HIGHEST_PROTOCOL)
             
         with open('%s/ASes_prefixes.pkl' % files_path, 'wb') as f:
             pickle.dump(ASes_prefixes_dic, f, pickle.HIGHEST_PROTOCOL)
