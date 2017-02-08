@@ -107,7 +107,7 @@ def getAggregatedNetworks(del_df, orgs_aggr_networks):
 
 def computeRoutingStats(url, files_path, routing_file, KEEP):
     decomp_file_name = downloadAndUnzip(url, files_path, routing_file, KEEP)
-    prefixes_ASes_dic, ASes_prefixes_dic = decodeAndParse(decomp_file_name)
+    prefixes_ASes_dic, ASes_prefixes_dic = decodeAndParse(decomp_file_name, KEEP)
     
     # TODO Stats related to prefix/originAS (?)
     # Refactor prefix/origin-as pairs to generate data which is tagged by member, economy, region
@@ -171,12 +171,46 @@ def computeRoutingStats(url, files_path, routing_file, KEEP):
                 del_routed_dic[del_net].append(routed_network)
                 ips_routed += routed_network.num_addresses
         
+        # TODO Check if prefix and origin AS were delegated to the same organization
+        
         # TODO Both for visibility and for deaggregation, consider the case in which
         # a delegated block is covered by more than one overlapping announces.
         # For visibility, we cannot count those IP addresses more than onces.
         # For deaggregation, how should this be computed?
 
+        # From http://irl.cs.ucla.edu/papers/05-ccr-address.pdf
+
+        # Covering prefixes:
+        # Based on their relations to the corresponding
+        # allocated address blocks, covering prefixes can be categorized into three
+        # classes: allocation intact, aggregation over multiple allocations,
+        # or fragments from a single allocation.         
+        
+        # Covered prefixes: (Usually due to traffic engineering)
+        # Our first observation about covered prefixes is that they
+        # show up and disappear in the routing table more frequently
+        # than the covering prefixes. To show this, we compare the
+        # routing prefixes between the beginning and end of each 2-
+        # month interval and count the following four events: (1) a
+        # covered prefix at the beginning remains unchanged at the
+        # end of the interval, (2) a covered prefix at the beginning
+        # disappears at the end, but its address space is covered by
+        # some other prefix(es), (3) a new covered prefix is advertised
+        # at the end, and (4) a covered prefix at the beginning disappears
+        # before the end and its address space is no longer
+        # covered in the routing table.
+        
+        # We classify covered prefixes into four classes based on their advertisement
+        # paths relative to that of their corresponding covering
+        # prefixes, with two of them further classified into sub-classes.
+        # * Same origin AS, same AS path (SOSP)
+        # * Same origin AS, different paths (SODP) (Types 1 and 2)
+        # * Different origin ASes, same path (DOSP)
+        # * Different origin ASes, different paths (DODP) (Types 1, 2 and 3)
+        
         # From http://www.eecs.qmul.ac.uk/~steve/papers/JSAC-deaggregation.pdf
+
+        # For deaggregation:
         # • Lonely: a prefix that does not overlap with any other prefix.
         # • Top: a prefix that covers one or more smaller prefix blocks,
         # but is not itself covered by a less specific.
@@ -184,6 +218,24 @@ def computeRoutingStats(url, files_path, routing_file, KEEP):
         # and this less specific is originated by the same AS as the deaggregated prefix.
         # • Delegated: a prefix that is covered by a less specific, and this
         # less specific is not originated by the same AS as the delegated prefix.
+        # Deaggregation factor of an AS to be the ratio between the number
+        # of announced prefixes and the number of allocated address blocks
+
+        # For visibility:
+        # • Only root: The complete allocated address block (called
+        # “root prefix”) is announced and nothing else.
+        # • root/MS-complete: The root prefix and at least two subprefixes
+        # are announced. The set of all sub-prefixes spans
+        # the whole root prefix.
+        # • root/MS-incomplete: The root prefix and at least one subprefix
+        # is announced. Together, the set of announced subprefixes
+        # does not cover the root prefix.
+        # • no root/MS-complete: The root prefix is not announced.
+        # However, there are at least two sub-prefixes which together
+        # cover the complete root prefix.
+        # • no root/MS-incomplete: The root prefix is not announced.
+        # There is at least one sub-prefix. Taking all sub-prefixes
+        # together, they do not cover the complete root prefix.
         
         visibility = (ips_routed*100)/ips_delegated
 
@@ -241,11 +293,12 @@ def main(argv):
     for opt, arg in opts:
         if opt == '-h':
             print "This script downloads a file with Internet routing data, uncompresses it and decodes it using BGPDump"
-            print 'Usage: downloadAndProcess.py -h | -u <urls file> [-k] -p <files path>'
+            print 'Usage: downloadAndProcess.py -h | -u <urls file> [-r <routing file>] [-k] [-n] -p <files path>'
             print 'h = Help'
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
             print 'r = Use already downloaded Internet Routing data file.'
             print 'k = Keep downloaded Internet routing data file.'
+            print 'n = No computation. If this option is used, statistics will not be computed, just the dictionaries with prefixes/origin ASes will be created and saved to disk.'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             sys.exit()
         elif opt == '-u':
@@ -287,14 +340,14 @@ def main(argv):
         
             for line in urls_file_obj:
                 sys.stderr.write("Starting to work with %s" % line)
-                decomp_file_name = downloadAndUnzip(line, files_path, routing_file, KEEP)
-                prefixes_ASes_dic, ASes_prefixes_dic = decodeAndParse(decomp_file_name)
+                decomp_file_name = downloadAndUnzip(line.strip(), files_path, routing_file, KEEP)
+                prefixes_ASes_dic, ASes_prefixes_dic = decodeAndParse(decomp_file_name, KEEP)
 
             urls_file_obj.close()
             
         else:
             decomp_file_name = downloadAndUnzip('', files_path, routing_file, KEEP)
-            prefixes_ASes_dic, ASes_prefixes_dic = decodeAndParse(decomp_file_name)
+            prefixes_ASes_dic, ASes_prefixes_dic = decodeAndParse(decomp_file_name, KEEP)
             
         with open('%s/prefixes_ASes.pkl' % files_path, 'wb') as f:
             pickle.dump(prefixes_ASes_dic, f, pickle.HIGHEST_PROTOCOL)
