@@ -85,45 +85,7 @@ def decodeAndParse(decomp_file_name, KEEP):
     
     return prefixes_ASes_pyt, ASes_prefixes_dic
     
-def getDelAndAggrNetworks(del_df, orgs_aggr_networks):
-    orgs_groups = del_df.groupby(del_df['opaque_id'])
-    
-    for org in list(set(del_df['opaque_id'])):
-        org_subset = orgs_groups.get_group(org)
-
-        del_networks_list = []
-        del_networks_info = pytricia.PyTricia()
-
-        for index, row in org_subset.iterrows():
-            ip_block = u'%s/%s' % (row['initial_resource'], int(row['count']))
-            cc = row['cc']
-            region = row['region']
-            del_networks_info[str(ip_block)] = {'cc':cc, 'region':region}
-
-            orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, cc, region, str(ip_block), False, [], 0, 0]
-            del_networks_list.append(ipaddress.ip_network(ip_block))
-     
-        aggregated_networks = [ipaddr for ipaddr in ipaddress.collapse_addresses(del_networks_list)]
-        
-        for aggr_net in aggregated_networks:
-            ccs = set()
-            regions = set()
-            for del_block in del_networks_list:
-                del_block_str = str(del_block)
-                if aggr_net.supernet_of(del_block):
-                    ccs.add(del_networks_info[del_block_str]['cc'])
-                    regions.add(del_networks_info[del_block_str]['region'])
-            orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, list(ccs), list(regions), str(aggr_net), True, [], 0, 0]
-    
-    return orgs_aggr_networks
-
-def computeRoutingStats(url, files_path, routing_file, KEEP):
-    decomp_file_name = downloadAndUnzip(url, files_path, routing_file, KEEP)
-    prefixes_ASes_pyt, ASes_prefixes_dic = decodeAndParse(decomp_file_name, KEEP)
-    
-    # TODO Stats related to prefix/originAS (?)
-    # Refactor prefix/origin-as pairs to generate data which is tagged by member, economy, region
-    
+def getDelAndAggrNetworks():
     # For DEBUG
     DEBUG = False
     EXTENDED = True
@@ -156,8 +118,8 @@ def computeRoutingStats(url, files_path, routing_file, KEEP):
                                                                 row['registry'],\
                                                                 row['cc'],\
                                                                 row['resource_type'],\
-                                                                net.network_address,\
-                                                                net.prefixlen,\
+                                                                str(net.network_address),\
+                                                                int(net.prefixlen),\
                                                                 row['date'],\
                                                                 '%s_cidr' % row['status'],\
                                                                 row['opaque_id'],\
@@ -168,36 +130,74 @@ def computeRoutingStats(url, files_path, routing_file, KEEP):
                                                 'region',\
                                                 'ip_block',\
                                                 'aggregated',\
-                                                'routed_blocks',\
                                                 'visibility',\
-                                                'deaggregation'])
-    orgs_aggr_networks = getDelAndAggrNetworks(ipv4_cidr_del_df, orgs_aggr_networks)
+                                                'deaggregation',\
+                                                'multiple_originASes'])
+                                                
     ipv6_subset = delegated_df_copy[delegated_df_copy['resource_type'] == 'ipv6']
-    orgs_aggr_networks = getDelAndAggrNetworks(ipv6_subset, orgs_aggr_networks)
+    ip_subset = pd.concat([ipv4_cidr_del_df, ipv6_subset])
+
+    orgs_groups = ip_subset.groupby(ip_subset['opaque_id'])
+    
+    for org in list(set(ip_subset['opaque_id'])):
+        org_subset = orgs_groups.get_group(org)
+
+        del_networks_list = []
+        del_networks_info = pytricia.PyTricia()
+
+        for index, row in org_subset.iterrows():
+            ip_block = u'%s/%s' % (row['initial_resource'], int(row['count']))
+            cc = row['cc']
+            region = row['region']
+            del_networks_info[str(ip_block)] = {'cc':cc, 'region':region}
+
+            orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, cc, region, str(ip_block), False, 0, 0, False]
+            del_networks_list.append(ipaddress.ip_network(ip_block))
+     
+        aggregated_networks = [ipaddr for ipaddr in ipaddress.collapse_addresses(del_networks_list)]
+        
+        for aggr_net in aggregated_networks:
+            ccs = set()
+            regions = set()
+            for del_block in del_networks_list:
+                del_block_str = str(del_block)
+                if aggr_net.supernet_of(del_block):
+                    ccs.add(del_networks_info[del_block_str]['cc'])
+                    regions.add(del_networks_info[del_block_str]['region'])
+            orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, list(ccs), list(regions), str(aggr_net), True, 0, 0, False]
+    
+    return orgs_aggr_networks
+
+def computeRoutingStats(url, files_path, routing_file, KEEP):
+    decomp_file_name = downloadAndUnzip(url, files_path, routing_file, KEEP)
+   
+    orgs_aggr_networks = getDelAndAggrNetworks()
+    
+    prefixes_ASes_pyt, ASes_prefixes_dic = decodeAndParse(decomp_file_name, KEEP)
+    
+    # TODO Stats related to prefix/originAS (?)
+    # Refactor prefix/origin-as pairs to generate data which is tagged by member, economy, region
     
     del_routed_pyt = pytricia.PyTricia()
     
-    for net in orgs_aggr_networks['ip_block']:
+    for i in orgs_aggr_networks.index:
+        net = orgs_aggr_networks.ix[i]['ip_block']
         network = ipaddress.ip_network(unicode(net, "utf-8"))
         ips_delegated = network.num_addresses
-        ips_routed = 0
-        del_routed_pyt[net] = []
+        del_routed = []
         
         for routed_net in prefixes_ASes_pyt:
             routed_network = ipaddress.ip_network(unicode(routed_net, "utf-8"))
             if(network.overlaps(routed_network)):
-                del_routed_pyt[net].append(routed_network)
-                ips_routed += routed_network.num_addresses
+                del_routed.append(routed_network)
         
         # TODO Check if prefix and origin AS were delegated to the same organization
-        
-        # TODO Check if all the announced prefixes for an aggregated block
-        # have the same origin AS
-        
+
         # TODO Both for visibility and for deaggregation, consider the case in which
         # a delegated block is covered by more than one overlapping announces.
-        # For visibility, we cannot count those IP addresses more than onces.
-        # For deaggregation, how should this be computed?
+        # For visibility, we cannot count those IP addresses more than once.
+        # For deaggregation, how should this be computed? (Read below)
+
 
         # From http://irl.cs.ucla.edu/papers/05-ccr-address.pdf
 
@@ -258,19 +258,37 @@ def computeRoutingStats(url, files_path, routing_file, KEEP):
         # There is at least one sub-prefix. Taking all sub-prefixes
         # together, they do not cover the complete root prefix.
         
-        visibility = (ips_routed*100)/ips_delegated
-
+        del_routed_pyt[net] = del_routed
+        
         deaggregation = float(np.nan)
-        routed_count = len(del_routed_pyt[net])
-        if routed_count > 0: # block is being deaggregated
-            # TODO check if the origin ASes are different
-            aggregated_count = float(len([ipaddr for ipaddr in\
-                            ipaddress.collapse_addresses(del_routed_pyt[net])]))
+        routed_count = len(del_routed)
+
+        ips_routed = 0
+
+        if routed_count > 0: # block is being announced, at least partially
+            originASes = set()
+            for routed_block in del_routed:
+                originAS = prefixes_ASes_pyt[str(routed_block)]
+                originASes.add(originAS)
+
+            if len(originASes) > 1:
+                orgs_aggr_networks.ix[i, 'multiple_originASes'] = True
+
+            aggregated_routed = [ipaddr for ipaddr in\
+                            ipaddress.collapse_addresses(del_routed)]
+            # ips_routed is obtained from the summarized routed blocks
+            # so that IPs contained in overlapping announcements are not
+            # counted more than once
+            for aggr_r in aggregated_routed:
+                ips_routed += aggr_r.num_addresses
+                
+            aggregated_count = float(len(aggregated_routed))
             deaggregation = (1 - (aggregated_count/routed_count))*100
         
-        curr_index = np.flatnonzero(orgs_aggr_networks['ip_block'] == net)[0]
-        orgs_aggr_networks.ix[curr_index, 'visibility'] = visibility
-        orgs_aggr_networks.ix[curr_index, 'deaggregation'] = deaggregation
+        visibility = (ips_routed*100)/ips_delegated
+
+        orgs_aggr_networks.ix[i, 'visibility'] = visibility
+        orgs_aggr_networks.ix[i, 'deaggregation'] = deaggregation
                     
                         
     orgs_stats = dict()
@@ -293,7 +311,7 @@ def computeRoutingStats(url, files_path, routing_file, KEEP):
 
 def main(argv):
     
-    urls_file = ''
+    urls_file = './Collectors.txt'     # TODO modificar URL para usar colector de APNIC
     files_path = ''
     routing_file = ''
     KEEP = False
@@ -301,7 +319,6 @@ def main(argv):
     
     #For DEBUG
 #    files_path = '/Users/sofiasilva/BGP_files'
-#    urls_file = './Collectors.txt'     # TODO modificar URL para usar colector de APNIC
 #    routing_file = '/Users/sofiasilva/BGP_files/bview.20170112.0800.gz'
 #    KEEP = True
 
@@ -309,14 +326,15 @@ def main(argv):
     try:
         opts, args = getopt.getopt(argv, "hu:r:knp:", ["urls_file=", "routing_file=", "files_path="])
     except getopt.GetoptError:
-        print 'Usage: downloadAndProcess.py -h | -u <urls file> [-r <routing file>] [-k] [-n] -p <files path>'
+        print 'Usage: downloadAndProcess.py -h | [-u <urls file>] [-r <routing file>] [-k] [-n] -p <files path>'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script downloads a file with Internet routing data, uncompresses it and decodes it using BGPDump"
-            print 'Usage: downloadAndProcess.py -h | -u <urls file> [-r <routing file>] [-k] [-n] -p <files path>'
+            print 'Usage: downloadAndProcess.py -h | [-u <urls file>] [-r <routing file>] [-k] [-n] -p <files path>'
             print 'h = Help'
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
+            print "If not provided, the script will try to use ./Collectors.txt"
             print 'r = Use already downloaded Internet Routing data file.'
             print 'k = Keep downloaded Internet routing data file.'
             print 'n = No computation. If this option is used, statistics will not be computed, just the dictionaries with prefixes/origin ASes will be created and saved to disk.'
@@ -334,10 +352,6 @@ def main(argv):
             files_path = arg
         else:
             assert False, 'Unhandled option'
-            
-    if urls_file == '':
-        print "You must provide the path to a file with the URLs of the files to be downloaded."
-        sys.exit()
         
     if files_path == '':
         print "You must provide the path to a folder to save files."
