@@ -296,9 +296,7 @@ def computeStatistics(del_handler, stats_df, stats_of_interest):
     return stats_df
 
 
-def main(argv):
-    global DEBUG, EXTENDED, del_file, files_path
-    
+def main(argv):    
     DEBUG = False
     EXTENDED = False
     year = ''
@@ -312,15 +310,15 @@ def main(argv):
     try:
         opts, args = getopt.getopt(argv, "hy:d:ep:i:t:", ["year=", "del_file=", "files_path=", "stats_file=", "statistic="])
     except getopt.GetoptError:
-        print 'Usage: delegatd_stats_v2.py -h | [-y <year>] [-d <delegated file>] [-e] -p <files path [-i <stats file>] [-t <statistic>]'
+        print 'Usage: delegatd_stats_v3.py -h | -p <files path [-y <year>] [-d <delegated file>] [-e] [-i <stats file>] [-t <statistic>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
-            print "This script computes daily statistics from the delegated files provided by the RIRs"
-            print 'Usage: delegatd_stats_v2.py -h | [-y <year>] [-d <delegated file>] [-e] -p <files path [-i <stats file>] [-t <statistic>]'
+            print "This script computes daily statistics from one of the delegated files provided by the RIRs"
+            print 'Usage: delegatd_stats_v3.py -h | -p <files path [-y <year>] [-d <delegated file>] [-e] [-i <stats file>] [-t <statistic>]'
             print 'h = Help'
             print 'y = Year to compute statistics for. If a year is not provided, statistics will be computed for all the available years.'
-            print 'd = DEBUG mode. Provide path to delegated file.'
+            print 'd = DEBUG mode. Provide path to delegated file. If not in DEBUG mode the latest delegated file will be downloaded from ftp://ftp.apnic.net/pub/stats/apnic'
             print 'e = Use Extended file'
             print "If option -e is used in DEBUG mode, delegated file must be a extended file."
             print "If option -e is not used in DEBUG mode, delegated file must be delegated file not extended."

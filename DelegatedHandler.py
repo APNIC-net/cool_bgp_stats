@@ -9,6 +9,8 @@ Created on Fri Feb  3 11:09:35 2017
 import sys
 import pandas as pd
 from get_file import get_file
+import ipaddress
+import pytricia
 
 
 class DelegatedHandler:
@@ -192,3 +194,77 @@ class DelegatedHandler:
         delegated_df.ix[indexes_32bits, 'status'] = 'alloc-32bits'
         
         self.delegated_df = delegated_df
+        
+    def getDelAndAggrNetworks(self):
+        
+        self.delegated_df = self.delegated_df.reset_index()
+        
+        ipv4_cidr_del_df = pd.DataFrame(columns=self.delegated_df.columns)
+        
+        # For IPv4 the 'count' column includes the number of IP addresses delegated
+        # but it not necessarily corresponds to a CIDR block.
+        # Therefore we convert each row to the corresponding CIDR block or blocks,
+        # now using the 'count' column to save the prefix length instead of the number of IPs.
+        for index, row in self.delegated_df[self.delegated_df['resource_type'] == 'ipv4'].iterrows():
+            initial_ip = ipaddress.ip_address(unicode(row['initial_resource'], "utf-8"))
+            count = int(row['count'])
+            final_ip = initial_ip + count - 1
+            
+            cidr_networks = [ipaddr for ipaddr in ipaddress.summarize_address_range(\
+                                ipaddress.IPv4Address(initial_ip),\
+                                ipaddress.IPv4Address(final_ip))]
+            
+            for net in cidr_networks:
+                ipv4_cidr_del_df.loc[ipv4_cidr_del_df.shape[0]] = [row['index'],\
+                                                                    row['registry'],\
+                                                                    row['cc'],\
+                                                                    row['resource_type'],\
+                                                                    str(net.network_address),\
+                                                                    int(net.prefixlen),\
+                                                                    row['date'],\
+                                                                    '%s_cidr' % row['status'],\
+                                                                    row['opaque_id'],\
+                                                                    row['region']]       
+        
+        orgs_aggr_networks = pd.DataFrame(columns=['opaque_id',\
+                                                    'cc',\
+                                                    'region',\
+                                                    'ip_block',\
+                                                    'aggregated',\
+                                                    'visibility',\
+                                                    'deaggregation',\
+                                                    'multiple_originASes'])
+                                                    
+        ipv6_subset = self.delegated_df[self.delegated_df['resource_type'] == 'ipv6']
+        ip_subset = pd.concat([ipv4_cidr_del_df, ipv6_subset])
+    
+        orgs_groups = ip_subset.groupby(ip_subset['opaque_id'])
+        
+        for org in list(set(ip_subset['opaque_id'])):
+            org_subset = orgs_groups.get_group(org)
+    
+            del_networks_list = []
+            del_networks_info = pytricia.PyTricia()
+    
+            for index, row in org_subset.iterrows():
+                ip_block = u'%s/%s' % (row['initial_resource'], int(row['count']))
+                cc = row['cc']
+                region = row['region']
+                del_networks_info[str(ip_block)] = {'cc':cc, 'region':region}
+    
+                orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, cc, region, str(ip_block), False, 0, 0, False]
+                del_networks_list.append(ipaddress.ip_network(ip_block))
+         
+            aggregated_networks = [ipaddr for ipaddr in ipaddress.collapse_addresses(del_networks_list)]
+            
+            for aggr_net in aggregated_networks:
+                ccs = set()
+                regions = set()
+                for del_block in del_networks_list:
+                    del_block_str = str(del_block)
+                    if aggr_net.supernet_of(del_block):
+                        ccs.add(del_networks_info[del_block_str]['cc'])
+                        regions.add(del_networks_info[del_block_str]['region'])
+                orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, list(ccs), list(regions), str(aggr_net), True, 0, 0, False]
+        
+        return orgs_aggr_networks
