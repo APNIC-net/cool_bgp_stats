@@ -6,7 +6,7 @@ import os
 # Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from DelegatedHandler import DelegatedHandler
-from BGPDataHanlder import BGPDataHandler
+from BGPDataHandler import BGPDataHandler
 import ipaddress
 import pandas as pd
 import numpy as np
