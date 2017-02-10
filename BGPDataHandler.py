@@ -17,7 +17,7 @@ import hashlib
 # /usr/local/bin is not in os.getenv('PATH')
 bgpdump = '/usr/local/bin/bgpdump'
 
-class BGPDataHanler:
+class BGPDataHandler:
     urls_file = './BGPoutputs.txt'
     bgp_data = pd.DataFrame()
     prefixes_indexes_pyt = pytricia.PyTricia()
