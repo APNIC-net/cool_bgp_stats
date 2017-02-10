@@ -3,8 +3,9 @@
 """
 
 import sys
+import time
 from collections import namedtuple
-from  netaddr import IPAddress, IPNetwork
+#from  netaddr import IPAddress, IPNetwork
 
 def get_class_length(prefix):
 
@@ -361,6 +362,7 @@ class BGPRIB(dict):
         previous_network = ""
         double_line = False
         start_process = False
+        date = str(int(time.time()))
 
         for linecpt, line in enumerate(file_h):
             try:
@@ -370,9 +372,9 @@ class BGPRIB(dict):
                 if line[0:5] == "Total":
                     # I found these lines at the end
                     continue
-		if line[0:6] == "#DATE:":
-		    date = line[7:19]
-		    continue
+                if line[0:6] == "#DATE:":
+        		    date = line[7:19]
+        		    continue
                 if line and not start_process:
                     if line[0] == "*" or line[1] == '*': 
                         start_process = True
