@@ -3,7 +3,7 @@
 """
 
 import sys
-import time
+import datetime.datetime
 from collections import namedtuple
 #from  netaddr import IPAddress, IPNetwork
 
@@ -362,7 +362,7 @@ class BGPRIB(dict):
         previous_network = ""
         double_line = False
         start_process = False
-        date = str(int(time.time()))
+        date = datetime.datetime.today().strftime('%Y%m%d%H%M')
 
         for linecpt, line in enumerate(file_h):
             try:
