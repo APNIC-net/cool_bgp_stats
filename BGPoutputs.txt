@@ -1,0 +1,2 @@
+http://www.potaroo.net/bgp/as2.0/bgptable.txt
+
