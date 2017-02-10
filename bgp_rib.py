@@ -1,9 +1,10 @@
 """
 @author Alejandro Acosta
+Minor fixes by Sofia Silva Berenguer
 """
 
 import sys
-import datetime.datetime
+import datetime
 from collections import namedtuple
 #from  netaddr import IPAddress, IPNetwork
 
@@ -499,7 +500,7 @@ class BGPRIB(dict):
         rib_in = BGPRIB()
         try:
             for linecpt, line in enumerate(show_bgp_file):
-
+                    
                 if linecpt == 0:
                     if line[0] == ' ':
                         offset_1 = 1
@@ -517,6 +518,9 @@ class BGPRIB(dict):
                 line = line.rstrip()
                 offset_dl = 0
                 if not double_line:
+                    if line[3] not in range(0,10):
+                        # Not a valid line
+                        continue
                     if len(line) < 62:
                         #print "#DEBUG Double line entry:"
                         #print current_line
