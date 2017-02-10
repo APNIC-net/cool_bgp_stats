@@ -14,11 +14,12 @@ import pytricia
 import datetime
 
 
-def computeRoutingStats(bgp_data, del_handler):     
+def computeRoutingStats(bgp_handler, del_handler):     
     orgs_aggr_networks = del_handler.getDelAndAggrNetworks()
     
-    prefixes_ASes_pyt = bgp_data.prefixes_ASes_pyt
-    ASes_prefixes_dic = bgp_data.ASes_prefixes_dic
+    bgp_data = bgp_handler.bgp_data
+    prefixes_indexes_pyt = bgp_handler.prefixes_indexes_pyt
+    ASes_prefixes_dic = bgp_handler.ASes_prefixes_dic
     
     # TODO Stats related to prefix/originAS (?)
     # Refactor prefix/origin-as pairs to generate data which is tagged by member, economy, region
@@ -31,7 +32,7 @@ def computeRoutingStats(bgp_data, del_handler):
         ips_delegated = network.num_addresses
         del_routed = []
         
-        for routed_net in prefixes_ASes_pyt:
+        for routed_net in prefixes_indexes_pyt:
             routed_network = ipaddress.ip_network(unicode(routed_net, "utf-8"))
             if(network.overlaps(routed_network)):
                 del_routed.append(routed_network)
@@ -117,7 +118,7 @@ def computeRoutingStats(bgp_data, del_handler):
         if routed_count > 0: # block is being announced, at least partially
             originASes = set()
             for routed_block in del_routed:
-                originAS = prefixes_ASes_pyt[str(routed_block)]
+                originAS = bgp_data.ix[prefixes_indexes_pyt[routed_net], 'originAS'] # TODO Test this
                 originASes.add(originAS)
 
             if len(originASes) > 1:
@@ -160,7 +161,8 @@ def computeRoutingStats(bgp_data, del_handler):
 
 def main(argv):
     
-    urls_file = './Collectors.txt'     # TODO modificar URL para usar colector de APNIC
+    urls_file = './BGPoutputs.txt'
+    RIBfile = True
     files_path = ''
     routing_file = ''
     KEEP = False
@@ -183,17 +185,20 @@ def main(argv):
     
     
     try:
-        opts, args = getopt.getopt(argv, "hu:r:knp:", ["urls_file=", "routing_file=", "files_path="])
+        opts, args = getopt.getopt(argv, "hp:u:or:knyd:ei:", ["files_path=", "urls_file=", "routing_file=", "delegated_file=", "stats_file="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file>] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>]'
+        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file>] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>]'
+            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
+            print 'All the URLs must point either to RIB files or to files containing "show ip bgp" outputs.'
+            print 'If the URLs point to files containing "show ip bgp" outputs, the "-o" option must be used to specify this.'
+            print 'o = URLs in the URLs file point to files containing "show ip bgp" outputs.'
             print "If not provided, the script will try to use ./Collectors.txt"
             print 'r = Use already downloaded Internet Routing data file.'
             print 'k = Keep downloaded Internet routing data file.'
@@ -208,6 +213,8 @@ def main(argv):
             sys.exit()
         elif opt == '-u':
             urls_file = arg
+        elif opt == '-o':
+            RIBfile = False
         elif opt == '-r':
             routing_file = arg
         elif opt == '-k':
@@ -231,7 +238,7 @@ def main(argv):
         
     if files_path == '':
         print "You must provide the path to a folder to save files."
-        sys.exit()
+        sys.exit()        
         
     if DEBUG and del_file == '':
         print "If you choose to run in DEBUG mode you must provide the path to\
@@ -260,7 +267,7 @@ def main(argv):
         else:
             del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
             
-    bgp_data = BGPDataHandler(urls_file, files_path, routing_file, KEEP)
+    bgp_data = BGPDataHandler(urls_file, files_path, routing_file, KEEP, RIBfile)
     
     if COMPUTE: 
         del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year)
