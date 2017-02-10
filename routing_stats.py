@@ -196,10 +196,10 @@ def main(argv):
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
+            print "If not provided, the script will try to use ./BGPoutputs.txt"
             print 'All the URLs must point either to RIB files or to files containing "show ip bgp" outputs.'
             print 'If the URLs point to files containing "show ip bgp" outputs, the "-o" option must be used to specify this.'
             print 'o = URLs in the URLs file point to files containing "show ip bgp" outputs.'
-            print "If not provided, the script will try to use ./Collectors.txt"
             print 'r = Use already downloaded Internet Routing data file.'
             print 'k = Keep downloaded Internet routing data file.'
             print 'n = No computation. If this option is used, statistics will not be computed, just the dictionaries with prefixes/origin ASes will be created and saved to disk.'
@@ -238,7 +238,9 @@ def main(argv):
         
     if files_path == '':
         print "You must provide the path to a folder to save files."
-        sys.exit()        
+        sys.exit()  
+        
+    # TODO if files_path folder does not exist, create it
         
     if DEBUG and del_file == '':
         print "If you choose to run in DEBUG mode you must provide the path to\

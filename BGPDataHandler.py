@@ -36,7 +36,7 @@ class BGPDataHandler:
             
             for line in urls_file_obj:
                 sys.stderr.write("Starting to work with %s" % line)
-                bgp_data_partial, prefixes_indexes_pyt_partial, ASes_prefixes_dic_partial = self.processRoutingData(line, files_path, routing_file, KEEP, RIBfile)
+                bgp_data_partial, prefixes_indexes_pyt_partial, ASes_prefixes_dic_partial = self.processRoutingData(line.strip(), files_path, routing_file, KEEP, RIBfile)
                 
                 bgp_data = pd.concat([bgp_data, bgp_data_partial])
     
@@ -64,7 +64,7 @@ class BGPDataHandler:
         
     # This method converts a file containing the output of the 'show ip bgp' command
     # to a file in the same format used for BGPDump outputs
-    def convertBGPoutput(routing_file, files_path, KEEP):
+    def convertBGPoutput(self, routing_file, files_path, KEEP):
         today = datetime.date.today().strftime('%Y%m%d')        
         output_file_name = '%s/%s_%s.readable' % (files_path, '.'.join(routing_file.split('/')[-1].split('.')[:-1]), today)
         output_file = open(output_file_name, 'w')
@@ -109,7 +109,7 @@ class BGPDataHandler:
         return output_file_name
  
         
-    def processReadableDF(readable_file_name):
+    def processReadableDF(self, readable_file_name):
         bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
                                 index_col=False, usecols=[3,5,6,7],\
                                 names=['peer',\
