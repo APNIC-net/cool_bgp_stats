@@ -252,7 +252,7 @@ class DelegatedHandler:
                 region = row['region']
                 del_networks_info[str(ip_block)] = {'cc':cc, 'region':region}
     
-                orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, cc, region, str(ip_block), False, 0, 0, False]
+                orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, cc, region, str(ip_block), False, -1, -1, False]
                 del_networks_list.append(ipaddress.ip_network(ip_block))
          
             aggregated_networks = [ipaddr for ipaddr in ipaddress.collapse_addresses(del_networks_list)]
@@ -265,6 +265,6 @@ class DelegatedHandler:
                     if aggr_net.supernet_of(del_block):
                         ccs.add(del_networks_info[del_block_str]['cc'])
                         regions.add(del_networks_info[del_block_str]['region'])
-                orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, list(ccs), list(regions), str(aggr_net), True, 0, 0, False]
+                orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, list(ccs), list(regions), str(aggr_net), True, -1, -1, False]
         
         return orgs_aggr_networks

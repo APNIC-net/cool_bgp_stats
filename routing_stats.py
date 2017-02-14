@@ -9,17 +9,21 @@ from DelegatedHandler import DelegatedHandler
 from BGPDataHandler import BGPDataHandler
 import ipaddress
 import pandas as pd
-import numpy as np
+#import numpy as np
 import pytricia
 import datetime
 
-
-def computeRoutingStats(bgp_handler, del_handler):     
+# This function computes statistics for each delegated block
+# and for each aggregated block resulting from summarizing multiple delegations
+# to the same organization.
+# Returns a DataFrame with the computed statistics and
+# a PyTricia with the routed blocks covering each delegated or aggregated block.
+def computePerPrefixStats(bgp_handler, del_handler):     
     orgs_aggr_networks = del_handler.getDelAndAggrNetworks()
     
     bgp_data = bgp_handler.bgp_data
     prefixes_indexes_pyt = bgp_handler.prefixes_indexes_pyt
-    ASes_prefixes_dic = bgp_handler.ASes_prefixes_dic
+#    ASes_prefixes_dic = bgp_handler.ASes_prefixes_dic
     
     # TODO Stats related to prefix/originAS (?)
     # Refactor prefix/origin-as pairs to generate data which is tagged by member, economy, region
@@ -41,7 +45,7 @@ def computeRoutingStats(bgp_handler, del_handler):
 
         # TODO Both for visibility and for deaggregation, consider the case in which
         # a delegated block is covered by more than one overlapping announces.
-        # For visibility, we cannot count those IP addresses more than once.
+        # For visibility, we cannot count those IP addresses more than once. (OK. Already considered.)
         # For deaggregation, how should this be computed? (Read below)
 
         # From http://irl.cs.ucla.edu/papers/05-ccr-address.pdf
@@ -110,7 +114,7 @@ def computeRoutingStats(bgp_handler, del_handler):
         
         del_routed_pyt[net] = del_routed
         
-        deaggregation = float(np.nan)
+#        deaggregation = float(np.nan)
         routed_count = len(del_routed)
 
         ips_routed = 0
@@ -132,31 +136,15 @@ def computeRoutingStats(bgp_handler, del_handler):
             for aggr_r in aggregated_routed:
                 ips_routed += aggr_r.num_addresses
                 
-            aggregated_count = float(len(aggregated_routed))
-            deaggregation = (1 - (aggregated_count/routed_count))*100
+#            aggregated_count = float(len(aggregated_routed))
+#            deaggregation = (1 - (aggregated_count/routed_count))*100
         
         visibility = (ips_routed*100)/ips_delegated
 
         orgs_aggr_networks.ix[i, 'visibility'] = visibility
-        orgs_aggr_networks.ix[i, 'deaggregation'] = deaggregation
-                    
-                        
-    orgs_stats = dict()
-    
-    for org in list(set(orgs_aggr_networks['opaque_id'])):
-        org_rows = orgs_aggr_networks[orgs_aggr_networks['opaque_id'] == org]
-        orgs_stats[org] = dict()
-        delegated_blocks = list(org_rows['ip_block'])
-        orgs_stats[org]['del_blocks_aggr'] = delegated_blocks
-        routed_blocks = []
-        for d in delegated_blocks:
-            routed_blocks.extend(del_routed_pyt[d])
-            orgs_stats[org]['routed_blocks'] = routed_blocks
-        orgs_stats[org]['visibility'] = np.mean(org_rows['visibility'])
-        deagg_list = list(org_rows['deaggregation'])
-        orgs_stats[org]['avg_deaggregation'] = np.mean(np.ma.masked_array(deagg_list, np.isnan(deagg_list)))
+#        orgs_aggr_networks.ix[i, 'deaggregation'] = deaggregation
 
-    return orgs_stats
+    return orgs_aggr_networks, del_routed_pyt
         
 
 def main(argv):
@@ -174,6 +162,10 @@ def main(argv):
     INCREMENTAL = False
     stats_file = ''
     final_existing_date = ''
+    fromFiles = False
+    bgp_data_file = ''
+    prefixes_indexes_file = ''
+    ASes_prefixes_file = ''
     
     #For DEBUG
 #    files_path = '/Users/sofiasilva/BGP_files'
@@ -185,14 +177,14 @@ def main(argv):
     
     
     try:
-        opts, args = getopt.getopt(argv, "hp:u:or:knyd:ei:", ["files_path=", "urls_file=", "routing_file=", "delegated_file=", "stats_file="])
+        opts, args = getopt.getopt(argv, "hp:u:or:knyd:ei:b:x:a:", ["files_path=", "urls_file=", "routing_file=", "delegated_file=", "stats_file=", "bgp_data_file=", "prefiXes_ASes_file=", "ASes_prefixes_file="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>]'
+        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -x <prefiXes_indexes file> -a <ASes_prefixes file>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>]'
+            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -x <prefiXes_indexes file> -a <ASes_prefixes file>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -210,6 +202,11 @@ def main(argv):
             print "If option -e is not used in DEBUG mode, delegated file must be delegated file not extended."
             print "i = Incremental. Compute incremental statistics from existing stats file (CSV)."
             print "If option -i is used, a statistics file MUST be provided."
+            print "b = BGP_data file. Path to pickle file containing bgp_data DataFrame."
+            print "x = prefiXes_indexes file. Path to pickle file containing prefiXes_indexes PyTricia."
+            print "a = ASes_prefixes file. Path to pickle file containing ASes_prefixes dictionary."
+            print "If you want to work with BGP data from files, the three options -b, -x and -a must be used."
+            print "If not, none of these three options should be used."
             sys.exit()
         elif opt == '-u':
             urls_file = arg
@@ -229,19 +226,30 @@ def main(argv):
         elif opt == '-e':
             EXTENDED = True
         elif opt == '-p':
-            files_path = arg
+            files_path = arg.rstrip('/')
         elif opt == '-i':
             INCREMENTAL = True
             stats_file = arg
+        elif opt == '-b':
+            bgp_data_file = arg
+            fromFiles = True
+        elif opt == '-x':
+            prefixes_indexes_file = arg
+            fromFiles = True
+        elif opt == '-a':
+            ASes_prefixes_file = arg
+            fromFiles = True
         else:
             assert False, 'Unhandled option'
         
     if files_path == '':
         print "You must provide the path to a folder to save files."
-        sys.exit()  
+        sys.exit() 
         
-    # TODO if files_path folder does not exist, create it
-        
+    # If files_path does not exist, we create it
+    if not os.path.exists(files_path):
+        os.makedirs(files_path)
+                
     if DEBUG and del_file == '':
         print "If you choose to run in DEBUG mode you must provide the path to\
                     a delegated file that has already been downloaded."
@@ -260,6 +268,11 @@ def main(argv):
             # Stats for that day will be computed again
             existing_stats_df = existing_stats_df[existing_stats_df['Date'] != final_existing_date]
 
+    if fromFiles and (bgp_data_file == '' or prefixes_indexes_file == '' or ASes_prefixes_file== ''):
+        print "If you want to work with BGP data from files, the three options -b, -x and -a must be used."
+        print "If not, none of these three options should be used."
+        sys.exit()
+        
     today = datetime.date.today().strftime('%Y%m%d')
     
     if not DEBUG:
@@ -268,12 +281,13 @@ def main(argv):
             del_file = '%s/extended_apnic_%s.txt' % (files_path, today)
         else:
             del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
-            
-    bgp_data = BGPDataHandler(urls_file, files_path, routing_file, KEEP, RIBfile)
+        
+    bgp_data = BGPDataHandler(urls_file, files_path, routing_file, KEEP, RIBfile, bgp_data_file, prefixes_indexes_file, ASes_prefixes_file)
     
     if COMPUTE: 
         del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year)
-        computeRoutingStats(bgp_data, del_handler)
+        prefixes_Stats, routed_pyt = computePerPrefixStats(bgp_data, del_handler)
+        
     else:
        bgp_data.saveDataToFiles(files_path)
         

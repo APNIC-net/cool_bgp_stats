@@ -23,43 +23,49 @@ class BGPDataHandler:
     prefixes_indexes_pyt = pytricia.PyTricia()
     ASes_prefixes_dic = dict()
             
-    def __init__(self, urls, files_path, routing_file, KEEP, RIBfile):
-        if urls == '':
-            urls = self.urls_file
-        
-        if routing_file == '':
-            urls_file_obj = open(urls, 'r')
-            
-            bgp_data = pd.DataFrame()
-            prefixes_indexes_pyt = pytricia.PyTricia()
-            ASes_prefixes_dic = dict()
-            
-            for line in urls_file_obj:
-                sys.stderr.write("Starting to work with %s" % line)
-                bgp_data_partial, prefixes_indexes_pyt_partial, ASes_prefixes_dic_partial = self.processRoutingData(line.strip(), files_path, routing_file, KEEP, RIBfile)
-                
-                bgp_data = pd.concat([bgp_data, bgp_data_partial])
-    
-                for prefix in prefixes_indexes_pyt_partial:
-                    if prefixes_indexes_pyt.has_key(prefix):
-                        prefixes_indexes_pyt[prefix].update(list(prefixes_indexes_pyt_partial[prefix]))
-                    else:
-                        prefixes_indexes_pyt[prefix] = prefixes_indexes_pyt_partial[prefix]
-
-                for aut_sys, prefixes in ASes_prefixes_dic_partial.iteritems():
-                    if aut_sys in ASes_prefixes_dic.keys():
-                        ASes_prefixes_dic[aut_sys].update(list(prefixes))
-                    else:
-                        ASes_prefixes_dic[aut_sys] = prefixes
-                        
-            urls_file_obj.close()
+    def __init__(self, urls, files_path, routing_file, KEEP, RIBfile, bgp_data_file, prefixes_indexes_file, ASes_prefixes_file):
+        if bgp_data_file != '' and prefixes_indexes_file != '' and ASes_prefixes_file != '':
+            self.bgp_data = pickle.load(open(bgp_data_file, "rb"))
+            self.prefixes_indexes_pyt = pickle.load(open(prefixes_indexes_file, "rb"))
+            self.ASes_prefixes_dic = pickle.load(open(ASes_prefixes_file, "rb"))
             
         else:
-            bgp_data, prefixes_indexes_pyt, ASes_prefixes_dic = self.processRoutingData('', files_path, routing_file, KEEP, RIBfile)
-
-        self.bgp_data = bgp_data
-        self.prefixes_indexes_pyt = prefixes_indexes_pyt
-        self.ASes_prefixes_dic = ASes_prefixes_dic
+            if urls == '':
+                urls = self.urls_file
+            
+            if routing_file == '':
+                urls_file_obj = open(urls, 'r')
+                
+                bgp_data = pd.DataFrame()
+                prefixes_indexes_pyt = pytricia.PyTricia()
+                ASes_prefixes_dic = dict()
+                
+                for line in urls_file_obj:
+                    sys.stderr.write("Starting to work with %s" % line)
+                    bgp_data_partial, prefixes_indexes_pyt_partial, ASes_prefixes_dic_partial = self.processRoutingData(line.strip(), files_path, routing_file, KEEP, RIBfile)
+                    
+                    bgp_data = pd.concat([bgp_data, bgp_data_partial])
+        
+                    for prefix in prefixes_indexes_pyt_partial:
+                        if prefixes_indexes_pyt.has_key(prefix):
+                            prefixes_indexes_pyt[prefix].update(list(prefixes_indexes_pyt_partial[prefix]))
+                        else:
+                            prefixes_indexes_pyt[prefix] = prefixes_indexes_pyt_partial[prefix]
+    
+                    for aut_sys, prefixes in ASes_prefixes_dic_partial.iteritems():
+                        if aut_sys in ASes_prefixes_dic.keys():
+                            ASes_prefixes_dic[aut_sys].update(list(prefixes))
+                        else:
+                            ASes_prefixes_dic[aut_sys] = prefixes
+                            
+                urls_file_obj.close()
+                
+            else:
+                bgp_data, prefixes_indexes_pyt, ASes_prefixes_dic = self.processRoutingData('', files_path, routing_file, KEEP, RIBfile)
+    
+            self.bgp_data = bgp_data
+            self.prefixes_indexes_pyt = prefixes_indexes_pyt
+            self.ASes_prefixes_dic = ASes_prefixes_dic
         
         
     # This method converts a file containing the output of the 'show ip bgp' command
