@@ -12,8 +12,11 @@ def get_class_length(prefix):
 
     digits = prefix.split('.')
 
-    lead = int(digits[0])
-
+    try:
+        lead = int(digits[0])
+    except ValueError:
+        return -1
+        
     if lead <128:
         return 8
 
@@ -317,7 +320,11 @@ class BGPRIB(dict):
 
                 if '/' not in network:
                     #print "#DEBUG no prefix length : " + pfx
-                    network = network + "/" + str(get_class_length(network))
+                    pfx = get_class_length(network)
+                    if pfx != -1:
+                        network = network + "/" + str(pfx)
+                    else:
+                        continue
                 #print "#DEBUG Prefix: " + pfx
 
 
@@ -406,7 +413,11 @@ class BGPRIB(dict):
 
                 if '/' not in network:
                     #print "#DEBUG no prefix length : " + pfx
-                    network = network + "/" + str(get_class_length(network))
+                    pfx = get_class_length(network)
+                    if pfx != -1:
+                        network = network + "/" + str(pfx)
+                    else:
+                        continue
                 #print "#DEBUG Prefix: " + pfx
 
 
@@ -542,7 +553,11 @@ class BGPRIB(dict):
 
                 if '/' not in network:
                     #print "#DEBUG no prefix length : " + pfx
-                    network = network + "/" + str(get_class_length(network))
+                    pfx = get_class_length(network)
+                    if pfx != -1:
+                        network = network + "/" + str(pfx)
+                    else:
+                        continue
                 #print "#DEBUG Prefix: " + pfx
 
 
