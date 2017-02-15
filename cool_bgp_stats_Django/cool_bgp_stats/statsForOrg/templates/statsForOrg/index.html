@@ -1,0 +1,21 @@
+{% if del_statFiles_list %}
+    <ul>
+    <p><strong>Delegated stats available for following years:</strong></p>
+    {% for statFile in del_statFiles_list %}
+        <li><a href="{% url 'statsForOrg:getJSONforYear' statFile.year %}">{{ statFile.year }}</a></li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p><strong>No delegated stat files are available.</strong></p>
+{% endif %}
+
+{% if bgp_statFiles_list %}
+    <ul>
+    <p><strong>'Routing stats available for following years:'</strong></p>
+    {% for statFile in bgp_statFiles_list %}
+        <li><a href="{% url 'statsForOrg:getJSON' 'A92D890B' statFile.year %}">{{ statFile.output_file }}</a></li>
+    {% endfor %}
+    </ul>
+{% else %}
+    <p><strong>No routing stat files are available.</strong></p>
+{% endif %}
