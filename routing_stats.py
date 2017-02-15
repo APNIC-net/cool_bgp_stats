@@ -287,6 +287,7 @@ def main(argv):
     if COMPUTE: 
         del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year)
         prefixes_Stats, routed_pyt = computePerPrefixStats(bgp_data, del_handler)
+        # TODO Save Stats and routed prefixes to files
         
     else:
        bgp_data.saveDataToFiles(files_path)

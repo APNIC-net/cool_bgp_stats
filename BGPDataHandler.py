@@ -41,23 +41,24 @@ class BGPDataHandler:
                 ASes_prefixes_dic = dict()
                 
                 for line in urls_file_obj:
-                    sys.stderr.write("Starting to work with %s" % line)
-                    bgp_data_partial, prefixes_indexes_pyt_partial, ASes_prefixes_dic_partial = self.processRoutingData(line.strip(), files_path, routing_file, KEEP, RIBfile)
-                    
-                    bgp_data = pd.concat([bgp_data, bgp_data_partial])
+                    if line.strip() != '':
+                        sys.stderr.write("Starting to work with %s" % line)
+                        bgp_data_partial, prefixes_indexes_pyt_partial, ASes_prefixes_dic_partial = self.processRoutingData(line.strip(), files_path, routing_file, KEEP, RIBfile)
+                        
+                        bgp_data = pd.concat([bgp_data, bgp_data_partial])
+            
+                        for prefix in prefixes_indexes_pyt_partial:
+                            if prefixes_indexes_pyt.has_key(prefix):
+                                prefixes_indexes_pyt[prefix].update(list(prefixes_indexes_pyt_partial[prefix]))
+                            else:
+                                prefixes_indexes_pyt[prefix] = prefixes_indexes_pyt_partial[prefix]
         
-                    for prefix in prefixes_indexes_pyt_partial:
-                        if prefixes_indexes_pyt.has_key(prefix):
-                            prefixes_indexes_pyt[prefix].update(list(prefixes_indexes_pyt_partial[prefix]))
-                        else:
-                            prefixes_indexes_pyt[prefix] = prefixes_indexes_pyt_partial[prefix]
-    
-                    for aut_sys, prefixes in ASes_prefixes_dic_partial.iteritems():
-                        if aut_sys in ASes_prefixes_dic.keys():
-                            ASes_prefixes_dic[aut_sys].update(list(prefixes))
-                        else:
-                            ASes_prefixes_dic[aut_sys] = prefixes
-                            
+                        for aut_sys, prefixes in ASes_prefixes_dic_partial.iteritems():
+                            if aut_sys in ASes_prefixes_dic.keys():
+                                ASes_prefixes_dic[aut_sys].update(list(prefixes))
+                            else:
+                                ASes_prefixes_dic[aut_sys] = prefixes
+                                
                 urls_file_obj.close()
                 
             else:
