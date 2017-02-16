@@ -24,19 +24,10 @@ def initializeStatsDF(del_handler, EXTENDED, stat):
             if r == 'All':
                 status = ['All']
             elif r == 'asn':
-                if o == 'All':
-                    status = del_handler.status_asn_all
-                elif o == 'NA':
-                    status = del_handler.status_notdel
-                else:
-                    status = del_handler.status_asn_countries
+                status = del_handler.status_asn
             else: # r == 'ipv4' or r == 'ipv6'
-                if o == 'All':
-                    status = del_handler.status_ip_all
-                elif o == 'NA':
-                    status = del_handler.status_notdel
-                else:
-                    status = del_handler.status_ip_countries
+                status = del_handler.status_ip
+              
                 
             # The names of the columns that will be part of the index
             index_names = ['Geographic Area',
@@ -245,15 +236,10 @@ def computeStatistics(del_handler, stats_df):
                         continue
                         
                     if r == 'ipv4' or r == 'ipv6':
-                        if a == 'All':
-                            status = del_handler.status_ip_all
-                        else:
-                            status = del_handler.status_ip_countries
+                        status = del_handler.status_ip
+
                     else: # r == 'asn'
-                        if a == 'All':
-                            status = del_handler.status_asn_all
-                        else:
-                            status = del_handler.status_asn_countries
+                        status = del_handler.status_asn
         
                     status_groups = res_df.groupby(res_df['status'])
                     for s in status:

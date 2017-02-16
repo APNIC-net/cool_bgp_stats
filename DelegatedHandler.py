@@ -18,12 +18,9 @@ class DelegatedHandler:
     AP_regions = ['Eastern Asia', 'Oceania', 'Southern Asia', 'South-Eastern Asia']
 
     res_types = []
-    status_asn_all = []
-    status_asn_countries = []
-    status_ip_all = []
-    status_ip_countries = []
-    status_notdel = []
-    
+    status_asn = []
+    status_ip = []
+ 
     summary_records = pd.DataFrame()
     delegated_df = pd.DataFrame()    
     
@@ -61,11 +58,8 @@ class DelegatedHandler:
                             'status'
                         ]
         
-        self.status_asn_all = ['All', 'alloc-32bits', 'alloc-16bits', 'available', 'reserved']
-        self.status_asn_countries = ['All', 'alloc-32bits', 'alloc-16bits']
-        self.status_ip_all = ['All', 'allocated', 'assigned', 'available', 'reserved']
-        self.status_ip_countries = ['All', 'allocated', 'assigned']
-        self.status_notdel = ['All', 'available', 'reserved']
+        self.status_asn = ['All', 'alloc-32bits', 'alloc-16bits']
+        self.status_ip = ['All', 'allocated', 'assigned']
         
         self.getAndTidyData(DEBUG, EXTENDED, download_url, del_file, col_names, INCREMENTAL, final_existing_date, year)
         sys.stderr.write("DelegatedHandler instantiated successfully!\n")
@@ -100,7 +94,7 @@ class DelegatedHandler:
         total_rows = delegated_df.shape[0]
         delegated_df =\
             delegated_df[int(total_rows-self.summary_records.loc[0, 'count']):total_rows]
-            
+           
         # Just to verify
         num_rows = len(delegated_df)
         if not num_rows == int(self.summary_records[self.summary_records['Type'] == 'All']['count']):
@@ -110,6 +104,11 @@ class DelegatedHandler:
             total = len(delegated_df[delegated_df['resource_type'] == r])
             if not total == int(self.summary_records[self.summary_records['Type'] == r]['count']):
                 print 'THERE\'S SOMETHING WRONG WITH THE NUMBER OF %s' % r
+        
+        # Rows for available and reserved space are filtered out as we are not
+        # interested in generating stats about this space.
+        delegated_df = delegated_df[delegated_df['status'] != 'available']
+        delegated_df = delegated_df[delegated_df['status'] != 'reserved']
         
         delegated_df['date'] = pd.to_datetime(delegated_df['date'], format='%Y%m%d')
         
