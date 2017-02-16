@@ -35,10 +35,7 @@ class DelegatedHandler:
 
     def __init__(self, DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year):
         
-        if DEBUG:
-            self.res_types = ['All', 'asn', 'ipv4']
-        else:
-            self.res_types = ['All', 'asn', 'ipv4', 'ipv6']    
+        self.res_types = ['All', 'asn', 'ipv4', 'ipv6']    
         
         if EXTENDED:
             download_url = 'ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-extended-latest'
@@ -71,7 +68,7 @@ class DelegatedHandler:
         self.status_notdel = ['All', 'available', 'reserved']
         
         self.getAndTidyData(DEBUG, EXTENDED, download_url, del_file, col_names, INCREMENTAL, final_existing_date, year)
-        sys.stderr.write("DelegatedHandler instantiated successfully!")
+        sys.stderr.write("DelegatedHandler instantiated successfully!\n")
     
     def getAndTidyData(self, DEBUG, EXTENDED, download_url, del_file, col_names, INCREMENTAL, final_existing_date, year):
         if not DEBUG:
@@ -126,7 +123,8 @@ class DelegatedHandler:
         if DEBUG:
             asn_subset = delegated_df[delegated_df['resource_type']=='asn']
             ipv4_subset = delegated_df[delegated_df['resource_type']=='ipv4']
-            delegated_df = pd.concat([asn_subset.head(n=30),ipv4_subset.head(n=30)])
+            ipv6_subset = delegated_df[delegated_df['resource_type']=='ipv6']
+            delegated_df = pd.concat([asn_subset.head(n=30),ipv4_subset.head(n=30), ipv6_subset.head(n=30)])
         
         if INCREMENTAL:
             initial_date = final_existing_date
