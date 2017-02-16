@@ -1,28 +1,31 @@
 # cool_bgp_stats
 
-* R script delegatedStats.R in folder Rscripts:
-R script to download and process a delegated file and generate statistics.
-The development of this script was suspended after deciding to implement the computation of statistics using Python and not R.
+* cool_bgp_stats_Django folder
+Folder containing Django app to make the computed stats public (Under development)
 
-* Files in folder shiny_cool_bgp_stats:
-Files for Shiny app to create interactive plots of stats.
-Development of this app was suspended after deciding to implement the computation of statistics using Python and not R.
+* BGPDataHandler.py
+Script that defines the BGPDataHandler class which contains all the functions used to download and process BGP data.
+An object of class BGPDataHandler contains:
+	- bgp_data -> a DataFrame with the BGP information extracted from RIB files or from files containing 'show ip bgp' output
+	- prefixes_indexes_pyt -> a PyTricia containing announced prefixes as keys and as values lists of indexes of the rows in the bgp_data DataFrame with BGP announcements related to the corresponding prefix.
+	- ASes_prefixes_dic -> a dictionary containing ASes as keys and as values lists of the prefixes announced by the corresponding AS.
 
-* downloadAndProcess.py
-	- Basic script that downloads a file with BGP routing data, unzips it and decodes it using BGPDump.
-	- Each line of the decoded routing data is parsed in order to extract the announced prefix and the AS originating it. A dictionary is created using the announced prefixes as keys and having a list of ASes originating each prefix as data.
-	- Then, the DelegatedHandler class is instantiated in order to get recent delegated info. Each line in the delegated file corresponding to IPv4 resources is converted into as many lines including CIDR blocks as necessary.
-	- The resources (both IPv4 and IPv6) delegated to each organization are aggregated as much as possible.
-	- Each aggregated delegated block is compared to routed blocks to determine how it is being routed.
-	- Once we have all the sub-blocks being routed for each aggregated delegated block, the visibility and the deaggregation for the delegated block are computed.
-	- The visibility of a blocks measures how much of a delegated block is being announced.
-	- The deaggregation of a delegated block is computed as 1 minus the ratio between the number of aggregated routed blocks over the number of blocks actually being routed.
-	- Finally, for each organization we generate a summary including all the blocks that were delegated to it, all the blocks being routed, the average visibility and the average deaggregation.  
+* BGPoutputs.txt
+Text file containing a list of URLs pointing to files containing 'show ip bgp' outputs. (By now the file contains a single URL)
 
-(Under development)
+* Collections.txt
+Text file containing information about regions, orgamizations, etc. related to each economy. (This file is used to determine the region for an economy.)
 
-* get_file.py
-Script that downloads content provided its URL, after checking if file has already been downloaded and if it is still fresh.
+* Collectors.txt
+Text file containing a list of URLs pointing to RIB files. (By now the file contains a single URL)
+
+* DelegatedHandler.py
+Script that defines the DelegatedHandler class which includes all the variables and methods related to delegated file handling.
+An object of class DelegatedHandler contains (among other informative variables):
+	- delegated_df -> a DataFrame with information extracted from a delegated file.
+ 
+* bgp_rib.py
+Script by Alejando Acosta that parses a 'show ip bgp' output and converts it to the format used by BGPdump for its output.
 
 * delegated_stats.py
 Initial version of script that downloads delegated or delegated extended file from APNIC's ftp server and processes it in order to generate statistics about resources delegated by APNIC.
@@ -47,8 +50,8 @@ The following statistics are computed:
       - For IPv4 contains the number of /24 blocks assigned/allocated
       - For IPv6 contains the number of /48 blocks assigned/allocated
       - For ASNs IPSpace = -1
-      
-The statistics computed are exported to a csv file and to a json file.
+
+The statistics computed are exported to a csv file and to a json file.cript that downloads content provided its URL, after checking if file has already been downloaded and if it is still fresh.
 
 * delegated_stats_v2.py
 Second version of delegated_stats.py script. Cleaner, more readable and easier to execute.
@@ -60,9 +63,13 @@ Has to be executed separately for the different years of interest.
 * delegated_stats_v3.py
 Third version of delegated_stats.py script. Now this script doesn't include all the variables and methods related to delegated file handling as they were extracted to a the DelegatedHandler class in a separate script. This script instantiates DelegatedHandler and then computes the statistics. Now the '-y' option is not mandatory anymore. If the script is executed without using the '-y' option, the statistics will be computed for all the years available in the delegated file.
 
-* DelegatedHandler.py
-Script that defined DelegatedHanlder class which includes all the variables and methods related to delegated file handling.
+* get_file.py
+Script by Carlos Martinez that downloads a file provided its URL.
 
 * plotStats.py
 Basic script that reads file with statistics, filters the stats for the specific values of the different variables provided
 and generates plots. (Under development)
+
+* routing_stats.py
+Script that instantiates the BGPDataHandler and the DelegatedHandler classes and computes statistics on a per prefix basis.
+(Under development)
