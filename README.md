@@ -61,7 +61,12 @@ Then the statistics can be aggregated in order to get statistics with other gran
 Has to be executed separately for the different years of interest.
 
 * delegated_stats_v3.py
-Third version of delegated_stats.py script. Now this script doesn't include all the variables and methods related to delegated file handling as they were extracted to a the DelegatedHandler class in a separate script. This script instantiates DelegatedHandler and then computes the statistics. Now the '-y' option is not mandatory anymore. If the script is executed without using the '-y' option, the statistics will be computed for all the years available in the delegated file.
+Third version of delegated_stats.py script. Now this script doesn't include all the variables and methods related to delegated file handling as they were extracted to the DelegatedHandler class in a separate script. This script instantiates DelegatedHandler and then computes the statistics. The '-y' option is not mandatory anymore. If the script is executed without using the '-y' option, the statistics will be computed for all the years available in the delegated file.
+Comments in the script provide further detail about how it works.
+
+* delegated_stats_v4_DO_NOT_USE.py
+This script was created with the purpose of making the computation of statistics about delegations more efficient. Instead of initializing the stats_df DataFrame with all the possible combinations of the index columns values, rows are created when necessary. I thought this would perform better, however, the fact of having to sort the index after adding a new row probably makes it perform worse. Indeed, comparing the execution of v3 of the script and v4 of the script I found out that v3 is faster.
+This script is kept in the repository as a reference but it SHOULD NOT BE USED (Use delegated_stats_v3.py instead.)
 
 * get_file.py
 Script by Carlos Martinez that downloads a file provided its URL.
