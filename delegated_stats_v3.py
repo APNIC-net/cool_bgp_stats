@@ -413,6 +413,7 @@ def main(argv):
         
     stats_df.to_csv('%s.csv' % file_name)
     stats_df.reset_index().to_json('%s.json' % file_name, orient='index')
+    # TODO save to database
     sys.stderr.write("Stats saved to files successfully!\n")
     sys.stderr.write("(%s.csv and %s.json)" % (file_name, file_name))
 
