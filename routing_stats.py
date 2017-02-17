@@ -1,12 +1,11 @@
 #! /usr/bin/python2.7 
 # -*- coding: utf8 -*-
 
-import sys, getopt
-'''
- Just for DEBUG
-import os
-os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
-'''
+
+import sys, getopt, os
+#Just for DEBUG
+#os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
+
 from DelegatedHandler import DelegatedHandler
 from BGPDataHandler import BGPDataHandler
 import ipaddress
@@ -29,11 +28,7 @@ def computePerPrefixStats(bgp_handler, del_handler):
     # Obtain BGP data
     bgp_data = bgp_handler.bgp_data
     prefixes_indexes_pyt = bgp_handler.prefixes_indexes_pyt
-#    ASes_prefixes_dic = bgp_handler.ASes_prefixes_dic
-    
-    # TODO Stats related to prefix/originAS (?)
-    # Refactor prefix/origin-as pairs to generate data which is tagged by member, economy, region
-    
+
     del_routed_pyt = pytricia.PyTricia()
     
     # For each delegated or aggregated block
@@ -160,8 +155,36 @@ def computePerPrefixStats(bgp_handler, del_handler):
 #        orgs_aggr_networks.ix[i, 'deaggregation'] = deaggregation
 
     return orgs_aggr_networks, del_routed_pyt
-        
 
+# This function determines whether the allocated ASNs are active
+# either as middle AS, origin AS or both
+# Returns dictionary with an ASN as key and a dictionary containing:
+# * a numeric variable (numOfPrefixesPropagated) specifying the number of prefixes propagated by the AS
+# (BGP announcements for which the AS appears in the middle of the AS path)
+# * a numeric variable (numOfPrefixesOriginated) specifying the number of prefixes originated by the AS
+def computeASesStats(bgp_handler, del_handler):
+    expanded_del_asns_df = del_handler.getExpandedASNsDF() # TODO Debug this!!
+    # For some reason the function is returning a DataFrame with only one row
+    # It is something with the use of self
+    ASes_originated_prefixes_dic = bgp_handler.ASes_originated_prefixes_dic
+    ASes_propagated_prefixes_dic = bgp_handler.ASes_propagated_prefixes_dic
+    
+    statsForASes = dict()
+    
+    for asn in expanded_del_asns_df['initial_resource']:
+        statsForASes[asn] = dict()
+        try:
+            statsForASes[asn]['numOfPrefixesOriginated'] = len(ASes_originated_prefixes_dic[asn])
+        except KeyError:
+            statsForASes[asn]['numOfPrefixesOriginated'] = 0
+       
+        try:
+            statsForASes[asn]['numOfPrefixesPropagated'] = len(ASes_propagated_prefixes_dic[asn])
+        except KeyError:
+            statsForASes[asn]['numOfPrefixesPropagated'] = 0
+       
+    return statsForASes
+    
 def main(argv):
     
     urls_file = './BGPoutputs.txt'
@@ -180,26 +203,19 @@ def main(argv):
     fromFiles = False
     bgp_data_file = ''
     prefixes_indexes_file = ''
-    ASes_prefixes_file = ''
-    
-    #For DEBUG
-#    files_path = '/Users/sofiasilva/BGP_files'
-#    routing_file = '/Users/sofiasilva/BGP_files/bview.20170112.0800.gz'
-#    KEEP = True
-#    EXTENDED = True
-#    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170201.txt'
-
-    
+    ASes_originated_prefixes_file = ''
+    ASes_propagated_prefixes_file = ''
+        
     
     try:
-        opts, args = getopt.getopt(argv, "hp:u:or:knyd:ei:b:x:a:", ["files_path=", "urls_file=", "routing_file=", "delegated_file=", "stats_file=", "bgp_data_file=", "prefiXes_ASes_file=", "ASes_prefixes_file="])
+        opts, args = getopt.getopt(argv, "hp:u:or:knyd:ei:b:x:a:s:", ["files_path=", "urls_file=", "routing_file=", "delegated_file=", "stats_file=", "bgp_data_file=", "prefiXes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -x <prefiXes_indexes file> -a <ASes_prefixes file>]'
+        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -x <prefiXes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -x <prefiXes_indexes file> -a <ASes_prefixes file>]'
+            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -x <prefiXes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -219,8 +235,9 @@ def main(argv):
             print "If option -i is used, a statistics file MUST be provided."
             print "b = BGP_data file. Path to pickle file containing bgp_data DataFrame."
             print "x = prefiXes_indexes file. Path to pickle file containing prefiXes_indexes PyTricia."
-            print "a = ASes_prefixes file. Path to pickle file containing ASes_prefixes dictionary."
-            print "If you want to work with BGP data from files, the three options -b, -x and -a must be used."
+            print "a = ASes_originated_prefixes file. Path to pickle file containing ASes_originated_prefixes dictionary."
+            print "s = ASes_propagated_prefixes file. Path to pickle file containing ASes_propagated_prefixes dictionary."
+            print "If you want to work with BGP data from files, the three options -b, -x, -a and -s must be used."
             print "If not, none of these three options should be used."
             sys.exit()
         elif opt == '-u':
@@ -252,7 +269,10 @@ def main(argv):
             prefixes_indexes_file = arg
             fromFiles = True
         elif opt == '-a':
-            ASes_prefixes_file = arg
+            ASes_originated_prefixes_file = arg
+            fromFiles = True
+        elif opt == '-s':
+            ASes_propagated_prefixes_file = arg
             fromFiles = True
         else:
             assert False, 'Unhandled option'
@@ -283,8 +303,8 @@ def main(argv):
             # Stats for that day will be computed again
             existing_stats_df = existing_stats_df[existing_stats_df['Date'] != final_existing_date]
 
-    if fromFiles and (bgp_data_file == '' or prefixes_indexes_file == '' or ASes_prefixes_file== ''):
-        print "If you want to work with BGP data from files, the three options -b, -x and -a must be used."
+    if fromFiles and (bgp_data_file == '' or prefixes_indexes_file == '' or ASes_originated_prefixes_file == '' or ASes_propagated_prefixes_file == ''):
+        print "If you want to work with BGP data from files, the three options -b, -x, -a and -s must be used."
         print "If not, none of these three options should be used."
         sys.exit()
         
@@ -296,16 +316,28 @@ def main(argv):
             del_file = '%s/extended_apnic_%s.txt' % (files_path, today)
         else:
             del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
-        
-    bgp_data = BGPDataHandler(urls_file, files_path, routing_file, KEEP, RIBfile, bgp_data_file, prefixes_indexes_file, ASes_prefixes_file)
+
+
+#For DEBUG
+#    files_path = '/Users/sofiasilva/BGP_files'
+#    routing_file = '/Users/sofiasilva/BGP_files/bgptable.txt'
+#    KEEP = True
+#    RIBfile = False
+#    DEBUG = True
+#    EXTENDED = True
+#    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
+
+   
+    bgp_handler = BGPDataHandler(urls_file, files_path, routing_file, KEEP, RIBfile, bgp_data_file, prefixes_indexes_file, ASes_originated_prefixes_file, ASes_propagated_prefixes_file)
     
     if COMPUTE: 
         del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year)
-        prefixes_Stats, routed_pyt = computePerPrefixStats(bgp_data, del_handler)
+        prefixes_Stats, routed_pyt = computePerPrefixStats(bgp_handler, del_handler)
+        statsForASes = computeASesStats(bgp_handler, del_handler)
         # TODO Save Stats and routed prefixes to files
         
     else:
-       bgp_data.saveDataToFiles(files_path)
+       bgp_handler.saveDataToFiles(files_path)
         
         
 if __name__ == "__main__":

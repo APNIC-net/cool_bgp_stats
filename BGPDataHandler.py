@@ -24,14 +24,17 @@ class BGPDataHandler:
     # PyTricia indexed by routed prefix containing the indexes of the rows in
     # the bgp_data Data Frame that contain info of BGP announcements of the prefix
     prefixes_indexes_pyt = pytricia.PyTricia()
-    # Dictionary indexed by AS containing all the prefixes announced by each AS
-    ASes_prefixes_dic = dict()
+    # Dictionary indexed by AS containing all the prefixes originated by each AS
+    ASes_originated_prefixes_dic = dict()
+    # Dictionary indexed by AS containing all the prefixes propagated by each AS
+    ASes_propagated_prefixes_dic = dict()
             
-    def __init__(self, urls, files_path, routing_file, KEEP, RIBfile, bgp_data_file, prefixes_indexes_file, ASes_prefixes_file):
-        if bgp_data_file != '' and prefixes_indexes_file != '' and ASes_prefixes_file != '':
+    def __init__(self, urls, files_path, routing_file, KEEP, RIBfile, bgp_data_file, prefixes_indexes_file, ASes_originated_prefixes_file, ASes_propagated_prefixes_file):
+        if bgp_data_file != '' and prefixes_indexes_file != '' and ASes_originated_prefixes_file != '' and ASes_propagated_prefixes_file != '':
             self.bgp_data = pickle.load(open(bgp_data_file, "rb"))
             self.prefixes_indexes_pyt = pickle.load(open(prefixes_indexes_file, "rb"))
-            self.ASes_prefixes_dic = pickle.load(open(ASes_prefixes_file, "rb"))
+            self.ASes_originated_prefixes_dic = pickle.load(open(ASes_originated_prefixes_file, "rb"))
+            self.ASes_propagated_prefixes_dic = pickle.load(open(ASes_propagated_prefixes_file, "rb"))
             
         else:
             if urls == '':
@@ -42,14 +45,15 @@ class BGPDataHandler:
                 
                 bgp_data = pd.DataFrame()
                 prefixes_indexes_pyt = pytricia.PyTricia()
-                ASes_prefixes_dic = dict()
+                ASes_originated_prefixes_dic = dict()
+                ASes_propagated_prefixes_dic = dict()
                 
                 for line in urls_file_obj:
                     if line.strip() != '':
                         # If we work with several routing files
                         sys.stderr.write("Starting to work with %s" % line)
                         # We obtain partial data structures
-                        bgp_data_partial, prefixes_indexes_pyt_partial, ASes_prefixes_dic_partial = self.processRoutingData(line.strip(), files_path, routing_file, KEEP, RIBfile)
+                        bgp_data_partial, prefixes_indexes_pyt_partial, ASes_originated_prefixes_dic_partial, ASes_propagated_prefixes_dic_partial = self.processRoutingData(line.strip(), files_path, routing_file, KEEP, RIBfile)
                         
                         # that we then merge to the general data structures
                         bgp_data = pd.concat([bgp_data, bgp_data_partial])
@@ -60,20 +64,27 @@ class BGPDataHandler:
                             else:
                                 prefixes_indexes_pyt[prefix] = prefixes_indexes_pyt_partial[prefix]
         
-                        for aut_sys, prefixes in ASes_prefixes_dic_partial.iteritems():
-                            if aut_sys in ASes_prefixes_dic.keys():
-                                ASes_prefixes_dic[aut_sys].update(list(prefixes))
+                        for aut_sys, prefixes in ASes_originated_prefixes_dic_partial.iteritems():
+                            if aut_sys in ASes_originated_prefixes_dic.keys():
+                                ASes_originated_prefixes_dic[aut_sys].update(list(prefixes))
                             else:
-                                ASes_prefixes_dic[aut_sys] = prefixes
+                                ASes_originated_prefixes_dic[aut_sys] = prefixes
+
+                        for aut_sys, prefixes in ASes_propagated_prefixes_dic_partial.iteritems():
+                            if aut_sys in ASes_propagated_prefixes_dic.keys():
+                                ASes_propagated_prefixes_dic[aut_sys].update(list(prefixes))
+                            else:
+                                ASes_propagated_prefixes_dic[aut_sys] = prefixes
                                 
                 urls_file_obj.close()
                 
             else:
-                bgp_data, prefixes_indexes_pyt, ASes_prefixes_dic = self.processRoutingData('', files_path, routing_file, KEEP, RIBfile)
+                bgp_data, prefixes_indexes_pyt, ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic  = self.processRoutingData('', files_path, routing_file, KEEP, RIBfile)
     
             self.bgp_data = bgp_data
             self.prefixes_indexes_pyt = prefixes_indexes_pyt
-            self.ASes_prefixes_dic = ASes_prefixes_dic
+            self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
+            self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
         
         
     # This method converts a file containing the output of the 'show ip bgp' command
@@ -140,25 +151,34 @@ class BGPDataHandler:
         bgp_df.index = bgp_df['index']
         
         prefixes_indexes_pyt = pytricia.PyTricia()
-        ASes_prefixes_dic = dict()
+        ASes_originated_prefixes_dic = dict()
+        ASes_propagated_prefixes_dic = dict()
         
         for index, value in bgp_df.iterrows():
             prefix = value['prefix']
             ASpath = str(value['ASpath']).split(' ')
             originAS = ASpath[-1]
+            middleASes = ASpath[:-1]
           
             if prefixes_indexes_pyt.has_key(prefix):
                 prefixes_indexes_pyt[prefix].add(index)
             else:
                 prefixes_indexes_pyt[prefix] = set([index])
                    
-            if originAS in ASes_prefixes_dic.keys():
-                if prefix not in ASes_prefixes_dic[originAS]:
-                    ASes_prefixes_dic[originAS].add(prefix)
+            if originAS in ASes_originated_prefixes_dic.keys():
+                if prefix not in ASes_originated_prefixes_dic[originAS]:
+                    ASes_originated_prefixes_dic[originAS].add(prefix)
             else:
-                ASes_prefixes_dic[originAS] = set([prefix])
+                ASes_originated_prefixes_dic[originAS] = set([prefix])
+                
+            for asn in middleASes:
+                if asn in ASes_propagated_prefixes_dic.keys():
+                    if prefix not in ASes_propagated_prefixes_dic[asn]:
+                        ASes_propagated_prefixes_dic[asn].add(prefix)
+                else:
+                    ASes_propagated_prefixes_dic[asn] = set([prefix])
               
-        return bgp_df, prefixes_indexes_pyt, ASes_prefixes_dic
+        return bgp_df, prefixes_indexes_pyt, ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic
               
     def processRoutingData(self, url, files_path, routing_file, KEEP, RIBfile):
         # If a routing file is not provided, download it from the provided URL        
@@ -197,7 +217,7 @@ class BGPDataHandler:
             readable_file_name = self.convertBGPoutput(routing_file, files_path, KEEP)
 
         # Finally, we process the readable file
-        bgp_data, prefixes_indexes_pyt, ASes_prefixes_dic = self.processReadableDF(readable_file_name)
+        bgp_data, prefixes_indexes_pyt, ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic = self.processReadableDF(readable_file_name)
         
         if not KEEP:
             try:
@@ -207,7 +227,7 @@ class BGPDataHandler:
             except OSError:
                 pass
         
-        return bgp_data, prefixes_indexes_pyt, ASes_prefixes_dic
+        return bgp_data, prefixes_indexes_pyt, ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic
 
 
     def saveDataToFiles(self, files_path):
@@ -223,9 +243,14 @@ class BGPDataHandler:
             pickle.dump(self.prefixes_indexes_pyt, f, pickle.HIGHEST_PROTOCOL)
             sys.stderr.write("Saved to disk %s pickle file containing PyTricia with indexes in the BGP data DataFrame for each prefix." % pyt_file_name)
 
-        dic_file_name = '%s/ASes_prefixes_%s.pkl' % (files_path, today)
-        with open(dic_file_name, 'wb') as f:
-            pickle.dump(self.ASes_prefixes_dic, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing dictionary with prefixes announced by each AS." % dic_file_name)
+        o_ases_dic_file_name = '%s/ASes_originated_prefixes_%s.pkl' % (files_path, today)
+        with open(o_ases_dic_file_name, 'wb') as f:
+            pickle.dump(self.ASes_originated_prefixes_dic, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing dictionary with prefixes originated by each AS." % o_ases_dic_file_name)
         
-        return bgp_file_name, pyt_file_name, dic_file_name
+        p_ases_dic_file_name = '%s/ASes_propagated_prefixes_%s.pkl' % (files_path, today)
+        with open(p_ases_dic_file_name, 'wb') as f:
+            pickle.dump(self.ASes_propagated_prefixes_dic, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing dictionary with prefixes propagated by each AS." % p_ases_dic_file_name)
+            
+        return bgp_file_name, pyt_file_name, o_ases_dic_file_name, p_ases_dic_file_name

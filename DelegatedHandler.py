@@ -265,3 +265,36 @@ class DelegatedHandler:
                 orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, list(ccs), list(regions), str(aggr_net), True, -1, -1, False]
         
         return orgs_aggr_networks
+        
+    # This function takes a subset of delegated_df for asns
+    # and expands it in order to have one ASN per line
+    def getExpandedASNsDF(self):
+        asn_subset = self.delegated_df[self.delegated_df['resource_type'] == 'asn']
+        expanded_df = pd.DataFrame(columns=asn_subset.columns)
+        
+        # We scan the asn subset row by row
+        for index, row in asn_subset.iterrows():
+            # If the value in the 'count' column is > 1
+            # more than one ASN was allocated
+            # so we have to expand this row into 'count' rows 
+            if row['count'] > 1:
+                first_asn = int(row['initial_resource'])
+                allocated_asns = range(first_asn, first_asn + int(row['count']))
+                
+                for asn in allocated_asns:
+                    expanded_df.loc[expanded_df.shape[0]] = [row['registry'],\
+                                                                row['cc'],\
+                                                                row['resource_type'],\
+                                                                str(asn),\
+                                                                1.0,\
+                                                                row['date'],\
+                                                                row['status'],\
+                                                                row['opaque_id'],\
+                                                                row['region']]
+
+            # If count is 1 we just add the row to the expanded DataFrame
+            else:
+                expanded_df.loc[expanded_df.shape[0]] = row
+            
+            return expanded_df
+            
