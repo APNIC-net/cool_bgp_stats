@@ -19,8 +19,12 @@ bgpdump = '/usr/local/bin/bgpdump'
 
 class BGPDataHandler:
     urls_file = './BGPoutputs.txt'
+    # Data Frame containing routing info from RIB file or file with 'show ip bgp' output
     bgp_data = pd.DataFrame()
+    # PyTricia indexed by routed prefix containing the indexes of the rows in
+    # the bgp_data Data Frame that contain info of BGP announcements of the prefix
     prefixes_indexes_pyt = pytricia.PyTricia()
+    # Dictionary indexed by AS containing all the prefixes announced by each AS
     ASes_prefixes_dic = dict()
             
     def __init__(self, urls, files_path, routing_file, KEEP, RIBfile, bgp_data_file, prefixes_indexes_file, ASes_prefixes_file):
@@ -42,9 +46,12 @@ class BGPDataHandler:
                 
                 for line in urls_file_obj:
                     if line.strip() != '':
+                        # If we work with several routing files
                         sys.stderr.write("Starting to work with %s" % line)
+                        # We obtain partial data structures
                         bgp_data_partial, prefixes_indexes_pyt_partial, ASes_prefixes_dic_partial = self.processRoutingData(line.strip(), files_path, routing_file, KEEP, RIBfile)
                         
+                        # that we then merge to the general data structures
                         bgp_data = pd.concat([bgp_data, bgp_data_partial])
             
                         for prefix in prefixes_indexes_pyt_partial:
@@ -115,7 +122,8 @@ class BGPDataHandler:
         
         return output_file_name
  
-        
+    # This function processes a readable file with routing info
+    # putting all the info in a Data Frame  
     def processReadableDF(self, readable_file_name):
         bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
                                 index_col=False, usecols=[3,5,6,7],\
@@ -123,7 +131,8 @@ class BGPDataHandler:
                                         'prefix',\
                                         'ASpath',\
                                         'origin'])
-                                        
+        # We create an index that is unique even amongst different routing files
+        # so that we can merge partial data structures into a single structure
         file_id = hashlib.md5(readable_file_name).hexdigest()
         bgp_df['source_file'] = '%s_' % file_id
         bgp_df['index'] = bgp_df.index.astype(str)
@@ -152,10 +161,13 @@ class BGPDataHandler:
         return bgp_df, prefixes_indexes_pyt, ASes_prefixes_dic
               
     def processRoutingData(self, url, files_path, routing_file, KEEP, RIBfile):
+        # If a routing file is not provided, download it from the provided URL        
         if routing_file == '':
             routing_file = '%s/%s' % (files_path, url.split('/')[-1])
             get_file(url, routing_file)
         
+        # If the routing file is a compressed RIB file, we unzip it
+        # and process it using BGPdump
         if RIBfile:
             if KEEP:
                 cmd = 'gunzip -k %s' % routing_file
@@ -178,10 +190,13 @@ class BGPDataHandler:
             #  -O <file>  output to <file> instead of STDOUT
     
             subprocess.call(cmd)
-    
+        
+        # If the file contains the output of the 'show ip bgp' command,
+        # we convert it to the same format used by BGPdump for its outputs
         else:
             readable_file_name = self.convertBGPoutput(routing_file, files_path, KEEP)
 
+        # Finally, we process the readable file
         bgp_data, prefixes_indexes_pyt, ASes_prefixes_dic = self.processReadableDF(readable_file_name)
         
         if not KEEP:

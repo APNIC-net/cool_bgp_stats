@@ -2,9 +2,11 @@
 # -*- coding: utf8 -*-
 
 import sys, getopt
+'''
+ Just for DEBUG
 import os
-# Just for DEBUG
-#os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
+os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
+'''
 from DelegatedHandler import DelegatedHandler
 from BGPDataHandler import BGPDataHandler
 import ipaddress
@@ -18,9 +20,13 @@ import datetime
 # to the same organization.
 # Returns a DataFrame with the computed statistics and
 # a PyTricia with the routed blocks covering each delegated or aggregated block.
-def computePerPrefixStats(bgp_handler, del_handler):     
+def computePerPrefixStats(bgp_handler, del_handler):
+    # Obtain a DataFrame with all the delegated blocks and all the aggregated
+    # block resulting from summarizing multiple delegations
+    # to the same organization
     orgs_aggr_networks = del_handler.getDelAndAggrNetworks()
     
+    # Obtain BGP data
     bgp_data = bgp_handler.bgp_data
     prefixes_indexes_pyt = bgp_handler.prefixes_indexes_pyt
 #    ASes_prefixes_dic = bgp_handler.ASes_prefixes_dic
@@ -30,15 +36,19 @@ def computePerPrefixStats(bgp_handler, del_handler):
     
     del_routed_pyt = pytricia.PyTricia()
     
+    # For each delegated or aggregated block
     for i in orgs_aggr_networks.index:
         net = orgs_aggr_networks.ix[i]['ip_block']
         network = ipaddress.ip_network(unicode(net, "utf-8"))
         ips_delegated = network.num_addresses
         del_routed = []
         
+        # Find routed blocks related to the delegated or aggregated block
         for routed_net in prefixes_indexes_pyt:
             routed_network = ipaddress.ip_network(unicode(routed_net, "utf-8"))
+            
             if(network.overlaps(routed_network)):
+                # Add related routed block to list
                 del_routed.append(routed_network)
         
         # TODO Check if prefix and origin AS were delegated to the same organization
@@ -120,14 +130,18 @@ def computePerPrefixStats(bgp_handler, del_handler):
         ips_routed = 0
 
         if routed_count > 0: # block is being announced, at least partially
+            # By now we just check whether related routed blocks have different origin ASes
+            # TODO classify blocks into covering and covered or lonely, top, deaggregated and delegated
             originASes = set()
             for routed_block in del_routed:
-                originAS = bgp_data.ix[prefixes_indexes_pyt[routed_net], 'originAS'] # TODO Test this
-                originASes.add(originAS)
+                for index in prefixes_indexes_pyt[routed_net]:
+                    originAS = bgp_data.ix[index, 'originAS']
+                    originASes.add(originAS)
 
             if len(originASes) > 1:
                 orgs_aggr_networks.ix[i, 'multiple_originASes'] = True
 
+            # Summarize the related routed blocks to get the maximum aggregation possible
             aggregated_routed = [ipaddr for ipaddr in\
                             ipaddress.collapse_addresses(del_routed)]
             # ips_routed is obtained from the summarized routed blocks
@@ -138,7 +152,8 @@ def computePerPrefixStats(bgp_handler, del_handler):
                 
 #            aggregated_count = float(len(aggregated_routed))
 #            deaggregation = (1 - (aggregated_count/routed_count))*100
-        
+
+        # Compute percentaje of IPs that are visible
         visibility = (ips_routed*100)/ips_delegated
 
         orgs_aggr_networks.ix[i, 'visibility'] = visibility
