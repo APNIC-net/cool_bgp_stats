@@ -30,7 +30,7 @@ class DelegatedHandler:
     orgs = []
     orgs_areas = dict()
 
-    def __init__(self, DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year):
+    def __init__(self, DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year, month, day):
         
         self.res_types = ['All', 'asn', 'ipv4', 'ipv6']    
         
@@ -61,10 +61,10 @@ class DelegatedHandler:
         self.status_asn = ['All', 'alloc-32bits', 'alloc-16bits']
         self.status_ip = ['All', 'allocated', 'assigned']
         
-        self.getAndTidyData(DEBUG, EXTENDED, download_url, del_file, col_names, INCREMENTAL, final_existing_date, year)
+        self.getAndTidyData(DEBUG, EXTENDED, download_url, del_file, col_names, INCREMENTAL, final_existing_date, year, month, day)
         sys.stderr.write("DelegatedHandler instantiated successfully!\n")
     
-    def getAndTidyData(self, DEBUG, EXTENDED, download_url, del_file, col_names, INCREMENTAL, final_existing_date, year):
+    def getAndTidyData(self, DEBUG, EXTENDED, download_url, del_file, col_names, INCREMENTAL, final_existing_date, year, month, day):
         if not DEBUG:
             get_file(download_url, del_file)
             
@@ -115,6 +115,14 @@ class DelegatedHandler:
         if year != '':
             # We take the subset corresponding to the year of interest
             delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.year) == year]
+        
+        if month != '':
+            # We take the subset corresponding to the month of interest
+            delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.month) == month]
+
+        if day != '':
+            # We take the subset corresponding to the day of interest
+            delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.day) == day]        
         
         if delegated_df.empty:
             return pd.DataFrame()

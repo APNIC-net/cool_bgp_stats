@@ -5,6 +5,10 @@ import sys, getopt
 import numpy as np
 import pandas as pd
 import datetime
+import requests
+import json
+import hashlib
+import getpass
 # Just for DEBUG
 #import os
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
@@ -268,39 +272,95 @@ def computeStatistics(del_handler, stats_df):
                         stats_df = computation_loop(status_res_df, a, r, s, o, stats_df, del_handler.dates_range)
                     
     return stats_df
+    
+def hashFromColValue(col_value):
+    return hashlib.md5(col_value).hexdigest()[0:16]
+    
+def saveToElasticSearch(plain_df, user, password):
+    es_host = 'localhost'
+    index_name = 'delegated_stats'
+    index_type = 'id'
+    
+    plain_df['multiindex_comb'] = plain_df['Geographic Area'] +\
+                                    plain_df['ResourceType'] +\
+                                    plain_df['Status'] +\
+                                    plain_df['Organization']
+                                    
+    plain_df['index'] = plain_df['multiindex_comb'].apply(hashFromColValue)
+    plain_df['_id'] = plain_df['Date'] + '_' + plain_df['index']
+    del plain_df['index']
+    del plain_df['multiindex_comb']
+    df_as_json = plain_df.to_json(orient='records', lines=True)
 
+    final_json_string = ''
+    for json_document in df_as_json.split('\n'):
+        jdict = json.loads(json_document)
+        # Header line
+        metadata = json.dumps({'index': {'_index': index_name,\
+                                        '_type': index_type,\
+                                        '_id': jdict['_id']}})
+        jdict.pop('_id')
+        final_json_string += metadata + '\n' + json.dumps(jdict) + '\n'
+    
+    headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
+    r = requests.post('http://%s:9200/%s/%s/_bulk' % (es_host, index_name, index_type), data=final_json_string, headers=headers, timeout=60) 
+    
+    if (r.status_code == 401):
+        if user == '' and password == '':
+            print("Authentication needed. Please enter your username and password")
+            user = raw_input("Username: ")
+            password = getpass.getpass("Password: ")
+
+        r = requests.post('http://%s:9200/%s/%s/_bulk' %\
+                            (es_host, index_name, index_type),\
+                            data=final_json_string, headers=headers,\
+                            timeout=60, auth=(user, password)) 
+    
+    return r
 
 def main(argv):    
     DEBUG = False
     EXTENDED = False
     year = ''
+    month = ''
+    day = ''
     del_file = ''
     files_path = ''
     INCREMENTAL = False
     stats_file = ''
     final_existing_date = ''
+    user = ''
+    password = ''
     
     try:
-        opts, args = getopt.getopt(argv, "hy:d:ep:i:", ["year=", "del_file=", "files_path=", "stats_file="])
+        opts, args = getopt.getopt(argv, "hy:m:D:d:ep:i:u:P:", ["year=", "month=", "Day=", "del_file=", "files_path=", "stats_file=", "user=", "password="])
     except getopt.GetoptError:
-        print 'Usage: delegatd_stats_v3.py -h | -p <files path [-y <year>] [-d <delegated file>] [-e] [-i <stats file>]'
+        print 'Usage: delegatd_stats_v3.py -h | -p <files path [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-u <ElasticSearch user> -P <ElasticSearch password>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes daily statistics from one of the delegated files provided by the RIRs"
-            print 'Usage: delegatd_stats_v3.py -h | -p <files path [-y <year>] [-d <delegated file>] [-e] [-i <stats file>]'
+            print 'Usage: delegatd_stats_v3.py -h | -p <files path [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-u <ElasticSearch user> -P <ElasticSearch password>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print 'y = Year to compute statistics for. If a year is not provided, statistics will be computed for all the available years.'
+            print 'm = Month of Year to compute statistics for. This option can only be used if a year is also provided.'
+            print 'D = Day of Month to compute statistics for. This option can only be used if a year and a month are also provided.'
             print 'd = DEBUG mode. Provide path to delegated file. If not in DEBUG mode the latest delegated file will be downloaded from ftp://ftp.apnic.net/pub/stats/apnic'
             print 'e = Use Extended file'
             print "If option -e is used in DEBUG mode, delegated file must be a extended file."
             print "If option -e is not used in DEBUG mode, delegated file must be delegated file not extended."
             print "i = Incremental. Compute incremental statistics from existing stats file (CSV)."
             print "If option -i is used, a statistics file MUST be provided."
+            print "u = User to save stats to ElasticSearch."
+            print "P = Password to save to stats to ElasticSearch."
             sys.exit()
         elif opt == '-y':
             year = int(arg)
+        elif opt == '-m':
+            month = int(arg)
+        elif opt == '-D':
+            day = int(arg)
         elif opt == '-d':
             DEBUG = True
             del_file = arg
@@ -311,8 +371,17 @@ def main(argv):
         elif opt == '-i':
             INCREMENTAL = True
             stats_file = arg
+        elif opt == '-u':
+            user = arg
+        elif opt == '-P':
+            password = arg
         else:
             assert False, 'Unhandled option'
+            
+    if year == '' and (month != '' or (month == '' and day != '')):
+        print 'If you provide a month, you must also provide a year.'
+        print 'If you provide a day, you must also provide a month and a year.'
+        sys.exit()
 
     if DEBUG and del_file == '':
         print "If you choose to run in DEBUG mode you must provide the path to\
@@ -345,7 +414,7 @@ def main(argv):
         else:
             del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
             
-    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year)
+    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year, month, day)
         
     if not del_handler.delegated_df.empty:
         stats_df = initializeStatsDF(del_handler, EXTENDED)
@@ -374,10 +443,18 @@ def main(argv):
     
         
     stats_df.to_csv('%s.csv' % file_name)
-    stats_df.reset_index().to_json('%s.json' % file_name, orient='index')
-    # TODO save to database?
+    plain_df = stats_df.reset_index()
+    plain_df.to_json('%s.json' % file_name, orient='index')
     sys.stderr.write("Stats saved to files successfully!\n")
     sys.stderr.write("(%s.csv and %s.json)" % (file_name, file_name))
+
+    if user != '' and password != '':
+        r = saveToElasticSearch(plain_df, user, password)
+        status_code = r.status_code
+        if status_code == 200:
+            sys.stderr.write("Stats saved to ElasticSearch successfully!\n")
+        else:
+            print "Something went wrong when trying to save stats to ElasticSearch.\n"
 
         
 if __name__ == "__main__":
