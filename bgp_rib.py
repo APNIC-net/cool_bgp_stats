@@ -101,7 +101,7 @@ class ASPath(tuple):
         for asn in asn_tuple:
             if isinstance(asn, str):
                 if (asn.find('{') > -1 or asn.find('}') > -1):
-                    continue
+                    asn = asn.strip('{').strip('}')
             try:
                 new_asn_list.append(int(ASN(asn)))
             except:

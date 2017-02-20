@@ -275,12 +275,15 @@ def computeStatistics(del_handler, stats_df):
     
 def hashFromColValue(col_value):
     return hashlib.md5(col_value).hexdigest()
-    
+
+# This function saves a data frame with stats into ElasticSearch
 def saveToElasticSearch(plain_df, user, password):
     es_host = 'localhost'
     index_name = 'delegated_stats'
     index_type = 'id'
     
+    # We create an id that is unique for a certain combination of Geographic Area,
+    # Resource Type, Status and Organization
     plain_df['multiindex_comb'] = plain_df['Geographic Area'] +\
                                     plain_df['ResourceType'] +\
                                     plain_df['Status'] +\
@@ -290,9 +293,12 @@ def saveToElasticSearch(plain_df, user, password):
     plain_df['_id'] = plain_df['Date'].astype('str') + '_' + plain_df['index'].astype('str')
     del plain_df['index']
     del plain_df['multiindex_comb']
+    # We convert the DataFrame to JSON format    
     df_as_json = plain_df.to_json(orient='records', lines=True)
 
     final_json_string = ''
+    # For each line of the generated json, we add the corresponding header line
+    # with meta data
     for json_document in df_as_json.split('\n'):
         jdict = json.loads(json_document)
         # Header line
@@ -302,6 +308,7 @@ def saveToElasticSearch(plain_df, user, password):
         jdict.pop('_id')
         final_json_string += metadata + '\n' + json.dumps(jdict) + '\n'
     
+    # We finally post the generated JSON data to ElasticSearch
     headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
     r = requests.post('http://%s:9200/%s/%s/_bulk' % (es_host, index_name, index_type), data=final_json_string, headers=headers, timeout=60) 
     

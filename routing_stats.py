@@ -196,6 +196,8 @@ def main(argv):
     DEBUG = False
     EXTENDED = False
     year = ''
+    month = ''
+    day = ''
     del_file = ''
     INCREMENTAL = False
     stats_file = ''
@@ -205,17 +207,28 @@ def main(argv):
     prefixes_indexes_file = ''
     ASes_originated_prefixes_file = ''
     ASes_propagated_prefixes_file = ''
-        
+    
+    
+
+#For DEBUG
+    files_path = '/Users/sofiasilva/BGP_files'
+    routing_file = '/Users/sofiasilva/BGP_files/bgptable.txt'
+    KEEP = True
+    RIBfile = False
+    DEBUG = True
+    EXTENDED = True
+    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
+  
     
     try:
-        opts, args = getopt.getopt(argv, "hp:u:or:knyd:ei:b:x:a:s:", ["files_path=", "urls_file=", "routing_file=", "delegated_file=", "stats_file=", "bgp_data_file=", "prefiXes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file="])
+        opts, args = getopt.getopt(argv, "hp:u:or:kny:m:D:d:ei:b:x:a:s:", ["files_path=", "urls_file=", "routing_file=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "prefiXes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -x <prefiXes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
+        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -x <prefiXes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year>] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -x <prefiXes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
+            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -x <prefiXes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -227,6 +240,8 @@ def main(argv):
             print 'k = Keep downloaded Internet routing data file.'
             print 'n = No computation. If this option is used, statistics will not be computed, just the dictionaries with prefixes/origin ASes will be created and saved to disk.'
             print 'y = Year to compute statistics for. If a year is not provided, statistics will be computed for all the available years.'
+            print 'm = Month of Year to compute statistics for. This option can only be used if a year is also provided.'
+            print 'D = Day of Month to compute statistics for. This option can only be used if a year and a month are also provided.'
             print 'd = DEBUG mode. Provide path to delegated file. If not in DEBUG mode the latest delegated file will be downloaded from ftp://ftp.apnic.net/pub/stats/apnic'
             print 'e = Use Extended file'
             print "If option -e is used in DEBUG mode, delegated file must be a extended file."
@@ -252,6 +267,10 @@ def main(argv):
             COMPUTE = False
         elif opt == '-y':
             year = int(arg)
+        elif opt == '-m':
+            month = int(arg)
+        elif opt == '-D':
+            day = int(arg)
         elif opt == '-d':
             DEBUG = True
             del_file = arg
@@ -277,6 +296,11 @@ def main(argv):
         else:
             assert False, 'Unhandled option'
         
+    if year == '' and (month != '' or (month == '' and day != '')):
+        print 'If you provide a month, you must also provide a year.'
+        print 'If you provide a day, you must also provide a month and a year.'
+        sys.exit()
+   
     if files_path == '':
         print "You must provide the path to a folder to save files."
         sys.exit() 
@@ -317,21 +341,11 @@ def main(argv):
         else:
             del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
 
-
-#For DEBUG
-#    files_path = '/Users/sofiasilva/BGP_files'
-#    routing_file = '/Users/sofiasilva/BGP_files/bgptable.txt'
-#    KEEP = True
-#    RIBfile = False
-#    DEBUG = True
-#    EXTENDED = True
-#    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
-
    
     bgp_handler = BGPDataHandler(urls_file, files_path, routing_file, KEEP, RIBfile, bgp_data_file, prefixes_indexes_file, ASes_originated_prefixes_file, ASes_propagated_prefixes_file)
     
     if COMPUTE: 
-        del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year)
+        del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year, month, day)
         prefixes_Stats, routed_pyt = computePerPrefixStats(bgp_handler, del_handler)
         statsForASes = computeASesStats(bgp_handler, del_handler)
         # TODO Save Stats and routed prefixes to files

@@ -200,13 +200,15 @@ class DelegatedHandler:
         
         self.delegated_df = delegated_df
         
+    # This function returns a DataFrame with all the blocks delegated to an organization
+    # and all these delegated blocks summarized as much as possible
     def getDelAndAggrNetworks(self):
         
         self.delegated_df = self.delegated_df.reset_index()
         
         ipv4_cidr_del_df = pd.DataFrame(columns=self.delegated_df.columns)
         
-        # For IPv4 the 'count' column includes the number of IP addresses delegated
+        # For IPv4, the 'count' column includes the number of IP addresses delegated
         # but it not necessarily corresponds to a CIDR block.
         # Therefore we convert each row to the corresponding CIDR block or blocks,
         # now using the 'count' column to save the prefix length instead of the number of IPs.
@@ -241,11 +243,17 @@ class DelegatedHandler:
                                                     'multiple_originASes'])
                                                     
         ipv6_subset = self.delegated_df[self.delegated_df['resource_type'] == 'ipv6']
+
+        # Now we have both IPv4 and IPv6 delegations in CIDR format
+        # we put them together in a single DataFrame
         ip_subset = pd.concat([ipv4_cidr_del_df, ipv6_subset])
-    
+
+        # We group th DataFrame by organization    
         orgs_groups = ip_subset.groupby(ip_subset['opaque_id'])
         
+        # For each organization that received at least one delegation of an IP block
         for org in list(set(ip_subset['opaque_id'])):
+            # we get all the rows corresponding to that org
             org_subset = orgs_groups.get_group(org)
     
             del_networks_list = []
@@ -255,14 +263,21 @@ class DelegatedHandler:
                 ip_block = u'%s/%s' % (row['initial_resource'], int(row['count']))
                 cc = row['cc']
                 region = row['region']
+                # We save each delegated block with its country and region to a PyTricia
                 del_networks_info[str(ip_block)] = {'cc':cc, 'region':region}
-    
+                
+                # and insert it into the DataFrame we will return.
                 orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, cc, region, str(ip_block), False, -1, -1, False]
+                # We also add the block to a list in order to summarize the delegations                
                 del_networks_list.append(ipaddress.ip_network(ip_block))
-         
+
+            # We summarize all the delegated blocks as much as possible         
             aggregated_networks = [ipaddr for ipaddr in ipaddress.collapse_addresses(del_networks_list)]
             
+            # For each aggregated block 
             for aggr_net in aggregated_networks:
+                # I check whether the delegated blocks that generated the summarization
+                # were all delegated to the same country and region
                 ccs = set()
                 regions = set()
                 for del_block in del_networks_list:
@@ -290,7 +305,8 @@ class DelegatedHandler:
                 allocated_asns = range(first_asn, first_asn + int(row['count']))
                 
                 for asn in allocated_asns:
-                    expanded_df.loc[expanded_df.shape[0]] = [row['registry'],\
+                    expanded_df.loc[expanded_df.shape[0]] = [row['index'],\
+                                                                row['registry'],\
                                                                 row['cc'],\
                                                                 row['resource_type'],\
                                                                 str(asn),\
