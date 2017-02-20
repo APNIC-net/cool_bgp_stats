@@ -274,7 +274,7 @@ def computeStatistics(del_handler, stats_df):
     return stats_df
     
 def hashFromColValue(col_value):
-    return hashlib.md5(col_value).hexdigest()[0:16]
+    return hashlib.md5(col_value).hexdigest()
     
 def saveToElasticSearch(plain_df, user, password):
     es_host = 'localhost'
@@ -287,7 +287,7 @@ def saveToElasticSearch(plain_df, user, password):
                                     plain_df['Organization']
                                     
     plain_df['index'] = plain_df['multiindex_comb'].apply(hashFromColValue)
-    plain_df['_id'] = plain_df['Date'] + '_' + plain_df['index']
+    plain_df['_id'] = plain_df['Date'].astype('str') + '_' + plain_df['index'].astype('str')
     del plain_df['index']
     del plain_df['multiindex_comb']
     df_as_json = plain_df.to_json(orient='records', lines=True)
