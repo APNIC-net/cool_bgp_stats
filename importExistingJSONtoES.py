@@ -17,7 +17,10 @@ def saveToElasticSearch(plain_df, user, password):
     index_name = 'delegated_stats'
     index_type = 'id'
     
-    plain_df['multiindex_comb'] = plain_df['Geographic Area'] +\
+    plain_df['GeographicArea'] = plain_df['Geographic Area']
+    del plain_df['Geographic Area']
+    
+    plain_df['multiindex_comb'] = plain_df['GeographicArea'] +\
                                     plain_df['ResourceType'] +\
                                     plain_df['Status'] +\
                                     plain_df['Organization']
@@ -86,8 +89,19 @@ def main(argv):
     if user != '' and password != '':
         for json_file in os.listdir(files_path):
             if json_file.endswith(".json"):
-                plain_df = pd.read_json(json_file, orient = 'index').reset_index()
+                plain_df = pd.read_json('%s/%s' % (files_path, json_file), orient = 'index').reset_index()
                 del plain_df['index']
+                # Originally stats were oomputed considering Org = All,
+                # ResourceType = All, Status = All, GeographicArea = All
+                # However, this is not necessary as it contains redundant info
+                # and makes it harder to filter the stats when analyzing
+                # or visualizing them
+                # So we remove these rows of the Data Frame
+                plain_df = plain_df[plain_df['Organization'] != 'All']
+                plain_df = plain_df[plain_df['Geographic Area'] != 'All']
+                plain_df = plain_df[plain_df['ResourceType'] != 'All']
+                plain_df = plain_df[plain_df['Status'] != 'All']
+
                 r = saveToElasticSearch(plain_df, user, password)
                 status_code = r.status_code
                 if status_code == 200:

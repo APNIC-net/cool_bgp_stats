@@ -25,15 +25,13 @@ def initializeStatsDF(del_handler, EXTENDED):
         # For each resource type
         for r in del_handler.res_types:
             # Set the status variable with its possible values according to the resource type
-            if r == 'All':
-                status = ['All']
-            elif r == 'asn':
+            if r == 'asn':
                 status = del_handler.status_asn
             else: # r == 'ipv4' or r == 'ipv6'
                 status = del_handler.status_ip
               
             # The names of the columns that will be part of the index
-            index_names = ['Geographic Area',
+            index_names = ['GeographicArea',
                            'ResourceType',
                            'Status',
                            'Organization',
@@ -97,118 +95,71 @@ def compute48s(prefix_length_array):
 # The computes statistics are stored in the DataFrame stats_df
 def computation_loop(delegated_subset, a, r, s, o, stats_df, dates_range):
                    
-    if r == 'All':
-        # If the resource type is All we group the delegated info by date
-        # and by resource typr
-        date_groups =\
-            delegated_subset.groupby([delegated_subset['date']\
-                                        .map(lambda x: x.strftime('%Y%m%d')),\
-                                    delegated_subset['resource_type']])
+  
+    # If we are working with a specific resource type, we group the info
+    # about delegations just by date
+    date_groups =\
+            delegated_subset.groupby(delegated_subset['date']\
+                                    .map(lambda x: x.strftime('%Y%m%d')))
 
-        # The NumOfDelegations stat is obtained just by counting
-        # the number of rows in each group
-        del_counts = date_groups.size()
-        del_nonZeroDates = del_counts.index.levels[0]
-
-        for date in dates_range:
-            if date in del_nonZeroDates:
-                try:
-                    ipv4_del = del_counts[(date, 'ipv4')]
-                except KeyError:
-                    ipv4_del = 0
-                try:
-                    ipv6_del = del_counts[(date, 'ipv6')]
-                except KeyError:
-                    ipv6_del = 0
-                try:
-                    asn_del = del_counts[(date, 'asn')]
-                except KeyError:
-                    asn_del = 0
-                
-                try:
-                    # For ASNs, NumOfResources is the sum of the count for all
-                    # the delegations contained in the group of interest
-                    asn_res =\
-                            sum(date_groups.get_group((date, 'asn'))['count'])
-                except KeyError:
-                    asn_res = 0
-                    
-                del_sum = ipv4_del + ipv6_del + asn_del
-                if del_sum > 0:
-                    stats_df.loc[a, r, s, o, date]['NumOfDelegations'] = del_sum
+    # NumOfDelegations computation
+    del_counts = date_groups.size()
+    del_nonZeroDates = del_counts.index
     
-                res_sum = ipv4_del + ipv6_del + asn_res
-                if res_sum > 0:
-                    stats_df.loc[a, r, s, o, date]['NumOfResources'] = res_sum
-                
-            # IPCount and IPSpace do not make sense for r = 'All'
-            stats_df.loc[a, r, s, o, date]['IPCount'] = np.nan
-            stats_df.loc[a, r, s, o, date]['IPSpace'] = np.nan
-    else: # r != 'All'
-        # If we are working with a specific resource type, we group the info
-        # about delegations just by date
-        date_groups =\
-                delegated_subset.groupby(delegated_subset['date']\
-                                        .map(lambda x: x.strftime('%Y%m%d')))
+    # NumOfResources computation
+    if r == 'asn':
+        res_counts = date_groups['count'].agg(np.sum)
+        res_nonZeroDates = res_counts.index
+    else: # r == 'ipv4' or r == 'ipv6'
+        res_nonZeroDates = []
 
-        # NumOfDelegations computation
-        del_counts = date_groups.size()
-        del_nonZeroDates = del_counts.index
-        
-        # NumOfResources computation
-        if r == 'asn':
-            res_counts = date_groups['count'].agg(np.sum)
-            res_nonZeroDates = res_counts.index
-        else: # r == 'ipv4' or r == 'ipv6'
-            res_nonZeroDates = []
+        if r == 'ipv4':
+            ipv4_counts = date_groups['count'].agg(np.sum)
+            ipv4_counts_nonZeroDates = ipv4_counts.index
+        else: # r == 'ipv6'
+            ipv6_counts = date_groups['count'].agg(compute56s)
+            ipv6_counts_nonZeroDates = ipv6_counts.index
+            
+            ipv6_space = date_groups['count'].agg(compute48s)
+            ipv6_space_nonZeroDates = ipv6_space.index
+
+    for date in dates_range:
+        if r == 'ipv4' or r == 'ipv6':
+            if date in del_nonZeroDates: 
+                stats_df.loc[a, r, s, o, date]['NumOfDelegations'] =\
+                                                            del_counts[date]
+                stats_df.loc[a, r, s, o, date]['NumOfResources'] =\
+                                                            del_counts[date]                            
 
             if r == 'ipv4':
-                ipv4_counts = date_groups['count'].agg(np.sum)
-                ipv4_counts_nonZeroDates = ipv4_counts.index
+                if date in ipv4_counts_nonZeroDates:    
+                    ipv4_count = ipv4_counts[date]
+                    stats_df.loc[a, r, s, o, date]['IPCount'] =\
+                                                                ipv4_count
+                    stats_df.loc[a, r, s, o, date]['IPSpace'] =\
+                                                            ipv4_count/256
+
             else: # r == 'ipv6'
-                ipv6_counts = date_groups['count'].agg(compute56s)
-                ipv6_counts_nonZeroDates = ipv6_counts.index
-                
-                ipv6_space = date_groups['count'].agg(compute48s)
-                ipv6_space_nonZeroDates = ipv6_space.index
-    
-        for date in dates_range:
-            if r == 'ipv4' or r == 'ipv6':
-                if date in del_nonZeroDates: 
-                    stats_df.loc[a, r, s, o, date]['NumOfDelegations'] =\
-                                                                del_counts[date]
-                    stats_df.loc[a, r, s, o, date]['NumOfResources'] =\
-                                                                del_counts[date]                            
+                if date in ipv6_counts_nonZeroDates:    
+                    stats_df.loc[a, r, s, o, date]['IPCount'] =\
+                                                                ipv6_counts[date]
 
-                if r == 'ipv4':
-                    if date in ipv4_counts_nonZeroDates:    
-                        ipv4_count = ipv4_counts[date]
-                        stats_df.loc[a, r, s, o, date]['IPCount'] =\
-                                                                    ipv4_count
-                        stats_df.loc[a, r, s, o, date]['IPSpace'] =\
-                                                                ipv4_count/256
+                if date in ipv6_space_nonZeroDates:    
+                    stats_df.loc[a, r, s, o, date]['IPSpace'] =\
+                            ipv6_space[date]
 
-                else: # r == 'ipv6'
-                    if date in ipv6_counts_nonZeroDates:    
-                        stats_df.loc[a, r, s, o, date]['IPCount'] =\
-                                                                    ipv6_counts[date]
+        else: # r == 'asn'
+            if date in del_nonZeroDates: 
+                stats_df.loc[a, r, s, o, date]['NumOfDelegations'] =\
+                                                del_counts[date]
 
-                    if date in ipv6_space_nonZeroDates:    
-                        stats_df.loc[a, r, s, o, date]['IPSpace'] =\
-                                ipv6_space[date]
+            if date in res_nonZeroDates: 
+                stats_df.loc[a, r, s, o, date]['NumOfResources'] =\
+                                                res_counts[date]
 
-            else: # r == 'asn'
-                if date in del_nonZeroDates: 
-                    stats_df.loc[a, r, s, o, date]['NumOfDelegations'] =\
-                                                    del_counts[date]
-
-                if date in res_nonZeroDates: 
-                    stats_df.loc[a, r, s, o, date]['NumOfResources'] =\
-                                                    res_counts[date]
-
-                # IPCount and IPSpace do not make sense for r = 'asn'
-                stats_df.loc[a, r, s, o, date]['IPCount'] = float(np.nan)
-                stats_df.loc[a, r, s, o, date]['IPSpace'] = float(np.nan)
+            # IPCount and IPSpace do not make sense for r = 'asn'
+            stats_df.loc[a, r, s, o, date]['IPCount'] = float(np.nan)
+            stats_df.loc[a, r, s, o, date]['IPSpace'] = float(np.nan)
 
     return stats_df
     
@@ -217,21 +168,16 @@ def computation_loop(delegated_subset, a, r, s, o, stats_df, dates_range):
 def computeStatistics(del_handler, stats_df):
     org_groups = del_handler.delegated_df.groupby(del_handler.delegated_df['opaque_id'])
     for o in del_handler.orgs:
-        if o == 'All':
-            org_df = del_handler.delegated_df
-        else:
-            try:
-                org_df = org_groups.get_group(o)
-            except KeyError:
-                continue
+        try:
+            org_df = org_groups.get_group(o)
+        except KeyError:
+            continue
             
         country_groups = org_df.groupby(org_df['cc'])
         region_groups = org_df.groupby(org_df['region'])
         
         for a in del_handler.orgs_areas[o]:
-            if a == 'All':
-                area_df = org_df
-            elif a.startswith('Reg_'): # a is a region
+            if a.startswith('Reg_'): # a is a region
                 try:
                     area_df = region_groups.get_group(a)
                 except KeyError:
@@ -245,32 +191,26 @@ def computeStatistics(del_handler, stats_df):
             res_groups = area_df.groupby(area_df['resource_type'])
             
             for r in del_handler.res_types:
-                if r == 'All':
-                    stats_df = computation_loop(area_df, a, r, 'All', o, stats_df, del_handler.dates_range)
-                else:
+                try:
+                    res_df = res_groups.get_group(r)
+                except KeyError:
+                    continue
+                    
+                if r == 'ipv4' or r == 'ipv6':
+                    status = del_handler.status_ip
+
+                else: # r == 'asn'
+                    status = del_handler.status_asn
+    
+                status_groups = res_df.groupby(res_df['status'])
+                for s in status:
                     try:
-                        res_df = res_groups.get_group(r)
+                        status_res_df = status_groups.get_group(s)
                     except KeyError:
                         continue
-                        
-                    if r == 'ipv4' or r == 'ipv6':
-                        status = del_handler.status_ip
-
-                    else: # r == 'asn'
-                        status = del_handler.status_asn
-        
-                    status_groups = res_df.groupby(res_df['status'])
-                    for s in status:
-                        if s == 'All':
-                            status_res_df = res_df
-                        else:
-                            try:
-                                status_res_df = status_groups.get_group(s)
-                            except KeyError:
-                                continue
-                        
-                        stats_df = computation_loop(status_res_df, a, r, s, o, stats_df, del_handler.dates_range)
-                    
+                
+                    stats_df = computation_loop(status_res_df, a, r, s, o, stats_df, del_handler.dates_range)
+                
     return stats_df
     
 def hashFromColValue(col_value):
@@ -284,7 +224,7 @@ def saveToElasticSearch(plain_df, user, password):
     
     # We create an id that is unique for a certain combination of Geographic Area,
     # Resource Type, Status and Organization
-    plain_df['multiindex_comb'] = plain_df['Geographic Area'] +\
+    plain_df['multiindex_comb'] = plain_df['GeographicArea'] +\
                                     plain_df['ResourceType'] +\
                                     plain_df['Status'] +\
                                     plain_df['Organization']

@@ -31,7 +31,7 @@ class DelegatedHandler:
 
     def __init__(self, DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year, month, day):
         
-        self.res_types = ['All', 'asn', 'ipv4', 'ipv6']    
+        self.res_types = ['asn', 'ipv4', 'ipv6']    
         
         if EXTENDED:
             download_url = 'ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-extended-latest'
@@ -57,8 +57,8 @@ class DelegatedHandler:
                             'status'
                         ]
         
-        self.status_asn = ['All', 'alloc-32bits', 'alloc-16bits']
-        self.status_ip = ['All', 'allocated', 'assigned']
+        self.status_asn = ['alloc-32bits', 'alloc-16bits']
+        self.status_ip = ['allocated', 'assigned']
         
         self.getAndTidyData(DEBUG, EXTENDED, download_url, del_file, col_names, INCREMENTAL, final_existing_date, year, month, day)
         sys.stderr.write("DelegatedHandler instantiated successfully!\n")
@@ -166,17 +166,14 @@ class DelegatedHandler:
         country_regions['AP'] = 'AP Region'
         country_regions['XX'] = 'NA'
         
-        areas = ['All'] + self.CCs + list(set(country_regions.values()))
+        areas = self.CCs + list(set(country_regions.values()))
         
         delegated_df.ix[pd.isnull(delegated_df.opaque_id), 'opaque_id'] = 'NA'
         self.orgs = list(set(delegated_df['opaque_id'].values))
-        self.orgs.extend(['All'])
         
         for o in self.orgs:
-            if o == 'All':
-                self.orgs_areas[o] = areas
-            elif o == 'NA':
-                self.orgs_areas[o] = ['All', 'XX']
+            if o == 'NA':
+                self.orgs_areas[o] = ['XX']
             else:
                 org_countries = list(set(delegated_df[delegated_df['opaque_id'] == o]['cc']))
     
@@ -186,7 +183,7 @@ class DelegatedHandler:
                         org_areas.extend([country_regions[country]])
                     else:
                         print 'Unknown CC: %s' % country
-                self.orgs_areas[o] = ['All'] + org_countries + org_areas
+                self.orgs_areas[o] = org_countries + org_areas
         
         delegated_df['region'] = delegated_df['cc'].apply(lambda c: country_regions[c])
         
