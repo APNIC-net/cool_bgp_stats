@@ -85,6 +85,7 @@ class BGPDataHandler:
             self.prefixes_indexes_pyt = prefixes_indexes_pyt
             self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
             self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
+            sys.stderr.write("BGPDataHandler instantiated successfully!\n")
         
         
     # This method converts a file containing the output of the 'show ip bgp' command

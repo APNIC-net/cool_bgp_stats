@@ -10,7 +10,6 @@ import sys
 import pandas as pd
 from get_file import get_file
 import ipaddress
-import pytricia
 
 
 class DelegatedHandler:
@@ -204,15 +203,15 @@ class DelegatedHandler:
     # and all these delegated blocks summarized as much as possible
     def getDelAndAggrNetworks(self):
         
-        self.delegated_df = self.delegated_df.reset_index()
+        delegated_df = self.delegated_df.reset_index()
         
-        ipv4_cidr_del_df = pd.DataFrame(columns=self.delegated_df.columns)
+        ipv4_cidr_del_df = pd.DataFrame(columns=delegated_df.columns)
         
         # For IPv4, the 'count' column includes the number of IP addresses delegated
         # but it not necessarily corresponds to a CIDR block.
         # Therefore we convert each row to the corresponding CIDR block or blocks,
         # now using the 'count' column to save the prefix length instead of the number of IPs.
-        for index, row in self.delegated_df[self.delegated_df['resource_type'] == 'ipv4'].iterrows():
+        for index, row in delegated_df[delegated_df['resource_type'] == 'ipv4'].iterrows():
             initial_ip = ipaddress.ip_address(unicode(row['initial_resource'], "utf-8"))
             count = int(row['count'])
             final_ip = initial_ip + count - 1
@@ -242,7 +241,7 @@ class DelegatedHandler:
                                                     'deaggregation',\
                                                     'multiple_originASes'])
                                                     
-        ipv6_subset = self.delegated_df[self.delegated_df['resource_type'] == 'ipv6']
+        ipv6_subset = delegated_df[delegated_df['resource_type'] == 'ipv6']
 
         # Now we have both IPv4 and IPv6 delegations in CIDR format
         # we put them together in a single DataFrame
@@ -257,35 +256,47 @@ class DelegatedHandler:
             org_subset = orgs_groups.get_group(org)
     
             del_networks_list = []
-            del_networks_info = pytricia.PyTricia()
+            del_networks_info = dict()
     
             for index, row in org_subset.iterrows():
-                ip_block = u'%s/%s' % (row['initial_resource'], int(row['count']))
+                ip_block = '%s/%s' % (row['initial_resource'], int(row['count']))
                 cc = row['cc']
                 region = row['region']
                 # We save each delegated block with its country and region to a PyTricia
-                del_networks_info[str(ip_block)] = {'cc':cc, 'region':region}
+                del_networks_info[ip_block] = {'cc':cc, 'region':region}
                 
                 # and insert it into the DataFrame we will return.
                 orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, cc, region, str(ip_block), False, -1, -1, False]
                 # We also add the block to a list in order to summarize the delegations                
-                del_networks_list.append(ipaddress.ip_network(ip_block))
+                del_networks_list.append(ipaddress.ip_network(unicode(ip_block, 'utf-8')))
 
             # We summarize all the delegated blocks as much as possible         
             aggregated_networks = [ipaddr for ipaddr in ipaddress.collapse_addresses(del_networks_list)]
-            
+                        
             # For each aggregated block 
             for aggr_net in aggregated_networks:
-                # I check whether the delegated blocks that generated the summarization
-                # were all delegated to the same country and region
-                ccs = set()
-                regions = set()
-                for del_block in del_networks_list:
-                    del_block_str = str(del_block)
-                    if aggr_net.supernet_of(del_block):
-                        ccs.add(del_networks_info[del_block_str]['cc'])
-                        regions.add(del_networks_info[del_block_str]['region'])
-                orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, list(ccs), list(regions), str(aggr_net), True, -1, -1, False]
+                # If the aggregated network already appears in the list of
+                # delegated blocks, we do not need to insert it into the DataFrame
+                if aggr_net not in del_networks_list:
+                    # I check whether the delegated blocks that generated the summarization
+                    # were all delegated to the same country and region
+                    ccs = set()
+                    regions = set()
+                    for del_block in del_networks_list:
+                        del_block_str = str(del_block)
+                        if aggr_net.supernet_of(del_block):
+                            ccs.add(del_networks_info[del_block_str]['cc'])
+                            regions.add(del_networks_info[del_block_str]['region'])
+    
+                    ccs = list(ccs)
+                    if len(ccs) == 1:
+                        ccs = ccs[0]
+                    
+                    regions = list(regions)
+                    if len(regions) == 1:
+                        regions = regions[0]
+                    
+                    orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, ccs, regions, str(aggr_net), True, -1, -1, False]
         
         return orgs_aggr_networks
         
@@ -305,8 +316,7 @@ class DelegatedHandler:
                 allocated_asns = range(first_asn, first_asn + int(row['count']))
                 
                 for asn in allocated_asns:
-                    expanded_df.loc[expanded_df.shape[0]] = [row['index'],\
-                                                                row['registry'],\
+                    expanded_df.loc[expanded_df.shape[0]] = [row['registry'],\
                                                                 row['cc'],\
                                                                 row['resource_type'],\
                                                                 str(asn),\
@@ -320,5 +330,5 @@ class DelegatedHandler:
             else:
                 expanded_df.loc[expanded_df.shape[0]] = row
             
-            return expanded_df
+        return expanded_df
             
