@@ -12,6 +12,7 @@ import pytricia
 import datetime, time
 import pandas as pd
 import hashlib
+import ipaddress
 
 # For some reason in my computer os.getenv('PATH') differs from echo $PATH
 # /usr/local/bin is not in os.getenv('PATH')
@@ -21,21 +22,33 @@ class BGPDataHandler:
     urls_file = './BGPoutputs.txt'
     # Data Frame containing routing info from RIB file or file with 'show ip bgp' output
     bgp_data = pd.DataFrame()
-    # PyTricia indexed by routed prefix containing the indexes of the rows in
-    # the bgp_data Data Frame that contain info of BGP announcements of the prefix
-    prefixes_indexes_pyt = pytricia.PyTricia()
+    # PyTricia indexed by routed IPv4 prefix containing the indexes of the rows in
+    # the bgp_data Data Frame that contain info of BGP announcements of the IPv4 prefix
+    ipv4_prefixes_indexes_pyt = pytricia.PyTricia()
+    # PyTricia indexed by routed IPv6 prefix containing the indexes of the rows in
+    # the bgp_data Data Frame that contain info of BGP announcements of the IPv6 prefix
+    ipv6_prefixes_indexes_pyt = pytricia.PyTricia()
     # Dictionary indexed by AS containing all the prefixes originated by each AS
     ASes_originated_prefixes_dic = dict()
     # Dictionary indexed by AS containing all the prefixes propagated by each AS
     ASes_propagated_prefixes_dic = dict()
+    # Numeric variable with the longest IPv4 prefix length
+    ipv4_longest_pref = -1
+    # Numeric variable with the longest IPv6 prefix length
+    ipv6_longest_pref = -1   
             
-    def __init__(self, urls, files_path, routing_file, KEEP, RIBfile, bgp_data_file, prefixes_indexes_file, ASes_originated_prefixes_file, ASes_propagated_prefixes_file):
-        if bgp_data_file != '' and prefixes_indexes_file != '' and ASes_originated_prefixes_file != '' and ASes_propagated_prefixes_file != '':
+    def __init__(self, urls, files_path, routing_file, KEEP, RIBfile, bgp_data_file,\
+                    ipv4_prefixes_indexes_file, ipv6_prefixes_indexes_file,\
+                    ASes_originated_prefixes_file, ASes_propagated_prefixes_file):
+        if bgp_data_file != '' and ipv4_prefixes_indexes_file != '' and\
+            ipv6_prefixes_indexes_file != '' and ASes_originated_prefixes_file != ''\
+            and ASes_propagated_prefixes_file != '':
             self.bgp_data = pickle.load(open(bgp_data_file, "rb"))
-            self.prefixes_indexes_pyt = pickle.load(open(prefixes_indexes_file, "rb"))
+            self.ipv4_prefixes_indexes_pyt = pickle.load(open(ipv4_prefixes_indexes_file, "rb"))
+            self.ipv6_prefixes_indexes_pyt = pickle.load(open(ipv6_prefixes_indexes_file, "rb"))
             self.ASes_originated_prefixes_dic = pickle.load(open(ASes_originated_prefixes_file, "rb"))
             self.ASes_propagated_prefixes_dic = pickle.load(open(ASes_propagated_prefixes_file, "rb"))
-            
+            self.setLongestPrefixLengths()
         else:
             if urls == '':
                 urls = self.urls_file
@@ -44,7 +57,8 @@ class BGPDataHandler:
                 urls_file_obj = open(urls, 'r')
                 
                 bgp_data = pd.DataFrame()
-                prefixes_indexes_pyt = pytricia.PyTricia()
+                ipv4_prefixes_indexes_pyt = pytricia.PyTricia()
+                ipv6_prefixes_indexes_pyt = pytricia.PyTricia()
                 ASes_originated_prefixes_dic = dict()
                 ASes_propagated_prefixes_dic = dict()
                 
@@ -53,16 +67,28 @@ class BGPDataHandler:
                         # If we work with several routing files
                         sys.stderr.write("Starting to work with %s" % line)
                         # We obtain partial data structures
-                        bgp_data_partial, prefixes_indexes_pyt_partial, ASes_originated_prefixes_dic_partial, ASes_propagated_prefixes_dic_partial = self.processRoutingData(line.strip(), files_path, routing_file, KEEP, RIBfile)
+                        bgp_data_partial, ipv4_prefixes_indexes_pyt_partial,\
+                            ipv6_prefixes_indexes_pyt_partial,\
+                            ASes_originated_prefixes_dic_partial,\
+                            ASes_propagated_prefixes_dic_partial,\
+                            ipv4_longest_pref, ipv6_longest_pref =\
+                            self.processRoutingData(line.strip(), files_path,\
+                            routing_file, KEEP, RIBfile)
                         
                         # that we then merge to the general data structures
                         bgp_data = pd.concat([bgp_data, bgp_data_partial])
             
-                        for prefix in prefixes_indexes_pyt_partial:
-                            if prefixes_indexes_pyt.has_key(prefix):
-                                prefixes_indexes_pyt[prefix].update(list(prefixes_indexes_pyt_partial[prefix]))
+                        for prefix in ipv4_prefixes_indexes_pyt_partial:
+                            if ipv4_prefixes_indexes_pyt.has_key(prefix):
+                                ipv4_prefixes_indexes_pyt[prefix].update(list(ipv4_prefixes_indexes_pyt_partial[prefix]))
                             else:
-                                prefixes_indexes_pyt[prefix] = prefixes_indexes_pyt_partial[prefix]
+                                ipv4_prefixes_indexes_pyt[prefix] = ipv4_prefixes_indexes_pyt_partial[prefix]
+
+                        for prefix in ipv6_prefixes_indexes_pyt_partial:
+                            if ipv6_prefixes_indexes_pyt.has_key(prefix):
+                                ipv6_prefixes_indexes_pyt[prefix].update(list(ipv6_prefixes_indexes_pyt_partial[prefix]))
+                            else:
+                                ipv6_prefixes_indexes_pyt[prefix] = ipv6_prefixes_indexes_pyt_partial[prefix]
         
                         for aut_sys, prefixes in ASes_originated_prefixes_dic_partial.iteritems():
                             if aut_sys in ASes_originated_prefixes_dic.keys():
@@ -76,15 +102,35 @@ class BGPDataHandler:
                             else:
                                 ASes_propagated_prefixes_dic[aut_sys] = prefixes
                                 
+                        if ipv4_longest_pref > self.ipv4_longest_pref:
+                            self.ipv4_longest_pref = ipv4_longest_pref
+                            
+                        if ipv6_longest_pref > self.ipv6_longest_pref:
+                            self.ipv6_longest_pref = ipv6_longest_pref
+                                
                 urls_file_obj.close()
                 
             else:
-                bgp_data, prefixes_indexes_pyt, ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic  = self.processRoutingData('', files_path, routing_file, KEEP, RIBfile)
+                bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
+                    ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+                    ipv4_longest_pref, ipv6_longest_pref  =\
+                    self.processRoutingData('', files_path, routing_file,\
+                    KEEP, RIBfile)
     
             self.bgp_data = bgp_data
-            self.prefixes_indexes_pyt = prefixes_indexes_pyt
+            self.ipv4_prefixes_indexes_pyt = ipv4_prefixes_indexes_pyt
+            self.ipv6_prefixes_indexes_pyt = ipv6_prefixes_indexes_pyt
             self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
             self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
+            if ipv4_longest_pref != -1:
+                self.ipv4_longest_pref = ipv4_longest_pref
+            else:
+                self.ipv4_longest_pref = 32
+            if ipv6_longest_pref != -1:
+                self.ipv6_longest_pref = ipv6_longest_pref
+            else:
+                self.ipv6_longest_pref = 64
+                
             sys.stderr.write("BGPDataHandler instantiated successfully!\n")
         
         
@@ -151,9 +197,13 @@ class BGPDataHandler:
         bgp_df['index'] = bgp_df['source_file'] + bgp_df['index']
         bgp_df.index = bgp_df['index']
         
-        prefixes_indexes_pyt = pytricia.PyTricia()
+        ipv4_prefixes_indexes_pyt = pytricia.PyTricia()
+        ipv6_prefixes_indexes_pyt = pytricia.PyTricia()
         ASes_originated_prefixes_dic = dict()
         ASes_propagated_prefixes_dic = dict()
+        
+        ipv4_longest_prefix = -1
+        ipv6_longest_prefix = -1
         
         for index, value in bgp_df.iterrows():
             prefix = value['prefix']
@@ -161,10 +211,24 @@ class BGPDataHandler:
             originAS = ASpath[-1]
             middleASes = ASpath[:-1]
           
-            if prefixes_indexes_pyt.has_key(prefix):
-                prefixes_indexes_pyt[prefix].add(index)
-            else:
-                prefixes_indexes_pyt[prefix] = set([index])
+            network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
+            if network.version == 4:
+                if network.prefixlen > ipv4_longest_prefix:
+                    ipv4_longest_prefix = network.prefixlen
+                
+                if ipv4_prefixes_indexes_pyt.has_key(prefix):
+                    ipv4_prefixes_indexes_pyt[prefix].add(index)
+                else:
+                    ipv4_prefixes_indexes_pyt[prefix] = set([index])
+                    
+            elif network.version == 6:
+                if network.prefixlen > ipv6_longest_prefix:
+                    ipv6_longest_prefix = network.prefixlen  
+                
+                if ipv6_prefixes_indexes_pyt.has_key(prefix):
+                    ipv6_prefixes_indexes_pyt[prefix].add(index)
+                else:
+                    ipv6_prefixes_indexes_pyt[prefix] = set([index])
                    
             if originAS in ASes_originated_prefixes_dic.keys():
                 if prefix not in ASes_originated_prefixes_dic[originAS]:
@@ -179,7 +243,9 @@ class BGPDataHandler:
                 else:
                     ASes_propagated_prefixes_dic[asn] = set([prefix])
               
-        return bgp_df, prefixes_indexes_pyt, ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic
+        return bgp_df, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
+                ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+                ipv4_longest_prefix, ipv6_longest_prefix
               
     def processRoutingData(self, url, files_path, routing_file, KEEP, RIBfile):
         # If a routing file is not provided, download it from the provided URL        
@@ -218,7 +284,10 @@ class BGPDataHandler:
             readable_file_name = self.convertBGPoutput(routing_file, files_path, KEEP)
 
         # Finally, we process the readable file
-        bgp_data, prefixes_indexes_pyt, ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic = self.processReadableDF(readable_file_name)
+        bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
+            ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+            ipv4_longest_pref, ipv6_longest_pref =\
+            self.processReadableDF(readable_file_name)
         
         if not KEEP:
             try:
@@ -228,7 +297,9 @@ class BGPDataHandler:
             except OSError:
                 pass
         
-        return bgp_data, prefixes_indexes_pyt, ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic
+        return bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
+                ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+                ipv4_longest_pref, ipv6_longest_pref
 
 
     def saveDataToFiles(self, files_path):
@@ -239,10 +310,15 @@ class BGPDataHandler:
             pickle.dump(self.bgp_data, f, pickle.HIGHEST_PROTOCOL)
             sys.stderr.write("Saved to disk %s pickle file containing DataFrame with BGP data." % bgp_file_name)
 
-        pyt_file_name = '%s/prefixes_indexes_%s.pkl' % (files_path, today)
-        with open(pyt_file_name, 'wb') as f:
-            pickle.dump(self.prefixes_indexes_pyt, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing PyTricia with indexes in the BGP data DataFrame for each prefix." % pyt_file_name)
+        ipv4_pyt_file_name = '%s/ipv4_prefixes_indexes_%s.pkl' % (files_path, today)
+        with open(ipv4_pyt_file_name, 'wb') as f:
+            pickle.dump(self.ipv4_prefixes_indexes_pyt, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing PyTricia with indexes in the BGP data DataFrame for each IPv4 prefix." % ipv4_pyt_file_name)
+
+        ipv6_pyt_file_name = '%s/ipv6_prefixes_indexes_%s.pkl' % (files_path, today)
+        with open(ipv6_pyt_file_name, 'wb') as f:
+            pickle.dump(self.ipv6_prefixes_indexes_pyt, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing PyTricia with indexes in the BGP data DataFrame for each IPv6 prefix." % ipv6_pyt_file_name)
 
         o_ases_dic_file_name = '%s/ASes_originated_prefixes_%s.pkl' % (files_path, today)
         with open(o_ases_dic_file_name, 'wb') as f:
@@ -254,4 +330,18 @@ class BGPDataHandler:
             pickle.dump(self.ASes_propagated_prefixes_dic, f, pickle.HIGHEST_PROTOCOL)
             sys.stderr.write("Saved to disk %s pickle file containing dictionary with prefixes propagated by each AS." % p_ases_dic_file_name)
             
-        return bgp_file_name, pyt_file_name, o_ases_dic_file_name, p_ases_dic_file_name
+        return bgp_file_name, ipv4_pyt_file_name, ipv6_pyt_file_name,\
+                o_ases_dic_file_name, p_ases_dic_file_name
+
+    def setLongestPrefixLengths(self):
+        for prefix in self.ipv4_prefixes_indexes_pyt:
+            network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
+            
+            if network.prefixlen > self.ipv4_longest_pref:
+                self.ipv4_longest_pref = network.prefixlen
+                
+        for prefix in self.ipv6_prefixes_indexes_pyt:
+            network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
+
+            if network.prefixlen > self.ipv6_longest_pref:
+                self.ipv6_longest_pref = network.prefixlen

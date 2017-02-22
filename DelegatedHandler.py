@@ -79,13 +79,13 @@ class DelegatedHandler:
                     )
                     
     
-        for i in range(len(self.res_types)):
-            self.summary_records.at[i, 'Type'] = self.res_types[i]
-    
+        for i in range(4):
             if i == 0:
+                self.summary_records.at[i, 'Type'] = 'All'
                 self.summary_records.at[i, 'count'] =\
                                     int(delegated_df.loc[i, 'initial_resource'])
             else:
+                self.summary_records.at[i, 'Type'] = self.res_types[i-1]
                 self.summary_records.at[i, 'count'] =\
                                     int(delegated_df.loc[i, 'count'])
     
@@ -165,9 +165,7 @@ class DelegatedHandler:
     
         country_regions['AP'] = 'AP Region'
         country_regions['XX'] = 'NA'
-        
-        areas = self.CCs + list(set(country_regions.values()))
-        
+                
         delegated_df.ix[pd.isnull(delegated_df.opaque_id), 'opaque_id'] = 'NA'
         self.orgs = list(set(delegated_df['opaque_id'].values))
         
@@ -183,7 +181,7 @@ class DelegatedHandler:
                         org_areas.extend([country_regions[country]])
                     else:
                         print 'Unknown CC: %s' % country
-                self.orgs_areas[o] = org_countries + org_areas
+                self.orgs_areas[o] = ['All'] + org_countries + org_areas
         
         delegated_df['region'] = delegated_df['cc'].apply(lambda c: country_regions[c])
         

@@ -11,9 +11,84 @@ from BGPDataHandler import BGPDataHandler
 import ipaddress
 import pandas as pd
 #import numpy as np
-import pytricia
+#import pytricia
 import datetime
 
+# This function returns a list of prefixes less specific than the one provided
+# that are included in the keys of the PyTricia
+def getRoutedParentAndGrandparents(prefix, pyt):
+    # Get the key in the PyTricia corresponding to the prefix
+    # key_pref is prefix if prefix is in keys
+    # or the longest prefix match in keys
+    key_pref = pyt.get_key(prefix) 
+    
+    net_less_specifics = []
+    
+    if key_pref is not None:
+        if key_pref != prefix:
+            net_less_specifics.append(key_pref)
+            
+        prefix = key_pref
+        net_parent = pyt.parent(prefix)
+        if net_parent is not None:
+            net_less_specifics.append(net_parent)
+            granpa = pyt.parent(net_parent)
+                    
+            while granpa is not None:
+                net_less_specifics.append(granpa)
+                granpa = pyt.parent(granpa)
+        
+    return net_less_specifics
+
+# This function returns a list of prefixes more specific than the one provided
+# that are included in the keys of the PyTricia
+def getRoutedChildren(prefix, pyt, longest_pref):
+    more_specifics = []
+   
+    if pyt.has_key(prefix): # Exact match        
+        # We return a list of the children of the prefix in the PyTricia
+        # including the prefix itself
+        more_specifics.append(prefix)
+        more_specifics.extend(pyt.children(prefix))
+        return more_specifics
+                
+    else: # If net is not in the PyTricia keys
+        # we cannot use the children method for it
+        # so we get the corresponding key (longest prefix match)
+        key_pref = pyt.get_key(prefix)
+        prefix_network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
+
+        # If there is no corresponding key
+        # it means there is no less specific prefix being routed
+        if key_pref is None:
+            # so we have to look for children of the prefix's subnets
+            if prefix_network.prefixlen < longest_pref:
+                immediate_subnets = list(prefix_network.subnets())
+                more_specifics.extend(getRoutedChildren(str(immediate_subnets[0]), pyt, longest_pref))
+                more_specifics.extend(getRoutedChildren(str(immediate_subnets[1]), pyt, longest_pref))
+            
+        else:
+            # If there is a corresponding key, we can use the children function
+            # to get the key's children
+            key_children = pyt.children(key_pref)
+            # but then we have to check whether these children are also
+            # subnets of the given prefix
+            for child in key_children:
+                child_network = ipaddress.ip_network(unicode(child, 'utf-8'))
+                if child_network.subnet_of(prefix_network):
+                    more_specifics.append(child)
+                    
+        return more_specifics
+    
+# This function returns a set with all the origin ASes for a specific prefix
+# seen in the given BGP data
+def getOriginASesForBlock(prefix, indexes_pyt, bgp_data):
+    originASes = set()
+    for index in indexes_pyt[prefix]:
+        originAS = bgp_data.ix[index, 'ASpath'].split(' ')[-1]
+        originASes.add(originAS)
+    return originASes
+    
 # This function computes statistics for each delegated block
 # and for each aggregated block resulting from summarizing multiple delegations
 # to the same organization.
@@ -28,26 +103,42 @@ def computePerPrefixStats(bgp_handler, del_handler):
     
     # Obtain BGP data
     bgp_data = bgp_handler.bgp_data
-    prefixes_indexes_pyt = bgp_handler.prefixes_indexes_pyt
+    ipv4_prefixes_indexes_pyt = bgp_handler.ipv4_prefixes_indexes_pyt
+    ipv6_prefixes_indexes_pyt = bgp_handler.ipv6_prefixes_indexes_pyt
 
-    del_routed_pyt = pytricia.PyTricia()
+    del_routed = dict()
+    # Using dict instead of PyTricia due to issues accessing PyTricia values
+    # Depending on what is stored as a value and how that value is stored,
+    # there are some issues when trying to access the value by key
+    # By now we use a dict
+    # If we want better perfomance for prefix lookups, PyTricia should be used
     
     # For each delegated or aggregated block
     for i in orgs_aggr_networks.index:
         net = orgs_aggr_networks.ix[i]['ip_block']
         network = ipaddress.ip_network(unicode(net, "utf-8"))
         ips_delegated = network.num_addresses
+
+        if network.version == 4:
+            prefixes_indexes_pyt = ipv4_prefixes_indexes_pyt
+            longest_pref = bgp_handler.ipv4_longest_pref
         
-        # Find routed blocks related to the delegated or aggregated block
-        for routed_net in prefixes_indexes_pyt:
-            routed_network = ipaddress.ip_network(unicode(routed_net, "utf-8"))
-            
-            if(network.overlaps(routed_network)):
-                # Add related routed block to list
-                if del_routed_pyt.has_key(net):
-                    del_routed_pyt[net].add(routed_network)
-                else:
-                    del_routed_pyt[net] = set([routed_network])
+        if network.version == 6:
+            prefixes_indexes_pyt = ipv6_prefixes_indexes_pyt
+            longest_pref = bgp_handler.ipv6_longest_pref
+                
+        net_less_specifics = []
+        net_more_specifics = []
+        # Find routed blocks related to the delegated or aggregated block 
+        if len(prefixes_indexes_pyt.keys()) > 0:       
+            net_less_specifics = getRoutedParentAndGrandparents(net, prefixes_indexes_pyt)
+            net_more_specifics = getRoutedChildren(net, prefixes_indexes_pyt, longest_pref)          
+
+        if len(net_more_specifics) > 0 or len(net_less_specifics) > 0:
+            del_routed[net] = dict()
+            del_routed[net]['more_specifics'] = net_more_specifics
+            del_routed[net]['less_specifics'] = net_less_specifics
+              
         
         # TODO Check if prefix and origin AS were delegated to the same organization
 
@@ -124,38 +215,48 @@ def computePerPrefixStats(bgp_handler, del_handler):
         
         ips_routed = 0            
 
-        if del_routed_pyt.has_key(net):
+        if del_routed.has_key(net):
             # block is being announced, at least partially
             # By now we just check whether related routed blocks have different origin ASes
             # TODO classify blocks into covering and covered or lonely, top, deaggregated and delegated
             originASes = set()
-            for routed_block in del_routed_pyt[net]:
-                for index in prefixes_indexes_pyt[routed_net]:
-                    originAS = bgp_data.ix[index, 'ASpath'].split(' ')[-1]
-                    originASes.add(originAS)
-
-            if len(originASes) > 1:
-                orgs_aggr_networks.ix[i, 'multiple_originASes'] = True
-
-            # Summarize the related routed blocks to get the maximum aggregation possible
-            aggregated_routed = [ipaddr for ipaddr in\
-                            ipaddress.collapse_addresses(del_routed_pyt[net])]
-            # ips_routed is obtained from the summarized routed blocks
-            # so that IPs contained in overlapping announcements are not
-            # counted more than once
-            for aggr_r in aggregated_routed:
-                ips_routed += aggr_r.num_addresses
-                
-#            aggregated_count = float(len(aggregated_routed))
-#            deaggregation = (1 - (aggregated_count/routed_count))*100
-
-        # Compute percentaje of IPs that are visible
-        visibility = (ips_routed*100)/ips_delegated
+            
+            # If there is at least one less specific block being routed
+            # the prefix of interest is 100 % visible
+            if len(del_routed[net]['less_specifics']) > 0:
+                visibility = 100
+                for less_spec in del_routed[net]['less_specifics']:
+                    originASes.add(getOriginASesForBlock(less_spec, prefixes_indexes_pyt, bgp_data))
+                    
+            # If there is no less specific block being routed
+            else:
+                # We compute the visibility based on the coverage of the
+                # more specific blocks
+                for more_spec in del_routed[net]['more_specifics']:
+                    originASes.add(getOriginASesForBlock(more_spec, prefixes_indexes_pyt, bgp_data))  
+    
+                if len(originASes) > 1:
+                    orgs_aggr_networks.ix[i, 'multiple_originASes'] = True
+    
+                # Summarize the related routed blocks to get the maximum aggregation possible
+                aggregated_routed = [ipaddr for ipaddr in\
+                                ipaddress.collapse_addresses(del_routed[net]['more_specifics'])]
+                # ips_routed is obtained from the summarized routed blocks
+                # so that IPs contained in overlapping announcements are not
+                # counted more than once
+                for aggr_r in aggregated_routed:
+                    ips_routed += aggr_r.num_addresses
+                    
+    #            aggregated_count = float(len(aggregated_routed))
+    #            deaggregation = (1 - (aggregated_count/routed_count))*100
+    
+            # Compute percentaje of IPs that are visible
+                visibility = (ips_routed*100)/ips_delegated
 
         orgs_aggr_networks.ix[i, 'visibility'] = visibility
 #        orgs_aggr_networks.ix[i, 'deaggregation'] = deaggregation
 
-    return orgs_aggr_networks, del_routed_pyt
+    return orgs_aggr_networks, del_routed
 
 # This function determines whether the allocated ASNs are active
 # either as middle AS, origin AS or both
@@ -205,7 +306,8 @@ def main(argv):
     final_existing_date = ''
     fromFiles = False
     bgp_data_file = ''
-    prefixes_indexes_file = ''
+    ipv4_prefixes_indexes_file = ''
+    ipv6_prefixes_indexes_file = ''
     ASes_originated_prefixes_file = ''
     ASes_propagated_prefixes_file = ''
     
@@ -222,14 +324,14 @@ def main(argv):
   
     
     try:
-        opts, args = getopt.getopt(argv, "hp:u:or:kny:m:D:d:ei:b:x:a:s:", ["files_path=", "urls_file=", "routing_file=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "prefiXes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file="])
+        opts, args = getopt.getopt(argv, "hp:u:or:kny:m:D:d:ei:b:4:6:a:s:", ["files_path=", "urls_file=", "routing_file=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -x <prefiXes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
+        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -x <prefiXes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
+            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -250,7 +352,8 @@ def main(argv):
             print "i = Incremental. Compute incremental statistics from existing stats file (CSV)."
             print "If option -i is used, a statistics file MUST be provided."
             print "b = BGP_data file. Path to pickle file containing bgp_data DataFrame."
-            print "x = prefiXes_indexes file. Path to pickle file containing prefiXes_indexes PyTricia."
+            print "4 = IPv4 prefixes_indexes file. Path to pickle file containing IPv4 prefixes_indexes PyTricia."
+            print "6 = IPv6 prefixes_indexes file. Path to pickle file containing IPv6 prefixes_indexes PyTricia."
             print "a = ASes_originated_prefixes file. Path to pickle file containing ASes_originated_prefixes dictionary."
             print "s = ASes_propagated_prefixes file. Path to pickle file containing ASes_propagated_prefixes dictionary."
             print "If you want to work with BGP data from files, the three options -b, -x, -a and -s must be used."
@@ -285,8 +388,11 @@ def main(argv):
         elif opt == '-b':
             bgp_data_file = arg
             fromFiles = True
-        elif opt == '-x':
-            prefixes_indexes_file = arg
+        elif opt == '-4':
+            ipv4_prefixes_indexes_file = arg
+            fromFiles = True
+        elif opt == '-6':
+            ipv6_prefixes_indexes_file = arg
             fromFiles = True
         elif opt == '-a':
             ASes_originated_prefixes_file = arg
@@ -328,7 +434,9 @@ def main(argv):
             # Stats for that day will be computed again
             existing_stats_df = existing_stats_df[existing_stats_df['Date'] != final_existing_date]
 
-    if fromFiles and (bgp_data_file == '' or prefixes_indexes_file == '' or ASes_originated_prefixes_file == '' or ASes_propagated_prefixes_file == ''):
+    if fromFiles and (bgp_data_file == '' or ipv4_prefixes_indexes_file == '' or\
+        ipv6_prefixes_indexes_file == '' or ASes_originated_prefixes_file == '' or\
+        ASes_propagated_prefixes_file == ''):
         print "If you want to work with BGP data from files, the three options -b, -x, -a and -s must be used."
         print "If not, none of these three options should be used."
         sys.exit()
@@ -343,10 +451,13 @@ def main(argv):
             del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
 
    
-    bgp_handler = BGPDataHandler(urls_file, files_path, routing_file, KEEP, RIBfile, bgp_data_file, prefixes_indexes_file, ASes_originated_prefixes_file, ASes_propagated_prefixes_file)
+    bgp_handler = BGPDataHandler(urls_file, files_path, routing_file, KEEP, RIBfile,\
+                    bgp_data_file, ipv4_prefixes_indexes_file, ipv6_prefixes_indexes_file,\
+                    ASes_originated_prefixes_file, ASes_propagated_prefixes_file)
     
     if COMPUTE: 
-        del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year, month, day)
+        del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,\
+                        final_existing_date, year, month, day)
         prefixes_Stats, routed_pyt = computePerPrefixStats(bgp_handler, del_handler)
         statsForASes = computeASesStats(bgp_handler, del_handler)
         # TODO Save Stats and routed prefixes to files and ElasticSearch
