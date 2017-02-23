@@ -226,15 +226,12 @@ class DelegatedHandler:
                                                                     '%s_cidr' % row['status'],\
                                                                     row['opaque_id'],\
                                                                     row['region']]       
+        # We cahnge the format for floats to avoid the values of the count column
+        # having .0
+        pd.options.display.float_format = '{:,.0f}'.format
         
-        orgs_aggr_networks = pd.DataFrame(columns=['opaque_id',\
-                                                    'cc',\
-                                                    'region',\
-                                                    'ip_block',\
-                                                    'aggregated',\
-                                                    'visibility',\
-                                                    'deaggregation',\
-                                                    'multiple_originASes'])
+        orgs_aggr_networks = pd.DataFrame(columns= ['opaque_id', 'cc', 'region',\
+                                                    'ip_block', 'aggregated'])
                                                     
         ipv6_subset = delegated_df[delegated_df['resource_type'] == 'ipv6']
 
@@ -251,17 +248,19 @@ class DelegatedHandler:
             org_subset = orgs_groups.get_group(org)
     
             del_networks_list = []
-            del_networks_info = dict()
     
-            for index, row in org_subset.iterrows():
-                ip_block = '%s/%s' % (row['initial_resource'], int(row['count']))
-                cc = row['cc']
-                region = row['region']
-                # We save each delegated block with its country and region to a PyTricia
-                del_networks_info[ip_block] = {'cc':cc, 'region':region}
+            for index, row in org_subset.iterrows():                
+                # We save the info about each delegated block 
+                # into the DataFrame we will return
+                # with False in the aggregated column
+                ip_block = '%s/%s' % (row['initial_resource'], int(row['count']))              
+
+                orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [row['opaque_id'],\
+                                                                    row['cc'],\
+                                                                    row['region'],\
+                                                                    ip_block,\
+                                                                    False] 
                 
-                # and insert it into the DataFrame we will return.
-                orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, cc, region, str(ip_block), False, -1, -1, False]
                 # We also add the block to a list in order to summarize the delegations                
                 del_networks_list.append(ipaddress.ip_network(unicode(ip_block, 'utf-8')))
 
@@ -278,11 +277,13 @@ class DelegatedHandler:
                     ccs = set()
                     regions = set()
                     for del_block in del_networks_list:
-                        del_block_str = str(del_block)
                         if aggr_net.supernet_of(del_block):
-                            ccs.add(del_networks_info[del_block_str]['cc'])
-                            regions.add(del_networks_info[del_block_str]['region'])
-    
+                            row = ip_subset[(ip_subset['initial_resource'] ==\
+                                            str(del_block.network_address)) &\
+                                            (ip_subset['count'] == del_block.prefixlen)]
+                            ccs.add(str(row['cc']))
+                            regions.add(str(row['region']))
+                            
                     ccs = list(ccs)
                     if len(ccs) == 1:
                         ccs = ccs[0]
@@ -291,7 +292,11 @@ class DelegatedHandler:
                     if len(regions) == 1:
                         regions = regions[0]
                     
-                    orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org, ccs, regions, str(aggr_net), True, -1, -1, False]
+                    orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org,\
+                                                                    ccs,\
+                                                                    regions,\
+                                                                    str(aggr_net),\
+                                                                    True]
         
         return orgs_aggr_networks
         

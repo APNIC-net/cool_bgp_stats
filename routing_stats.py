@@ -47,7 +47,7 @@ def getRoutedChildren(prefix, pyt, longest_pref):
    
     if pyt.has_key(prefix): # Exact match        
         # We return a list of the children of the prefix in the PyTricia
-        # including the prefix itself
+        # including the prefix itself if it is routed as-is
         more_specifics.append(prefix)
         more_specifics.extend(pyt.children(prefix))
         return more_specifics
@@ -101,6 +101,25 @@ def computePerPrefixStats(bgp_handler, del_handler):
     # to the same organization
     orgs_aggr_networks = del_handler.getDelAndAggrNetworks()
     
+    # We add columns to store as boolean variables the concepts defined in
+    # http://irl.cs.ucla.edu/papers/05-ccr-address.pdf
+    # See description below
+    
+    new_cols1 = ['isCovering', 'allocIntact', 'aggrRouted', 'fragmentsRouted', 'isCovered', 'SOSP', 'SODP1', 'SODP2', 'DOSP', 'DODP1', 'DODP2', 'DODP3']
+
+    # We add columns to store as boolean variables the concepts defined in
+    # http://www.eecs.qmul.ac.uk/~steve/papers/JSAC-deaggregation.pdf
+    # See description below
+
+    new_cols2 = ['isLonely', 'isTop', 'isDeaggregated', 'isDelegated', 'onlyRoot', 'root_MScompl', 'root_MSincompl', 'noRoot_MScompl', 'noRoot_MSincompl']
+
+    new_cols = new_cols1 + new_cols2
+    
+    for new_col in new_cols:
+        orgs_aggr_networks.loc[:, new_col] =\
+            pd.Series([False]*orgs_aggr_networks.shape[0],\
+            index=orgs_aggr_networks.index)
+    
     # Obtain BGP data
     bgp_data = bgp_handler.bgp_data
     ipv4_prefixes_indexes_pyt = bgp_handler.ipv4_prefixes_indexes_pyt
@@ -141,21 +160,16 @@ def computePerPrefixStats(bgp_handler, del_handler):
               
         
         # TODO Check if prefix and origin AS were delegated to the same organization
-
-        # TODO Both for visibility and for deaggregation, consider the case in which
-        # a delegated block is covered by more than one overlapping announces.
-        # For visibility, we cannot count those IP addresses more than once. (OK. Already considered.)
-        # For deaggregation, how should this be computed? (Read below)
-
-        # From http://irl.cs.ucla.edu/papers/05-ccr-address.pdf
-
-        # Covering prefixes:
-        # Based on their relations to the corresponding
-        # allocated address blocks, covering prefixes can be categorized into three
-        # classes: allocation intact, aggregation over multiple allocations,
-        # or fragments from a single allocation.         
         
-        # Covered prefixes: (Usually due to traffic engineering)
+        # Based on http://irl.cs.ucla.edu/papers/05-ccr-address.pdf
+
+        # TODO Compute Usage Latency
+        # We define usage latency of an allocated address block as
+        # the time interval between the allocation time and the first
+        # time a part of, or the entire, allocated block shows up in
+        # the BGP routing table
+
+        # TODO Analyze stability of visibility
         # Our first observation about covered prefixes is that they
         # show up and disappear in the routing table more frequently
         # than the covering prefixes. To show this, we compare the
@@ -169,92 +183,149 @@ def computePerPrefixStats(bgp_handler, del_handler):
         # before the end and its address space is no longer
         # covered in the routing table.
         
+    
+        # Covering prefixes: isCovering = (len(more_specifics) > 0)
+        #   * allocation intact: allocIntact = (aggregated == False and block in more_specifics)
+        #   * aggregation over multiple allocations: aggrRouted = (??)
+        #   * fragments from a single allocation: fragmentsRouted = (aggregated == False and len(more_specifics - block) > 0)
+        
+        # Covered prefixes: isCovered = (len(less_specifics) > 0)
         # We classify covered prefixes into four classes based on their advertisement
         # paths relative to that of their corresponding covering
         # prefixes, with two of them further classified into sub-classes.
-        # * Same origin AS, same AS path (SOSP)
-        # * Same origin AS, different paths (SODP) (Types 1 and 2)
-        # * Different origin ASes, same path (DOSP)
-        # * Different origin ASes, different paths (DODP) (Types 1, 2 and 3)
-        
-        # From http://www.eecs.qmul.ac.uk/~steve/papers/JSAC-deaggregation.pdf
+        # Corresponding covering prefixes -> less_specifics
+        #   * Same origin AS, same AS path (SOSP) 
+        #   * Same origin AS, different paths (SODP) (Types 1 and 2)
+        #   * Different origin ASes, same path (DOSP)
+        #   * Different origin ASes, different paths (DODP) (Types 1, 2 and 3)
 
-        # For deaggregation:
-        # • Lonely: a prefix that does not overlap with any other prefix.
-        # • Top: a prefix that covers one or more smaller prefix blocks,
-        # but is not itself covered by a less specific.
-        # • Deaggregated: a prefix that is covered by a less specific prefix,
-        # and this less specific is originated by the same AS as the deaggregated prefix.
-        # • Delegated: a prefix that is covered by a less specific, and this
-        # less specific is not originated by the same AS as the delegated prefix.
-        # Deaggregation factor of an AS to be the ratio between the number
-        # of announced prefixes and the number of allocated address blocks
-
-        # For visibility:
-        # • Only root: The complete allocated address block (called
-        # “root prefix”) is announced and nothing else.
-        # • root/MS-complete: The root prefix and at least two subprefixes
-        # are announced. The set of all sub-prefixes spans
-        # the whole root prefix.
-        # • root/MS-incomplete: The root prefix and at least one subprefix
-        # is announced. Together, the set of announced subprefixes
-        # does not cover the root prefix.
-        # • no root/MS-complete: The root prefix is not announced.
-        # However, there are at least two sub-prefixes which together
-        # cover the complete root prefix.
-        # • no root/MS-incomplete: The root prefix is not announced.
-        # There is at least one sub-prefix. Taking all sub-prefixes
-        # together, they do not cover the complete root prefix.
-
-        # From https://labs.ripe.net/Members/ggm/reducing-the-bgp-table-size-a-fairy-tale
-
-        # delegated (i.e. there is a less specific originated another ASN)
-        # deaggregated (i.e. there is a less specific originated from the same ASN).
-        
-#        deaggregation = float(np.nan)
-        
-        ips_routed = 0            
-
+            
         if del_routed.has_key(net):
             # block is being announced, at least partially
-            # By now we just check whether related routed blocks have different origin ASes
-            # TODO classify blocks into covering and covered or lonely, top, deaggregated and delegated
-            originASes = set()
-            
-            # If there is at least one less specific block being routed
-            # the prefix of interest is 100 % visible
-            if len(del_routed[net]['less_specifics']) > 0:
-                visibility = 100
-                for less_spec in del_routed[net]['less_specifics']:
-                    originASes.add(getOriginASesForBlock(less_spec, prefixes_indexes_pyt, bgp_data))
-                    
-            # If there is no less specific block being routed
-            else:
-                # We compute the visibility based on the coverage of the
-                # more specific blocks
-                for more_spec in del_routed[net]['more_specifics']:
-                    originASes.add(getOriginASesForBlock(more_spec, prefixes_indexes_pyt, bgp_data))  
-    
-                if len(originASes) > 1:
-                    orgs_aggr_networks.ix[i, 'multiple_originASes'] = True
-    
-                # Summarize the related routed blocks to get the maximum aggregation possible
-                aggregated_routed = [ipaddr for ipaddr in\
-                                ipaddress.collapse_addresses(del_routed[net]['more_specifics'])]
-                # ips_routed is obtained from the summarized routed blocks
-                # so that IPs contained in overlapping announcements are not
-                # counted more than once
-                for aggr_r in aggregated_routed:
-                    ips_routed += aggr_r.num_addresses
-                    
-    #            aggregated_count = float(len(aggregated_routed))
-    #            deaggregation = (1 - (aggregated_count/routed_count))*100
-    
-            # Compute percentaje of IPs that are visible
-                visibility = (ips_routed*100)/ips_delegated
 
-        orgs_aggr_networks.ix[i, 'visibility'] = visibility
-#        orgs_aggr_networks.ix[i, 'deaggregation'] = deaggregation
+            if net in del_routed[net]['more_specifics']:
+                more_specifics_wo_block = del_routed[net]['more_specifics'].remove(net)
+            
+            # We summarize the more specific routed blocks without the block itself
+            # to get the maximum aggregation possible of the more specifics
+            aggr_less_spec = [ipaddr for ipaddr in\
+                                ipaddress.collapse_addresses(more_specifics_wo_block)]
+           
+            # If there is at least one less specific block being routed
+            # the block is covered and therefore its visibility is 100 %
+            if len(del_routed[net]['less_specifics']) > 0:
+                orgs_aggr_networks.ix[i, 'isCovered'] = True 
+                visibility = 100
+            
+                # TODO Compute 'SOSP', 'SODP1', 'SODP2', 'DOSP', 'DODP1', 'DODP2', 'DODP3'
+                
+                less_spec_originASes = set()
+                for less_spec in del_routed[net]['less_specifics']:
+                    less_spec_originASes.add(getOriginASesForBlock(less_spec, prefixes_indexes_pyt, bgp_data))
+                    
+                blockOriginASes = getOriginASesForBlock(net, prefixes_indexes_pyt, bgp_data)
+                if len(blockOriginASes) > 1:
+                    orgs_aggr_networks.ix[i, 'multiple_originASes'] = True
+                if len(less_spec_originASes.intersection(blockOriginASes)) > 0:    
+                    # • Deaggregated: a prefix that is covered by a less specific prefix,
+                    # and this less specific is originated by the same AS as the deaggregated prefix.
+                    orgs_aggr_networks.ix[i, 'isDeaggregated'] = True
+                else:
+                     # • Delegated: a prefix that is covered by a less specific, and this
+                    # less specific is not originated by the same AS as the delegated prefix.
+                    orgs_aggr_networks.ix[i, 'isDelegated'] = True
+
+            # If there are no less specific blocks being routed
+            else:
+                # If the list of more specific blocks being routed includes
+                # the block itself
+                if net in del_routed[net]['more_specifics']:
+                    # The block is 100 % visible
+                    visibility = 100
+                # If the block itself is not being routed, we have to compute
+                # the visibility based on the more specific block being routed
+                else:
+                    # ips_routed is obtained from the summarized routed blocks
+                    # so that IPs contained in overlapping announcements are not
+                    # counted more than once
+                    ips_routed = 0            
+                    for aggr_r in aggr_less_spec:
+                        ips_routed += aggr_r.num_addresses
+                                            
+                    # The visibility of the block is the percentaje of IPs
+                    # that are visible
+                    visibility = (ips_routed*100)/ips_delegated
+                    
+                # If there are more specific blocks being routed apart from
+                # the block itself, taking into account we are under the case
+                # of the block not having less specific blocks being routed,
+                if len(more_specifics_wo_block) > 0:
+                    # The block is a Top prefix  
+                    # • Top: a prefix that covers one or more smaller prefix blocks,
+                    # but is not itself covered by a less specific.
+                    orgs_aggr_networks.ix[i, 'isTop'] = True
+                
+                # If the list of more specific blocks being routed only
+                # includes the block itself, taking into account we are 
+                # under the case of the block not having less specific
+                # blocks being routed,
+                else:
+                    # the block is a Lonely prefix
+                    # • Lonely: a prefix that does not overlap with any other prefix.
+                    orgs_aggr_networks.ix[i, 'isLonely'] = True
+   
+            # If there are more specific blocks being routed
+            # the block is a covering prefix
+            if len(more_specifics_wo_block) > 0:
+                orgs_aggr_networks.ix[i, 'isCovering'] = True
+            
+           # TODO how do we compute aggrRouted? (aggregation over multiple allocations: aggrRouted = (??))
+        
+            # If the block is not the result of aggregating multiple delegated blocks           
+            if not orgs_aggr_networks.ix[i, 'aggregated']:
+                # If there are more specific blocks being routed apart from
+                # the block itself
+                if len(more_specifics_wo_block) > 0:
+                    orgs_aggr_networks.ix[i, 'fragmentsRouted'] =  True
+
+                # Independently of the block being a covering or a covered prefix,
+                # if the delegated block (not aggregated) is being announced as-is,
+                # allocIntact is True
+                if net in del_routed[net]['more_specifics']:
+                    orgs_aggr_networks.ix[i, 'allocIntact'] = True
+                
+                # If there are no less specific blocks being routed and the list
+                # of more specific blocks being routed only contains the block
+                # itself
+                if orgs_aggr_networks.ix[i, 'isCovered'] == False and del_routed[net]['more_specifics'] == [net]:
+                    orgs_aggr_networks.ix[i, 'onlyRoot'] = True
+                    # This variable is similar to the variable isLonely but can
+                    # only be True for not aggregated blocks 
+                
+                if net in del_routed[net]['more_specifics']:
+                    if len(del_routed[net]['more_specifics']) >= 3 and net in aggr_less_spec:
+                        # • root/MS-complete: The root prefix and at least two subprefixes
+                        # are announced. The set of all sub-prefixes spans
+                        # the whole root prefix.
+                        orgs_aggr_networks.ix[i, 'root_MScompl'] = True
+                    if len(del_routed[net]['more_specifics']) >= 2 and net not in aggr_less_spec:
+                        # • root/MS-incomplete: The root prefix and at least one subprefix
+                        # is announced. Together, the set of announced subprefixes
+                        # does not cover the root prefix.
+                        orgs_aggr_networks.ix[i, 'root_MSincompl'] = True
+                else:
+                    if len(del_routed[net]['more_specifics']) >= 2 and net in aggr_less_spec:
+                        # • no root/MS-complete: The root prefix is not announced.
+                        # However, there are at least two sub-prefixes which together
+                        # cover the complete root prefix.
+                        orgs_aggr_networks.ix[i, 'noRoot_MScompl'] = True
+                    if len(del_routed[net]['more_specifics']) >= 1 and net not in aggr_less_spec:
+                        # • no root/MS-incomplete: The root prefix is not announced.
+                        # There is at least one sub-prefix. Taking all sub-prefixes
+                        # together, they do not cover the complete root prefix.
+                        orgs_aggr_networks.ix[i, 'noRoot_MSincompl'] = True
+        
+            orgs_aggr_networks.ix[i, 'visibility'] = visibility
 
     return orgs_aggr_networks, del_routed
 
