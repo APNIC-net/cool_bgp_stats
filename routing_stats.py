@@ -13,6 +13,7 @@ import pandas as pd
 #import numpy as np
 #import pytricia
 import datetime
+import copy
 
 # This function returns a list of prefixes less specific than the one provided
 # that are included in the keys of the PyTricia
@@ -100,20 +101,34 @@ def computePerPrefixStats(bgp_handler, del_handler):
     # block resulting from summarizing multiple delegations
     # to the same organization
     orgs_aggr_networks = del_handler.getDelAndAggrNetworks()
-    
+        
     # We add columns to store as boolean variables the concepts defined in
     # http://irl.cs.ucla.edu/papers/05-ccr-address.pdf
     # See description below
     
-    new_cols1 = ['isCovering', 'allocIntact', 'aggrRouted', 'fragmentsRouted', 'isCovered', 'SOSP', 'SODP1', 'SODP2', 'DOSP', 'DODP1', 'DODP2', 'DODP3']
+    new_cols1 = ['isCovering', 'allocIntact', 'maxAggrRouted', 'fragmentsRouted', 'isCovered', 'SOSP', 'SODP1', 'SODP2', 'DOSP', 'DODP1', 'DODP2', 'DODP3']
 
+    # The concept of 'aggregation over multiple allocations' defined in the paper
+    # cited above is slightly modified to suit our needs.
+    # (Note that we use 'delegation' instead of 'allocation' as it is a more
+    # general term.)
+    # In the paper each announcement is analyzed. While here we analyze each delegated
+    # block or each block resulting from the summarization of multiple delegations.
+    # We don't analyze all the possible summarizations of multiple delegations,
+    # but just the maximum aggregation possible. This is why we use a variable
+    # maxAggrRouted. This variale will be true if there is an announcement for
+    # a block resulting from the maximum aggregation possible of multiple delegations.
+    
     # We add columns to store as boolean variables the concepts defined in
     # http://www.eecs.qmul.ac.uk/~steve/papers/JSAC-deaggregation.pdf
     # See description below
 
     new_cols2 = ['isLonely', 'isTop', 'isDeaggregated', 'isDelegated', 'onlyRoot', 'root_MScompl', 'root_MSincompl', 'noRoot_MScompl', 'noRoot_MSincompl']
 
-    new_cols = new_cols1 + new_cols2
+    # we also add a column to store info about the prefix being originated by an AS
+    # that was delegated to an organization that is not the same that received
+    # the delegation of the block
+    new_cols = new_cols1 + new_cols2 + ['originatedByDiffOrg']
     
     for new_col in new_cols:
         orgs_aggr_networks.loc[:, new_col] =\
@@ -124,6 +139,9 @@ def computePerPrefixStats(bgp_handler, del_handler):
     bgp_data = bgp_handler.bgp_data
     ipv4_prefixes_indexes_pyt = bgp_handler.ipv4_prefixes_indexes_pyt
     ipv6_prefixes_indexes_pyt = bgp_handler.ipv6_prefixes_indexes_pyt
+    
+    # Obtain ASN delegation data
+    asn_del = del_handler.delegated_df[del_handler.delegated_df['resource_type'] == 'asn']
 
     del_routed = dict()
     # Using dict instead of PyTricia due to issues accessing PyTricia values
@@ -158,9 +176,7 @@ def computePerPrefixStats(bgp_handler, del_handler):
             del_routed[net]['more_specifics'] = net_more_specifics
             del_routed[net]['less_specifics'] = net_less_specifics
               
-        
-        # TODO Check if prefix and origin AS were delegated to the same organization
-        
+                
         # Based on http://irl.cs.ucla.edu/papers/05-ccr-address.pdf
 
         # TODO Compute Usage Latency
@@ -182,34 +198,34 @@ def computePerPrefixStats(bgp_handler, del_handler):
         # at the end, and (4) a covered prefix at the beginning disappears
         # before the end and its address space is no longer
         # covered in the routing table.
+          
+        visibility = -1
         
-    
-        # Covering prefixes: isCovering = (len(more_specifics) > 0)
-        #   * allocation intact: allocIntact = (aggregated == False and block in more_specifics)
-        #   * aggregation over multiple allocations: aggrRouted = (??)
-        #   * fragments from a single allocation: fragmentsRouted = (aggregated == False and len(more_specifics - block) > 0)
-        
-        # Covered prefixes: isCovered = (len(less_specifics) > 0)
-        # We classify covered prefixes into four classes based on their advertisement
-        # paths relative to that of their corresponding covering
-        # prefixes, with two of them further classified into sub-classes.
-        # Corresponding covering prefixes -> less_specifics
-        #   * Same origin AS, same AS path (SOSP) 
-        #   * Same origin AS, different paths (SODP) (Types 1 and 2)
-        #   * Different origin ASes, same path (DOSP)
-        #   * Different origin ASes, different paths (DODP) (Types 1, 2 and 3)
-
-            
         if del_routed.has_key(net):
             # block is being announced, at least partially
-
-            if net in del_routed[net]['more_specifics']:
-                more_specifics_wo_block = del_routed[net]['more_specifics'].remove(net)
             
-            # We summarize the more specific routed blocks without the block itself
-            # to get the maximum aggregation possible of the more specifics
-            aggr_less_spec = [ipaddr for ipaddr in\
-                                ipaddress.collapse_addresses(more_specifics_wo_block)]
+            more_specifics_wo_block = copy.copy(del_routed[net]['more_specifics'])
+            
+            # If the block is being announced as-is            
+            if net in del_routed[net]['more_specifics']:
+                # we get a list of the more specifics not including the block itself
+                more_specifics_wo_block.remove(net)
+            
+                # We get the set of origin ASes for the block
+                # Usually, this set will contain only one ASN but it could contain
+                # more than one ASN if the prefix is being originated by more than one AS
+                blockOriginASes = getOriginASesForBlock(net, prefixes_indexes_pyt, bgp_data)
+
+                if len(blockOriginASes) > 1:
+                    orgs_aggr_networks.ix[i, 'multiple_originASes'] = True
+                    
+            if len(more_specifics_wo_block) > 0:     
+                # We summarize the more specific routed blocks without the block itself
+                # to get the maximum aggregation possible of the more specifics
+                aggr_less_spec = [ipaddr for ipaddr in
+                                    ipaddress.collapse_addresses(
+                                    [ipaddress.ip_network(unicode(ip_net, 'utf-8'))
+                                    for ip_net in more_specifics_wo_block])]
            
             # If there is at least one less specific block being routed
             # the block is covered and therefore its visibility is 100 %
@@ -218,22 +234,27 @@ def computePerPrefixStats(bgp_handler, del_handler):
                 visibility = 100
             
                 # TODO Compute 'SOSP', 'SODP1', 'SODP2', 'DOSP', 'DODP1', 'DODP2', 'DODP3'
-                
+                # We classify covered prefixes into four classes based on their advertisement
+                # paths relative to that of their corresponding covering
+                # prefixes, with two of them further classified into sub-classes.
+                # Corresponding covering prefixes -> less_specifics
+                #   * Same origin AS, same AS path (SOSP) 
+                #   * Same origin AS, different paths (SODP) (Types 1 and 2)
+                #   * Different origin ASes, same path (DOSP)
+                #   * Different origin ASes, different paths (DODP) (Types 1, 2 and 3)
+
                 less_spec_originASes = set()
                 for less_spec in del_routed[net]['less_specifics']:
                     less_spec_originASes.add(getOriginASesForBlock(less_spec, prefixes_indexes_pyt, bgp_data))
                     
-                blockOriginASes = getOriginASesForBlock(net, prefixes_indexes_pyt, bgp_data)
-                if len(blockOriginASes) > 1:
-                    orgs_aggr_networks.ix[i, 'multiple_originASes'] = True
                 if len(less_spec_originASes.intersection(blockOriginASes)) > 0:    
                     # • Deaggregated: a prefix that is covered by a less specific prefix,
                     # and this less specific is originated by the same AS as the deaggregated prefix.
-                    orgs_aggr_networks.ix[i, 'isDeaggregated'] = True
+                    orgs_aggr_networks.ix[i, 'isDeaggregated'] = True 
                 else:
                      # • Delegated: a prefix that is covered by a less specific, and this
                     # less specific is not originated by the same AS as the delegated prefix.
-                    orgs_aggr_networks.ix[i, 'isDelegated'] = True
+                    orgs_aggr_networks.ix[i, 'isDelegated'] = True 
 
             # If there are no less specific blocks being routed
             else:
@@ -278,11 +299,10 @@ def computePerPrefixStats(bgp_handler, del_handler):
             # the block is a covering prefix
             if len(more_specifics_wo_block) > 0:
                 orgs_aggr_networks.ix[i, 'isCovering'] = True
-            
-           # TODO how do we compute aggrRouted? (aggregation over multiple allocations: aggrRouted = (??))
-        
-            # If the block is not the result of aggregating multiple delegated blocks           
-            if not orgs_aggr_networks.ix[i, 'aggregated']:
+                    
+            # If the block is not the result of aggregating multiple delegated blocks
+            # (the block was delegated as-is)
+            if not orgs_aggr_networks.ix[i, 'aggregated']: 
                 # If there are more specific blocks being routed apart from
                 # the block itself
                 if len(more_specifics_wo_block) > 0:
@@ -293,6 +313,33 @@ def computePerPrefixStats(bgp_handler, del_handler):
                 # allocIntact is True
                 if net in del_routed[net]['more_specifics']:
                     orgs_aggr_networks.ix[i, 'allocIntact'] = True
+                    
+                    # We check if the prefix and its origin ASes were delegated
+                    # to the same organization
+                    # This not necessarily works correctly as delegations made
+                    # by a NIR do not appear in the delegated file
+                    # TODO Should we get the organization holding a specific
+                    # resource from WHOIS?
+                    originASorgs = set()                
+                    for asn in list(blockOriginASes):
+                        result_org = asn_del[(pd.to_numeric(asn_del['initial_resource']) <= int(asn)) &
+                                        (pd.to_numeric(asn_del['initial_resource'])+
+                                        pd.to_numeric(asn_del['count'])>int(asn))]['opaque_id'].get_values()
+                        if len(result_org) > 0:
+                            originASorgs.add(result_org[0])
+                        else:
+                            originASorgs.add('UNKNOWN Org')
+                
+                    prefixOrg = orgs_aggr_networks.ix[i, 'opaque_id']
+    
+                    # If the set of organizations holding ASes originating the prefix
+                    # is different from the set only containing the organization
+                    # holding the prefix                    
+                    if originASorgs != set([prefixOrg]):
+                        # the prefix is being originated by an AS delegated to
+                        # a different organization from the organization that
+                        # received the delegation of the block
+                        orgs_aggr_networks.ix[i, 'originatedByDiffOrg'] = True
                 
                 # If there are no less specific blocks being routed and the list
                 # of more specific blocks being routed only contains the block
@@ -303,29 +350,36 @@ def computePerPrefixStats(bgp_handler, del_handler):
                     # only be True for not aggregated blocks 
                 
                 if net in del_routed[net]['more_specifics']:
-                    if len(del_routed[net]['more_specifics']) >= 3 and net in aggr_less_spec:
+                    if len(del_routed[net]['more_specifics']) >= 3 and net in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • root/MS-complete: The root prefix and at least two subprefixes
                         # are announced. The set of all sub-prefixes spans
                         # the whole root prefix.
                         orgs_aggr_networks.ix[i, 'root_MScompl'] = True
-                    if len(del_routed[net]['more_specifics']) >= 2 and net not in aggr_less_spec:
+                    if len(del_routed[net]['more_specifics']) >= 2 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • root/MS-incomplete: The root prefix and at least one subprefix
                         # is announced. Together, the set of announced subprefixes
                         # does not cover the root prefix.
                         orgs_aggr_networks.ix[i, 'root_MSincompl'] = True
                 else:
-                    if len(del_routed[net]['more_specifics']) >= 2 and net in aggr_less_spec:
+                    if len(del_routed[net]['more_specifics']) >= 2 and net in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • no root/MS-complete: The root prefix is not announced.
                         # However, there are at least two sub-prefixes which together
                         # cover the complete root prefix.
                         orgs_aggr_networks.ix[i, 'noRoot_MScompl'] = True
-                    if len(del_routed[net]['more_specifics']) >= 1 and net not in aggr_less_spec:
+                    if len(del_routed[net]['more_specifics']) >= 1 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • no root/MS-incomplete: The root prefix is not announced.
                         # There is at least one sub-prefix. Taking all sub-prefixes
                         # together, they do not cover the complete root prefix.
                         orgs_aggr_networks.ix[i, 'noRoot_MSincompl'] = True
+                        
+            # if the block is the result of an aggregation of multiple delegations
+            else:
+                # and the block itself is being routed
+                if net in del_routed[net]['more_specifics']:
+                    # the maximum aggregation over multiple delegations is being routed
+                    orgs_aggr_networks.ix[i, 'maxAggrRouted'] = True
         
-            orgs_aggr_networks.ix[i, 'visibility'] = visibility
+        orgs_aggr_networks.ix[i, 'visibility'] = visibility
 
     return orgs_aggr_networks, del_routed
 
@@ -336,9 +390,7 @@ def computePerPrefixStats(bgp_handler, del_handler):
 # (BGP announcements for which the AS appears in the middle of the AS path)
 # * a numeric variable (numOfPrefixesOriginated) specifying the number of prefixes originated by the AS
 def computeASesStats(bgp_handler, del_handler):
-    expanded_del_asns_df = del_handler.getExpandedASNsDF() # TODO Debug this!!
-    # For some reason the function is returning a DataFrame with only one row
-    # It is something with the use of self
+    expanded_del_asns_df = del_handler.getExpandedASNsDF() 
     ASes_originated_prefixes_dic = bgp_handler.ASes_originated_prefixes_dic
     ASes_propagated_prefixes_dic = bgp_handler.ASes_propagated_prefixes_dic
     
