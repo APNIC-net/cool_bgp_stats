@@ -2,10 +2,10 @@
 # -*- coding: utf8 -*-
 
 
-import sys, getopt, os
+import sys, getopt, os, gzip
 #Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
-
+from get_file import get_file
 from DelegatedHandler import DelegatedHandler
 from BGPDataHandler import BGPDataHandler
 import ipaddress
@@ -105,6 +105,40 @@ def getASpathsForBlock(prefix, indexes_pyt, bgp_data):
         ASpaths.add(bgp_data.ix[index, 'ASpath'])
     
     return ASpaths
+
+# This function downloads information about relationships between ASes inferred
+# by CAIDA and stores it in a dictionary in which all the active ASes appear as keys
+# and the value is another dictionary that also has an AS as key and a string
+# as value specifying whether it is a P2P, a P2C or a C2P relationship
+# The serial variable must be 1 or 2 depending on CAIDAS's data to be used
+def getASrelInfo(serial, files_path):
+    
+    folder_url = 'http://data.caida.org/datasets/as-relationships/serial-%s/' % serial
+    index_file = '%s/CAIDA_index.txt' % files_path
+    get_file(folder_url, index_file)
+    
+    with open(index_file, 'r') as index:
+        content = index.readlines()
+        maxDate = 0
+        for line in content:
+            href_pos = line.find('href')
+            if href_pos != -1:
+                date = int(line[href_pos:href_pos+8])
+                if date > maxDate:
+                    maxDate = date
+                    
+        index.close()
+        os.remove(index_file)
+        
+        as_rel_url = '%s%s.as-rel.txt.bz2' % (folder_url, date)
+        as_rel_file = '%s/CAIDA_ASrel_%s.txt' % (files_path, date)
+        get_file(as_rel_url, as_rel_file)
+        
+        with open(as_rel_file, 'r') as as_rel:
+            # TODO Finish this
+            # Read file line by line saving the AS relationships to a dictionary
+        
+        
     
 # This function computes statistics for each delegated block
 # and for each aggregated block resulting from summarizing multiple delegations
@@ -164,6 +198,8 @@ def computePerPrefixStats(bgp_handler, del_handler):
     # Obtain ASN delegation data
     asn_del = del_handler.delegated_df[del_handler.delegated_df['resource_type'] == 'asn']
 
+    ASrels = getASrelInfo()
+    
     del_routed = dict()
     # Using dict instead of PyTricia due to issues accessing PyTricia values
     # Depending on what is stored as a value and how that value is stored,
@@ -272,25 +308,21 @@ def computePerPrefixStats(bgp_handler, del_handler):
                     coveringPrefASpaths = getASpathsForBlock(coveringPref,\
                                                 prefixes_indexes_pyt, bgp_data)               
               
-                    if blockOriginAS == coveringPref_originAS:
+                    if blockOriginAS == coveringPrefOriginAS:
                         if len(blockASpaths) == 1:
-                            if blockASpaths.issubset(coveringPrefASpath):
+                            if blockASpaths.issubset(coveringPrefASpaths):
                                 orgs_aggr_networks.ix[i, 'SOSP'] = True
                             else:
                                 orgs_aggr_networks.ix[i, 'SODP2'] = True
                         else: # len(blockASpaths) >= 2
-                            if coveringPrefASpaths.issubset(blockASpaths):
-                            # TODO Check with Geoff which one I should use
-                            # What if there is more than one AS path for the
-                            # covering prefix?
-                            # if len(coveringPrefASpaths.intersection(blockASpaths)) >= 1:
+                            if len(coveringPrefASpaths.intersection(blockASpaths)) > 0 and\
+                                len(blockASpaths.difference(coveringPrefASpaths)) > 0:
                                 orgs_aggr_networks.ix[i, 'SODP1'] = True
                                     
                     else:
                         if len(blockASpaths) == 1:
                             # TODO Check if blockOriginAS is customer of
-                            # coveringPrefOriginAS (check with Geoff)
-                            # TODO Check with Geoff if this condition is correct
+                            # coveringPrefOriginAS (use CAIDA's inferred relationships)
                             blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
                             if blockASpath_woOrigin in coveringPrefASpaths:
                                 orgs_aggr_networks.ix[i, 'DOSP'] = True
@@ -302,16 +334,15 @@ def computePerPrefixStats(bgp_handler, del_handler):
                             for ASpath in blockASpaths:
                                 blockASpaths_woOrigin.add(' '.join(ASpath.split(' ')[0:-1]))
                             
-                            if coveringPrefASpaths.issubset(blockASpaths_woOrigin):
-                            # TODO Check with Geoff which one I should use
-                            # What if there is more than one AS path for the
-                            # covering prefix?
-                            # if len(coveringPrefASpaths.intersection(blockASpaths_woOrigin)) >= 1:
+                            if len(coveringPrefASpaths.intersection(blockASpaths_woOrigin)) > 0 and\
+                                len(blockASpaths_woOrigin.difference(coveringPrefASpaths)) > 0:
                                 orgs_aggr_networks.ix[i, 'DODP2'] = True
                           
-                            # TODO Ask Geoff about this
-                            # Origin AS for covered prefix advertises two or more prefixes                             
-                            if ??:
+                            if len(coveringPrefASpaths.intersection(blockASpaths)) == 0:
+                                # TODO Ask Geoff about this
+                                # Origin AS for covered prefix and Origin AS for
+                                # covering prefix have a common customer?
+                                # Origin AS for covered prefix advertises two or more prefixes 
                                 orgs_aggr_networks.ix[i, 'DODP3'] = True
                             
             # If there are no less specific blocks being routed
@@ -373,13 +404,13 @@ def computePerPrefixStats(bgp_handler, del_handler):
                     # by a NIR do not appear in the delegated file
                     # TODO Should we get the organization holding a specific
                     # resource from WHOIS?
-                    originASorg = asn_del[(pd.to_numeric(asn_del['initial_resource']) <= int(asn)) &
+                    originASorg = asn_del[(pd.to_numeric(asn_del['initial_resource']) <= int(blockOriginAS)) &
                                         (pd.to_numeric(asn_del['initial_resource'])+
-                                        pd.to_numeric(asn_del['count'])>int(asn))]['opaque_id'].get_values()
+                                        pd.to_numeric(asn_del['count'])>int(blockOriginAS))]['opaque_id'].get_values()
                     if len(originASorg) == 1:
-                            originASorg = originAS org[0]
-                        else:
-                            originASorg = 'UNKNOWN Org'
+                        originASorg = originASorg[0]
+                    else:
+                        originASorg = 'UNKNOWN Org'
                 
                     prefixOrg = orgs_aggr_networks.ix[i, 'opaque_id']
     
@@ -458,9 +489,19 @@ def computeASesStats(bgp_handler, del_handler):
        
     return statsForASes
     
+def processHistoricalData(archive_folder):
+    
+    for root, subdirs, files in os.walk(archive_folder):
+        for filename in files:
+            if os.path.splitext(filename)[1] == '.gz':
+                file_path = os.path.join(root, filename)
+                with gzip.open(file_path, 'rb') as f:
+                    file_content = f.read()
+    
 def main(argv):
     
     urls_file = './BGPoutputs.txt'
+    urls_provided = False
     RIBfile = True
     files_path = ''
     routing_file = ''
@@ -481,8 +522,7 @@ def main(argv):
     ipv6_prefixes_indexes_file = ''
     ASes_originated_prefixes_file = ''
     ASes_propagated_prefixes_file = ''
-    
-    
+    archive_folder = ''  
 
 #For DEBUG
     files_path = '/Users/sofiasilva/BGP_files'
@@ -492,25 +532,26 @@ def main(argv):
     DEBUG = True
     EXTENDED = True
     del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
-  
+    archive_folder = '/data/wattle/bgplog'
     
     try:
-        opts, args = getopt.getopt(argv, "hp:u:or:kny:m:D:d:ei:b:4:6:a:s:", ["files_path=", "urls_file=", "routing_file=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file="])
+        opts, args = getopt.getopt(argv, "hp:u:or:kny:m:D:d:ei:b:4:6:a:s:H:", ["files_path=", "urls_file=", "routing_file=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file=", "Historcial_data_folder="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
+        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder>] [-o] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> [-o]] [-r <routing file>] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
+            print 'Usage: routing_stats.py -h | -p <files path> [[-u <urls file> [-o]] | [-r <routing file>] | [-H <Historical data folder>]] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
-            print "If not provided, the script will try to use ./BGPoutputs.txt"
             print 'All the URLs must point either to RIB files or to files containing "show ip bgp" outputs.'
             print 'If the URLs point to files containing "show ip bgp" outputs, the "-o" option must be used to specify this.'
-            print 'o = URLs in the URLs file point to files containing "show ip bgp" outputs.'
             print 'r = Use already downloaded Internet Routing data file.'
+            print "H = Historical data. Instead of processing a single file, process the routing data contained in the archive folder provided."
+            print "If none of the three options -u, -r or -H are provided, the script will try to work with routing data from URLs included ./BGPoutputs.txt"
+            print 'o = The routing data to be processed is in the format of "show ip bgp" outputs.'
             print 'k = Keep downloaded Internet routing data file.'
             print 'n = No computation. If this option is used, statistics will not be computed, just the dictionaries with prefixes/origin ASes will be created and saved to disk.'
             print 'y = Year to compute statistics for. If a year is not provided, statistics will be computed for all the available years.'
@@ -532,6 +573,7 @@ def main(argv):
             sys.exit()
         elif opt == '-u':
             urls_file = arg
+            urls_provided = True
         elif opt == '-o':
             RIBfile = False
         elif opt == '-r':
@@ -552,7 +594,7 @@ def main(argv):
         elif opt == '-e':
             EXTENDED = True
         elif opt == '-p':
-            files_path = arg.rstrip('/')
+            files_path = os.path.abspath(arg.rstrip('/'))
         elif opt == '-i':
             INCREMENTAL = True
             stats_file = arg
@@ -571,8 +613,17 @@ def main(argv):
         elif opt == '-s':
             ASes_propagated_prefixes_file = arg
             fromFiles = True
+        elif opt == '-H':
+            archive_folder = os.path.abspath(arg.rstrip('/'))
         else:
             assert False, 'Unhandled option'
+            
+    if urls_provided and (routing_file != '' or archive_folder != '') or\
+        routing_file != '' and (urls_provided or archive_folder != '') or\
+        archive_folder != '' and (urls_provided or routing_file != ''):
+
+        print "You MUST NOT use more than one of the -u, -r and -H options."
+        sys.exit()
         
     if year == '' and (month != '' or (month == '' and day != '')):
         print 'If you provide a month, you must also provide a year.'
@@ -621,20 +672,23 @@ def main(argv):
         else:
             del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
 
-   
-    bgp_handler = BGPDataHandler(urls_file, files_path, routing_file, KEEP, RIBfile,\
-                    bgp_data_file, ipv4_prefixes_indexes_file, ipv6_prefixes_indexes_file,\
-                    ASes_originated_prefixes_file, ASes_propagated_prefixes_file)
-    
-    if COMPUTE: 
-        del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,\
-                        final_existing_date, year, month, day)
-        prefixes_Stats, routed_pyt = computePerPrefixStats(bgp_handler, del_handler)
-        statsForASes = computeASesStats(bgp_handler, del_handler)
-        # TODO Save Stats and routed prefixes to files and ElasticSearch
+    if archive_folder == '':
+        bgp_handler = BGPDataHandler(urls_file, files_path, routing_file, KEEP, RIBfile,\
+                        bgp_data_file, ipv4_prefixes_indexes_file, ipv6_prefixes_indexes_file,\
+                        ASes_originated_prefixes_file, ASes_propagated_prefixes_file)
         
+        if COMPUTE: 
+            del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,\
+                            final_existing_date, year, month, day)
+            prefixes_Stats, routed_pyt = computePerPrefixStats(bgp_handler, del_handler)
+            statsForASes = computeASesStats(bgp_handler, del_handler)
+            # TODO Save Stats and routed prefixes to files and ElasticSearch
+            
+        else:
+           bgp_handler.saveDataToFiles(files_path)
+    
     else:
-       bgp_handler.saveDataToFiles(files_path)
+        processHistoricalData(archive_folder)
         
         
 if __name__ == "__main__":
