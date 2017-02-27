@@ -16,6 +16,7 @@ import ipaddress
 
 # For some reason in my computer os.getenv('PATH') differs from echo $PATH
 # /usr/local/bin is not in os.getenv('PATH')
+# it also works in matong
 bgpdump = '/usr/local/bin/bgpdump'
 
 class BGPDataHandler:
@@ -37,12 +38,17 @@ class BGPDataHandler:
     # Numeric variable with the longest IPv6 prefix length
     ipv6_longest_pref = -1   
             
-    def __init__(self, urls, files_path, routing_file, KEEP, RIBfile, bgp_data_file,\
+    def __init__(self, urls_file, files_path, routing_file, archive_folder, KEEP, RIBfiles, bgp_data_file,\
                     ipv4_prefixes_indexes_file, ipv6_prefixes_indexes_file,\
                     ASes_originated_prefixes_file, ASes_propagated_prefixes_file):
+                        
         if bgp_data_file != '' and ipv4_prefixes_indexes_file != '' and\
             ipv6_prefixes_indexes_file != '' and ASes_originated_prefixes_file != ''\
             and ASes_propagated_prefixes_file != '':
+            
+            if urls_file != '' or routing_file != '' or archive_folder != '':
+                print 'urls or routing_file or archive_folder not NULL but not being used!'
+                
             self.bgp_data = pickle.load(open(bgp_data_file, "rb"))
             self.ipv4_prefixes_indexes_pyt = pickle.load(open(ipv4_prefixes_indexes_file, "rb"))
             self.ipv6_prefixes_indexes_pyt = pickle.load(open(ipv6_prefixes_indexes_file, "rb"))
@@ -50,89 +56,123 @@ class BGPDataHandler:
             self.ASes_propagated_prefixes_dic = pickle.load(open(ASes_propagated_prefixes_file, "rb"))
             self.setLongestPrefixLengths()
         else:
-            if urls == '':
-                urls = self.urls_file
+            print 'Not using existing files.'
             
-            if routing_file == '':
-                urls_file_obj = open(urls, 'r')
-                
-                bgp_data = pd.DataFrame()
-                ipv4_prefixes_indexes_pyt = pytricia.PyTricia()
-                ipv6_prefixes_indexes_pyt = pytricia.PyTricia()
-                ASes_originated_prefixes_dic = dict()
-                ASes_propagated_prefixes_dic = dict()
-                
-                for line in urls_file_obj:
-                    if line.strip() != '':
-                        # If we work with several routing files
-                        sys.stderr.write("Starting to work with %s" % line)
-                        # We obtain partial data structures
-                        bgp_data_partial, ipv4_prefixes_indexes_pyt_partial,\
-                            ipv6_prefixes_indexes_pyt_partial,\
-                            ASes_originated_prefixes_dic_partial,\
-                            ASes_propagated_prefixes_dic_partial,\
-                            ipv4_longest_pref, ipv6_longest_pref =\
-                            self.processRoutingData(line.strip(), files_path,\
-                            routing_file, KEEP, RIBfile)
-                        
-                        # that we then merge to the general data structures
-                        bgp_data = pd.concat([bgp_data, bgp_data_partial])
+            if archive_folder == '' and routing_file == '' and urls_file == '':
+                urls_file = self.urls_file
             
-                        for prefix in ipv4_prefixes_indexes_pyt_partial:
-                            if ipv4_prefixes_indexes_pyt.has_key(prefix):
-                                ipv4_prefixes_indexes_pyt[prefix].update(list(ipv4_prefixes_indexes_pyt_partial[prefix]))
-                            else:
-                                ipv4_prefixes_indexes_pyt[prefix] = ipv4_prefixes_indexes_pyt_partial[prefix]
-
-                        for prefix in ipv6_prefixes_indexes_pyt_partial:
-                            if ipv6_prefixes_indexes_pyt.has_key(prefix):
-                                ipv6_prefixes_indexes_pyt[prefix].update(list(ipv6_prefixes_indexes_pyt_partial[prefix]))
-                            else:
-                                ipv6_prefixes_indexes_pyt[prefix] = ipv6_prefixes_indexes_pyt_partial[prefix]
+            if archive_folder == '':
+                if routing_file == '':
+                    bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
+                        ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+                        ipv4_longest_pref, ipv6_longest_pref  =\
+                        self.processMultipleFiles(urls_file, files_path, KEEP, RIBfiles)
+                
+                else: # routing_file not null
+                    bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
+                        ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+                        ipv4_longest_pref, ipv6_longest_pref  =\
+                        self.processRoutingData('', files_path, routing_file,\
+                        KEEP, RIBfiles)
         
-                        for aut_sys, prefixes in ASes_originated_prefixes_dic_partial.iteritems():
-                            if aut_sys in ASes_originated_prefixes_dic.keys():
-                                ASes_originated_prefixes_dic[aut_sys].update(list(prefixes))
-                            else:
-                                ASes_originated_prefixes_dic[aut_sys] = prefixes
-
-                        for aut_sys, prefixes in ASes_propagated_prefixes_dic_partial.iteritems():
-                            if aut_sys in ASes_propagated_prefixes_dic.keys():
-                                ASes_propagated_prefixes_dic[aut_sys].update(list(prefixes))
-                            else:
-                                ASes_propagated_prefixes_dic[aut_sys] = prefixes
-                                
-                        if ipv4_longest_pref > self.ipv4_longest_pref:
-                            self.ipv4_longest_pref = ipv4_longest_pref
-                            
-                        if ipv6_longest_pref > self.ipv6_longest_pref:
-                            self.ipv6_longest_pref = ipv6_longest_pref
-                                
-                urls_file_obj.close()
-                
-            else:
+                self.bgp_data = bgp_data
+                self.ipv4_prefixes_indexes_pyt = ipv4_prefixes_indexes_pyt
+                self.ipv6_prefixes_indexes_pyt = ipv6_prefixes_indexes_pyt
+                self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
+                self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
+                if ipv4_longest_pref != -1:
+                    self.ipv4_longest_pref = ipv4_longest_pref
+                else:
+                    self.ipv4_longest_pref = 32
+                if ipv6_longest_pref != -1:
+                    self.ipv6_longest_pref = ipv6_longest_pref
+                else:
+                    self.ipv6_longest_pref = 64
+            else: # archive_folder not null
+                historical_files = self.getPathsToHistoricalData(archive_folder)
                 bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
-                    ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
-                    ipv4_longest_pref, ipv6_longest_pref  =\
-                    self.processRoutingData('', files_path, routing_file,\
-                    KEEP, RIBfile)
-    
-            self.bgp_data = bgp_data
-            self.ipv4_prefixes_indexes_pyt = ipv4_prefixes_indexes_pyt
-            self.ipv6_prefixes_indexes_pyt = ipv6_prefixes_indexes_pyt
-            self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
-            self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
-            if ipv4_longest_pref != -1:
-                self.ipv4_longest_pref = ipv4_longest_pref
-            else:
-                self.ipv4_longest_pref = 32
-            if ipv6_longest_pref != -1:
-                self.ipv6_longest_pref = ipv6_longest_pref
-            else:
-                self.ipv6_longest_pref = 64
-                
+                        ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+                        ipv4_longest_pref, ipv6_longest_pref  =\
+                        self.processMultipleFiles(historical_files, False, files_path, KEEP, RIBfiles)
+                        
             sys.stderr.write("BGPDataHandler instantiated successfully!\n")
         
+    # This function downloads and processes all the files in the provided list
+    # the boolean variable containsURLs must be True if the files_list is a list
+    # of URLs or False if it is a list of paths
+    # TODO Modify to include date
+    def processMultipleFiles(self, files_list, containsURLs, files_path, KEEP, RIBfiles):
+        files_list_obj = open(files_list, 'r')
+                    
+        bgp_data = pd.DataFrame()
+        ipv4_prefixes_indexes_pyt = pytricia.PyTricia()
+        ipv6_prefixes_indexes_pyt = pytricia.PyTricia()
+        ASes_originated_prefixes_dic = dict()
+        ASes_propagated_prefixes_dic = dict()
+        ipv4_longest_pref = -1
+        ipv6_longest_pref = -1
+        
+        for line in files_list_obj:
+            if line.strip() != '':
+                # If we work with several routing files
+                sys.stderr.write("Starting to work with %s" % line)
+
+                # We obtain partial data structures
+                if containsURLs:
+                    bgp_data_partial, ipv4_prefixes_indexes_pyt_partial,\
+                        ipv6_prefixes_indexes_pyt_partial,\
+                        ASes_originated_prefixes_dic_partial,\
+                        ASes_propagated_prefixes_dic_partial,\
+                        ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
+                        self.processRoutingData(line.strip(), files_path, '',\
+                        KEEP, RIBfiles)
+                else:
+                    bgp_data_partial, ipv4_prefixes_indexes_pyt_partial,\
+                        ipv6_prefixes_indexes_pyt_partial,\
+                        ASes_originated_prefixes_dic_partial,\
+                        ASes_propagated_prefixes_dic_partial,\
+                        ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
+                        self.processRoutingData('', files_path, line.strip(),\
+                        KEEP, RIBfiles)
+                
+                # and then we merge them into the general data structures
+                bgp_data = pd.concat([bgp_data, bgp_data_partial])
+    
+                for prefix in ipv4_prefixes_indexes_pyt_partial:
+                    if ipv4_prefixes_indexes_pyt.has_key(prefix):
+                        ipv4_prefixes_indexes_pyt[prefix].update(list(ipv4_prefixes_indexes_pyt_partial[prefix]))
+                    else:
+                        ipv4_prefixes_indexes_pyt[prefix] = ipv4_prefixes_indexes_pyt_partial[prefix]
+
+                for prefix in ipv6_prefixes_indexes_pyt_partial:
+                    if ipv6_prefixes_indexes_pyt.has_key(prefix):
+                        ipv6_prefixes_indexes_pyt[prefix].update(list(ipv6_prefixes_indexes_pyt_partial[prefix]))
+                    else:
+                        ipv6_prefixes_indexes_pyt[prefix] = ipv6_prefixes_indexes_pyt_partial[prefix]
+
+                for aut_sys, prefixes in ASes_originated_prefixes_dic_partial.iteritems():
+                    if aut_sys in ASes_originated_prefixes_dic.keys():
+                        ASes_originated_prefixes_dic[aut_sys].update(list(prefixes))
+                    else:
+                        ASes_originated_prefixes_dic[aut_sys] = prefixes
+
+                for aut_sys, prefixes in ASes_propagated_prefixes_dic_partial.iteritems():
+                    if aut_sys in ASes_propagated_prefixes_dic.keys():
+                        ASes_propagated_prefixes_dic[aut_sys].update(list(prefixes))
+                    else:
+                        ASes_propagated_prefixes_dic[aut_sys] = prefixes
+                        
+                if ipv4_longest_pref_partial > ipv4_longest_pref:
+                    ipv4_longest_pref = ipv4_longest_pref_partial
+                    
+                if ipv6_longest_pref_partial > ipv6_longest_pref:
+                    ipv6_longest_pref = ipv6_longest_pref_partial
+                        
+        files_list_obj.close()
+        
+        return bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
+            ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+            ipv4_longest_pref, ipv6_longest_pref
         
     # This method converts a file containing the output of the 'show ip bgp' command
     # to a file in the same format used for BGPDump outputs
@@ -247,7 +287,7 @@ class BGPDataHandler:
                 ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
                 ipv4_longest_prefix, ipv6_longest_prefix
               
-    def processRoutingData(self, url, files_path, routing_file, KEEP, RIBfile):
+    def processRoutingData(self, url, files_path, routing_file, KEEP, RIBfiles):
         # If a routing file is not provided, download it from the provided URL        
         if routing_file == '':
             routing_file = '%s/%s' % (files_path, url.split('/')[-1])
@@ -255,7 +295,7 @@ class BGPDataHandler:
         
         # If the routing file is a compressed RIB file, we unzip it
         # and process it using BGPdump
-        if RIBfile:
+        if RIBfiles:
             if KEEP:
                 cmd = 'gunzip -k %s' % routing_file
                 #  GUNZIP
@@ -300,6 +340,19 @@ class BGPDataHandler:
         return bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
                 ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
                 ipv4_longest_pref, ipv6_longest_pref
+           
+    # This function walks a folder with historical routing info and creates a
+    # file with a list of paths to the .dmp.gz files in the archive folder
+    # It returns the pth to the created file
+    def getPathsToHistoricalData(archive_folder, files_path):
+        files_list_file = '%s/RoutingFiles.txt' % files_path
+        with open(files_list_file, 'wb') as list_file:
+            for root, subdirs, files in os.walk(archive_folder):
+                for filename in files:
+                    if filename.endswith('dmp.gz'):
+                        list_file.write('%s\n' % os.path.join(root, filename))
+        list_file.close()
+        return files_list_file
 
 
     def saveDataToFiles(self, files_path):

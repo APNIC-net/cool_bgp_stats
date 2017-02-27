@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 
-import sys, getopt, os, gzip
+import sys, getopt, os, bz2
 #Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from get_file import get_file
@@ -92,6 +92,8 @@ def getOriginASForBlock(prefix, indexes_pyt, bgp_data):
     if len(originASes) > 1:
         print "Found prefix originated by more than one AS (%s)" % prefix
         # TODO Analyze these special cases
+        # Geoff says there are a lot of these
+        # I have already asked him what to do in these cases
     if len(originASes) > 0:
         return list(originASes)[0]
     else:
@@ -111,34 +113,72 @@ def getASpathsForBlock(prefix, indexes_pyt, bgp_data):
 # and the value is another dictionary that also has an AS as key and a string
 # as value specifying whether it is a P2P, a P2C or a C2P relationship
 # The serial variable must be 1 or 2 depending on CAIDAS's data to be used
-def getASrelInfo(serial, files_path):
+def getASrelInfo(serial, files_path, KEEP):
     
     folder_url = 'http://data.caida.org/datasets/as-relationships/serial-%s/' % serial
     index_file = '%s/CAIDA_index.txt' % files_path
     get_file(folder_url, index_file)
     
     with open(index_file, 'r') as index:
-        content = index.readlines()
         maxDate = 0
-        for line in content:
+        for line in index.readlines():
             href_pos = line.find('href')
-            if href_pos != -1:
-                date = int(line[href_pos:href_pos+8])
-                if date > maxDate:
-                    maxDate = date
-                    
+            if href_pos != -1 and line.find('as-rel') != -1:
+                try:
+                    date_pos = href_pos+6
+                    date = int(line[date_pos:date_pos+8])
+                    if date > maxDate:
+                        maxDate = date
+                except ValueError:
+                    continue
+            
         index.close()
-        os.remove(index_file)
+        if not KEEP:
+            os.remove(index_file)
         
-        as_rel_url = '%s%s.as-rel.txt.bz2' % (folder_url, date)
-        as_rel_file = '%s/CAIDA_ASrel_%s.txt' % (files_path, date)
+        if serial == 1:
+            as_rel_url = '%s%s.as-rel.txt.bz2' % (folder_url, maxDate)
+            as_rel_file = '%s/CAIDA_ASrel_%s.txt.bz2' % (files_path, maxDate)
+        elif serial == 2:
+            as_rel_url = '%s%s.as-rel2.txt.bz2' % (folder_url, maxDate)
+            as_rel_file = '%s/CAIDA_ASrel2_%s.txt.bz2' % (files_path, maxDate)
+
         get_file(as_rel_url, as_rel_file)
         
-        with open(as_rel_file, 'r') as as_rel:
-            # TODO Finish this
-            # Read file line by line saving the AS relationships to a dictionary
+        ASrels = dict()
         
+        print 'Working with file %s\n' % as_rel_file
         
+        with bz2.BZ2File(as_rel_file, 'rb') as as_rel:
+            for line in as_rel.readlines():
+                if not line.startswith('#'):
+                    line_parts = line.split('|')
+                    as1 = int(line_parts[0])
+                    as2 = int(line_parts[1])
+                    rel_type = line_parts[2]
+                    if rel_type == '0':
+                        rel_type = 'P2P'
+                    elif rel_type == '-1':
+                        rel_type = 'P2C'
+                    
+                    if as1 not in ASrels:
+                        ASrels[as1] = dict()
+                    if as2 not in ASrels[as1]:
+                        ASrels[as1][as2] = rel_type
+
+                    if rel_type == 'P2C':
+                        rel_type = 'C2P'
+
+                    if as2 not in ASrels:
+                        ASrels[as2] = dict()
+                    if as2 not in ASrels[as2]:
+                        ASrels[as2][as1] = rel_type
+                        
+        as_rel.close()
+        if not KEEP:
+            os.remove(as_rel_file)
+            
+        return ASrels
     
 # This function computes statistics for each delegated block
 # and for each aggregated block resulting from summarizing multiple delegations
@@ -146,7 +186,7 @@ def getASrelInfo(serial, files_path):
 # Returns a DataFrame with the computed statistics and
 # a PyTricia with the routed blocks covering each delegated or aggregated block.
 # The key is a string representing a block, the value is a list of IPNetwroks
-def computePerPrefixStats(bgp_handler, del_handler):
+def computePerPrefixStats(bgp_handler, del_handler, ASrels):
     # Obtain a DataFrame with all the delegated blocks and all the aggregated
     # block resulting from summarizing multiple delegations
     # to the same organization
@@ -198,7 +238,6 @@ def computePerPrefixStats(bgp_handler, del_handler):
     # Obtain ASN delegation data
     asn_del = del_handler.delegated_df[del_handler.delegated_df['resource_type'] == 'asn']
 
-    ASrels = getASrelInfo()
     
     del_routed = dict()
     # Using dict instead of PyTricia due to issues accessing PyTricia values
@@ -321,11 +360,14 @@ def computePerPrefixStats(bgp_handler, del_handler):
                                     
                     else:
                         if len(blockASpaths) == 1:
-                            # TODO Check if blockOriginAS is customer of
-                            # coveringPrefOriginAS (use CAIDA's inferred relationships)
-                            blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
-                            if blockASpath_woOrigin in coveringPrefASpaths:
-                                orgs_aggr_networks.ix[i, 'DOSP'] = True
+                       
+                            if blockOriginAS in ASrels and\
+                                coveringPrefOriginAS in ASrels[blockOriginAS] and\
+                                ASrels[blockOriginAS][coveringPrefOriginAS] == 'C2P':
+
+                                blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
+                                if blockASpath_woOrigin in coveringPrefASpaths:
+                                    orgs_aggr_networks.ix[i, 'DOSP'] = True
                         
                             if not blockASpaths.issubset(coveringPrefASpaths):
                                 orgs_aggr_networks.ix[i, 'DODP1'] = True
@@ -489,14 +531,6 @@ def computeASesStats(bgp_handler, del_handler):
        
     return statsForASes
     
-def processHistoricalData(archive_folder):
-    
-    for root, subdirs, files in os.walk(archive_folder):
-        for filename in files:
-            if os.path.splitext(filename)[1] == '.gz':
-                file_path = os.path.join(root, filename)
-                with gzip.open(file_path, 'rb') as f:
-                    file_content = f.read()
     
 def main(argv):
     
@@ -672,23 +706,26 @@ def main(argv):
         else:
             del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
 
-    if archive_folder == '':
-        bgp_handler = BGPDataHandler(urls_file, files_path, routing_file, KEEP, RIBfile,\
-                        bgp_data_file, ipv4_prefixes_indexes_file, ipv6_prefixes_indexes_file,\
-                        ASes_originated_prefixes_file, ASes_propagated_prefixes_file)
-        
-        if COMPUTE: 
-            del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,\
-                            final_existing_date, year, month, day)
-            prefixes_Stats, routed_pyt = computePerPrefixStats(bgp_handler, del_handler)
-            statsForASes = computeASesStats(bgp_handler, del_handler)
-            # TODO Save Stats and routed prefixes to files and ElasticSearch
-            
-        else:
-           bgp_handler.saveDataToFiles(files_path)
+
+    bgp_handler = BGPDataHandler(urls_file, files_path, routing_file,\
+                    archive_folder, KEEP, RIBfile, bgp_data_file,\
+                    ipv4_prefixes_indexes_file, ipv6_prefixes_indexes_file,\
+                    ASes_originated_prefixes_file, ASes_propagated_prefixes_file)
     
+    if COMPUTE: 
+        del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,\
+                        final_existing_date, year, month, day)
+
+        ASrels = getASrelInfo(2, files_path, KEEP)
+
+        prefixes_Stats, routed_pyt = computePerPrefixStats(bgp_handler, del_handler, ASrels)
+        statsForASes = computeASesStats(bgp_handler, del_handler)
+        # TODO Save Stats and routed prefixes to files and ElasticSearch
+        
     else:
-        processHistoricalData(archive_folder)
+       bgp_handler.saveDataToFiles(files_path)
+    
+
         
         
 if __name__ == "__main__":
