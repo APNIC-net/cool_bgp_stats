@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 import sys
-import os, subprocess, shlex, re
+import os, subprocess, shlex, re, gzip
 # Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from get_file import get_file
@@ -29,6 +29,9 @@ class BGPDataHandler:
     # PyTricia indexed by routed IPv6 prefix containing the indexes of the rows in
     # the bgp_data Data Frame that contain info of BGP announcements of the IPv6 prefix
     ipv6_prefixes_indexes_pyt = pytricia.PyTricia()
+    # PyTricia indexed by routed prefix containing the dates in which the
+    # prefix was seen
+    prefixesDates = pytricia.PyTricia()
     # Dictionary indexed by AS containing all the prefixes originated by each AS
     ASes_originated_prefixes_dic = dict()
     # Dictionary indexed by AS containing all the prefixes propagated by each AS
@@ -59,29 +62,38 @@ class BGPDataHandler:
         else:
             print 'Not using existing files.'
             
-            if archive_folder == '' and routing_file == '' and urls_file == '':
+            if routing_file == '' and urls_file == '' and archive_folder == '':
                 urls_file = self.urls_file
             
-            if archive_folder == '':
-                if routing_file == '':
-                    bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
-                        ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
-                        ipv4_longest_pref, ipv6_longest_pref  =\
-                        self.processMultipleFiles(urls_file, files_path, KEEP,\
-                                                    RIBfiles, COMPRESSED)
-                
-                else: # routing_file not null
-                    bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
-                        ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
-                        ipv4_longest_pref, ipv6_longest_pref  =\
-                        self.processRoutingData('', files_path, routing_file,\
-                        KEEP, RIBfiles, COMPRESSED)
-            else: # archive_folder not null
-                historical_files = self.getPathsToHistoricalData(archive_folder, files_path)
+           
+            if routing_file == '' and archive_folder == '':
                 bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
-                        ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
-                        ipv4_longest_pref, ipv6_longest_pref  =\
-                        self.processMultipleFiles(historical_files, False,\
+                    ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+                    ipv4_longest_pref, ipv6_longest_pref  =\
+                    self.processMultipleFiles(urls_file, files_path, KEEP,\
+                                                RIBfiles, COMPRESSED)
+            
+            elif routing_file != '':
+                readable_file_name =  self.getReadableFile('', files_path,\
+                                            routing_file, RIBfiles, COMPRESSED)
+                bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
+                    ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+                    ipv4_longest_pref, ipv6_longest_pref =\
+                                self.processReadableDF(readable_file_name, KEEP)
+                    
+            else: # archive_folder not null
+                historical_files = self.getPathsToHistoricalData(archive_folder,\
+                                                                    files_path)
+                mostRecent_routing_file = self.getMostRecentFromHistoricalList(historical_files)
+                readable_file_name =  self.getReadableFile('', files_path,\
+                                            mostRecent_routing_file, RIBfiles,\
+                                            COMPRESSED)
+                bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
+                    ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+                    ipv4_longest_pref, ipv6_longest_pref =\
+                                self.processReadableDF(readable_file_name, KEEP)
+                    
+                self.prefixesDates = self.getDatesSeenForPrefixes(historical_files,\
                                         files_path, KEEP, RIBfiles, COMPRESSED)
                 
             self.bgp_data = bgp_data
@@ -100,11 +112,79 @@ class BGPDataHandler:
                 self.ipv6_longest_pref = 64
                 
             sys.stderr.write("BGPDataHandler instantiated successfully!\n")
+    
+    def getMostRecentFromHistoricalList(self, historical_files):
+        files_list_obj = open(historical_files, 'r')
+
+        mostRecentDate = 0
+        
+        for line in files_list_obj:
+            if not line.startswith('#') and line.strip() != '':
+                dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]',\
+                            line)
+                if len(dates) > 0:
+                    if dates[0] > mostRecentDate:
+                        mostRecentDate = dates[0]
+        
+        return mostRecentDate
+        
+    def getDatesSeenForPrefixes(self, historical_files, files_path, KEEP,\
+                                RIBfiles, COMPRESSED):
+
+        files_list_obj = open(historical_files, 'r')
+
+        prefixes_dates = pytricia.PyTricia()
+        
+        for line in files_list_obj:
+            if not line.startswith('#') and line.strip() != '':
+                 # If we work with several routing files
+                sys.stderr.write("Starting to work with %s" % line)
+                
+                prefixes_list, date = self.getPrefixesAndDate(files_path,\
+                                                                line.strip(),\
+                                                                KEEP, RIBfiles,\
+                                                                COMPRESSED)
+
+                for pref in prefixes_list:
+                    if prefixes_dates.has_key(pref):
+                        prefixes_dates[pref].add(date)
+                    else:
+                        prefixes_dates[pref] = set([date])
+                                                 
+        return prefixes_dates
+
+    def getPrefixesAndDate(self, routing_file, files_path, RIBfile, COMPRESSED):
+        readable_file_name = self.getReadableFile('', files_path, routing_file,\
+                                                            RIBfile, COMPRESSED)
+        dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]',\
+                            readable_file_name)
+                            
+        if len(dates) > 0:
+            date = int(dates[0][0:4]+dates[0][5:7]+dates[0][8:10])
+        # If there is no date in the file name, we use the date of today
+        else:
+            dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]',\
+                            readable_file_name)
+            if len(dates) > 0:
+                date = int(dates[0])
+            else:
+                date =  datetime.date.today().strftime('%Y%m%d')
+
+        bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
+                                index_col=False, usecols=[3,5,6,7],\
+                                names=['peer',\
+                                        'prefix',\
+                                        'ASpath',\
+                                        'origin'])
+        
+        return bgp_df['prefix'].tolist(), date
+                                        
         
     # This function downloads and processes all the files in the provided list
     # the boolean variable containsURLs must be True if the files_list is a list
     # of URLs or False if it is a list of paths
-    def processMultipleFiles(self, files_list, containsURLs, files_path, KEEP, RIBfiles, COMPRESSED):
+    def processMultipleFiles(self, files_list, containsURLs, files_path, KEEP,\
+                                RIBfiles, COMPRESSED):
         files_list_obj = open(files_list, 'r')
                     
         bgp_data = pd.DataFrame()
@@ -122,21 +202,27 @@ class BGPDataHandler:
 
                 # We obtain partial data structures
                 if containsURLs:
+                    readable_file_name =  self.getReadableFile(line.strip(),\
+                                            files_path, '', RIBfiles, COMPRESSED)          
+                    
                     bgp_data_partial, ipv4_prefixes_indexes_pyt_partial,\
                         ipv6_prefixes_indexes_pyt_partial,\
                         ASes_originated_prefixes_dic_partial,\
                         ASes_propagated_prefixes_dic_partial,\
                         ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
-                        self.processRoutingData(line.strip(), files_path, '',\
-                        KEEP, RIBfiles, COMPRESSED)
+                                self.processReadableDF(readable_file_name, KEEP)
                 else:
+                    readable_file_name =  self.getReadableFile('', files_path,\
+                                                                line.strip(),\
+                                                                RIBfiles,\
+                                                                COMPRESSED)          
+                    
                     bgp_data_partial, ipv4_prefixes_indexes_pyt_partial,\
                         ipv6_prefixes_indexes_pyt_partial,\
                         ASes_originated_prefixes_dic_partial,\
                         ASes_propagated_prefixes_dic_partial,\
                         ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
-                        self.processRoutingData('', files_path, line.strip(),\
-                        KEEP, RIBfiles, COMPRESSED)
+                                self.processReadableDF(readable_file_name, KEEP)
                 
                 # and then we merge them into the general data structures
                 bgp_data = pd.concat([bgp_data, bgp_data_partial])
@@ -179,9 +265,8 @@ class BGPDataHandler:
         
     # This method converts a file containing the output of the 'show ip bgp' command
     # to a file in the same format used for BGPDump outputs
-    def convertBGPoutput(self, routing_file, files_path, KEEP):
-        today = datetime.date.today().strftime('%Y%m%d')        
-        output_file_name = '%s/%s_%s.readable' % (files_path, '.'.join(routing_file.split('/')[-1].split('.')[:-1]), today)
+    def convertBGPoutput(self, routing_file, files_path):
+        output_file_name = '%s/%s.readable' % (files_path, '.'.join(routing_file.split('/')[-1].split('.')[:-1]))
         output_file = open(output_file_name, 'w')
         
         with open(routing_file, 'r') as file_h:
@@ -225,7 +310,7 @@ class BGPDataHandler:
  
     # This function processes a readable file with routing info
     # putting all the info in a Data Frame  
-    def processReadableDF(self, readable_file_name):
+    def processReadableDF(self, readable_file_name, KEEP):
         # We get the date from the file name.
         dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]',\
                             readable_file_name)
@@ -299,12 +384,18 @@ class BGPDataHandler:
                         ASes_propagated_prefixes_dic[asn].add(prefix)
                 else:
                     ASes_propagated_prefixes_dic[asn] = set([prefix])
-              
+        
+        if not KEEP:
+            try:
+                os.remove(readable_file_name)
+            except OSError:
+                pass
+            
         return bgp_df, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
                 ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
                 ipv4_longest_prefix, ipv6_longest_prefix
 
-    def processRoutingData(self, url, files_path, routing_file, KEEP, RIBfiles, COMPRESSED):
+    def getReadableFile(self, url, files_path, routing_file, RIBfiles, COMPRESSED):
         # If a routing file is not provided, download it from the provided URL        
         if routing_file == '':
             routing_file = '%s/%s' % (files_path, url.split('/')[-1])
@@ -312,25 +403,24 @@ class BGPDataHandler:
         
         # If the routing file is compressed we unzip it
         if COMPRESSED:
-            if KEEP:
-                cmd = 'gunzip -k %s' % routing_file
-                #  GUNZIP
-                #  -k --keep            don't delete input files during operation
-            else:
-                cmd = 'gunzip %s' % routing_file
+            output_file = '%s/%s' % (files_path,\
+                                os.path.splitext(routing_file)[0].split('/')[-1])
             
-            subprocess.call(shlex.split(cmd))    
-        
-            decomp_file_name = '.'.join(routing_file.split('.')[:-1]) # Path to decompressed file
-            routing_file = decomp_file_name
+            with gzip.open(routing_file, 'rb') as gzip_file,\
+                open(output_file, 'wb') as output:
+                output.write(gzip_file.read())
+            gzip_file.close()
+            output.close()
+            
+            routing_file = output_file 
             
         # If the routing file is a RIB file, we process it using BGPdump
         if RIBfiles:            
             today = datetime.date.today().strftime('%Y%m%d')
-            readable_file_name = '%s_%s.readable' % (decomp_file_name, today)
+            readable_file_name = '%s_%s.readable' % (routing_file, today)
 
-            cmd = shlex.split('%s -m -O %s %s' % (bgpdump, readable_file_name, decomp_file_name))
-            #        cmd = shlex.split('bgpdump -m -O %s %s' % (readable_file_name, decomp_file_name))   
+            cmd = shlex.split('%s -m -O %s %s' % (bgpdump, readable_file_name, routing_file))
+            #        cmd = shlex.split('bgpdump -m -O %s %s' % (readable_file_name, routing_file))   
     
             #  BGPDUMP
             #  -m         one-line per entry with unix timestamps
@@ -341,25 +431,9 @@ class BGPDataHandler:
         # If the file contains the output of the 'show ip bgp' command,
         # we convert it to the same format used by BGPdump for its outputs
         else:
-            readable_file_name = self.convertBGPoutput(routing_file, files_path, KEEP)
+            readable_file_name = self.convertBGPoutput(routing_file, files_path)
 
-        # Finally, we process the readable file
-        bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
-            ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
-            ipv4_longest_pref, ipv6_longest_pref =\
-            self.processReadableDF(readable_file_name)
-        
-        if not KEEP:
-            try:
-                os.remove(routing_file)
-                os.remove(decomp_file_name)
-                os.remove(readable_file_name)
-            except OSError:
-                pass
-        
-        return bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
-                ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
-                ipv4_longest_pref, ipv6_longest_pref
+        return readable_file_name
            
     # This function walks a folder with historical routing info and creates a
     # file with a list of paths to the .dmp.gz files in the archive folder
