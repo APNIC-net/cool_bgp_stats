@@ -559,14 +559,14 @@ def main(argv):
     archive_folder = ''  
 
 #For DEBUG
-    files_path = '/Users/sofiasilva/BGP_files'
-    routing_file = '/Users/sofiasilva/BGP_files/bgptable.txt'
-    KEEP = True
-    RIBfile = False
-    DEBUG = True
-    EXTENDED = True
-    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
-    archive_folder = '/data/wattle/bgplog'
+#    files_path = '/Users/sofiasilva/BGP_files'
+#    routing_file = '/Users/sofiasilva/BGP_files/bgptable.txt'
+#    KEEP = True
+#    RIBfile = False
+#    DEBUG = True
+#    EXTENDED = True
+#    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
+#    archive_folder = '/data/wattle/bgplog'
     
     try:
         opts, args = getopt.getopt(argv, "hp:u:or:kny:m:D:d:ei:b:4:6:a:s:H:", ["files_path=", "urls_file=", "routing_file=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file=", "Historcial_data_folder="])

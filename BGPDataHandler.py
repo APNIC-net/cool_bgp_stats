@@ -75,7 +75,7 @@ class BGPDataHandler:
                         self.processRoutingData('', files_path, routing_file,\
                         KEEP, RIBfiles)
             else: # archive_folder not null
-                historical_files = self.getPathsToHistoricalData(archive_folder)
+                historical_files = self.getPathsToHistoricalData(archive_folder, files_path)
                 bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
                         ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
                         ipv4_longest_pref, ipv6_longest_pref  =\
