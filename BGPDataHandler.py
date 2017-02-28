@@ -358,7 +358,7 @@ class BGPDataHandler:
     # This function walks a folder with historical routing info and creates a
     # file with a list of paths to the .dmp.gz files in the archive folder
     # It returns the pth to the created file
-    def getPathsToHistoricalData(archive_folder, files_path):
+    def getPathsToHistoricalData(self, archive_folder, files_path):
         files_list_file = '%s/RoutingFiles.txt' % files_path
         with open(files_list_file, 'wb') as list_file:
             for root, subdirs, files in os.walk(archive_folder):
