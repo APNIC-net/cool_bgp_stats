@@ -38,7 +38,8 @@ class BGPDataHandler:
     # Numeric variable with the longest IPv6 prefix length
     ipv6_longest_pref = -1   
             
-    def __init__(self, urls_file, files_path, routing_file, archive_folder, KEEP, RIBfiles, bgp_data_file,\
+    def __init__(self, urls_file, files_path, routing_file, archive_folder, KEEP,\
+                    RIBfiles, COMPRESSED, bgp_data_file,\
                     ipv4_prefixes_indexes_file, ipv6_prefixes_indexes_file,\
                     ASes_originated_prefixes_file, ASes_propagated_prefixes_file):
                         
@@ -66,20 +67,22 @@ class BGPDataHandler:
                     bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
                         ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
                         ipv4_longest_pref, ipv6_longest_pref  =\
-                        self.processMultipleFiles(urls_file, files_path, KEEP, RIBfiles)
+                        self.processMultipleFiles(urls_file, files_path, KEEP,\
+                                                    RIBfiles, COMPRESSED)
                 
                 else: # routing_file not null
                     bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
                         ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
                         ipv4_longest_pref, ipv6_longest_pref  =\
                         self.processRoutingData('', files_path, routing_file,\
-                        KEEP, RIBfiles)
+                        KEEP, RIBfiles, COMPRESSED)
             else: # archive_folder not null
                 historical_files = self.getPathsToHistoricalData(archive_folder, files_path)
                 bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
                         ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
                         ipv4_longest_pref, ipv6_longest_pref  =\
-                        self.processMultipleFiles(historical_files, False, files_path, KEEP, RIBfiles)
+                        self.processMultipleFiles(historical_files, False,\
+                                        files_path, KEEP, RIBfiles, COMPRESSED)
                 
             self.bgp_data = bgp_data
             self.ipv4_prefixes_indexes_pyt = ipv4_prefixes_indexes_pyt
@@ -101,7 +104,7 @@ class BGPDataHandler:
     # This function downloads and processes all the files in the provided list
     # the boolean variable containsURLs must be True if the files_list is a list
     # of URLs or False if it is a list of paths
-    def processMultipleFiles(self, files_list, containsURLs, files_path, KEEP, RIBfiles):
+    def processMultipleFiles(self, files_list, containsURLs, files_path, KEEP, RIBfiles, COMPRESSED):
         files_list_obj = open(files_list, 'r')
                     
         bgp_data = pd.DataFrame()
@@ -125,7 +128,7 @@ class BGPDataHandler:
                         ASes_propagated_prefixes_dic_partial,\
                         ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
                         self.processRoutingData(line.strip(), files_path, '',\
-                        KEEP, RIBfiles)
+                        KEEP, RIBfiles, COMPRESSED)
                 else:
                     bgp_data_partial, ipv4_prefixes_indexes_pyt_partial,\
                         ipv6_prefixes_indexes_pyt_partial,\
@@ -133,7 +136,7 @@ class BGPDataHandler:
                         ASes_propagated_prefixes_dic_partial,\
                         ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
                         self.processRoutingData('', files_path, line.strip(),\
-                        KEEP, RIBfiles)
+                        KEEP, RIBfiles, COMPRESSED)
                 
                 # and then we merge them into the general data structures
                 bgp_data = pd.concat([bgp_data, bgp_data_partial])
@@ -301,15 +304,14 @@ class BGPDataHandler:
                 ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
                 ipv4_longest_prefix, ipv6_longest_prefix
 
-    def processRoutingData(self, url, files_path, routing_file, KEEP, RIBfiles):
+    def processRoutingData(self, url, files_path, routing_file, KEEP, RIBfiles, COMPRESSED):
         # If a routing file is not provided, download it from the provided URL        
         if routing_file == '':
             routing_file = '%s/%s' % (files_path, url.split('/')[-1])
             get_file(url, routing_file)
         
-        # If the routing file is a compressed RIB file, we unzip it
-        # and process it using BGPdump
-        if RIBfiles:
+        # If the routing file is compressed we unzip it
+        if COMPRESSED:
             if KEEP:
                 cmd = 'gunzip -k %s' % routing_file
                 #  GUNZIP
@@ -320,6 +322,10 @@ class BGPDataHandler:
             subprocess.call(shlex.split(cmd))    
         
             decomp_file_name = '.'.join(routing_file.split('.')[:-1]) # Path to decompressed file
+            routing_file = decomp_file_name
+            
+        # If the routing file is a RIB file, we process it using BGPdump
+        if RIBfiles:            
             today = datetime.date.today().strftime('%Y%m%d')
             readable_file_name = '%s_%s.readable' % (decomp_file_name, today)
 
