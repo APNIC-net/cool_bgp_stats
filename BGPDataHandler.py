@@ -2,7 +2,7 @@
 # -*- coding: utf8 -*-
 
 import sys
-import os, subprocess, shlex
+import os, subprocess, shlex, re
 # Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from get_file import get_file
@@ -74,33 +74,33 @@ class BGPDataHandler:
                         ipv4_longest_pref, ipv6_longest_pref  =\
                         self.processRoutingData('', files_path, routing_file,\
                         KEEP, RIBfiles)
-        
-                self.bgp_data = bgp_data
-                self.ipv4_prefixes_indexes_pyt = ipv4_prefixes_indexes_pyt
-                self.ipv6_prefixes_indexes_pyt = ipv6_prefixes_indexes_pyt
-                self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
-                self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
-                if ipv4_longest_pref != -1:
-                    self.ipv4_longest_pref = ipv4_longest_pref
-                else:
-                    self.ipv4_longest_pref = 32
-                if ipv6_longest_pref != -1:
-                    self.ipv6_longest_pref = ipv6_longest_pref
-                else:
-                    self.ipv6_longest_pref = 64
             else: # archive_folder not null
                 historical_files = self.getPathsToHistoricalData(archive_folder)
                 bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
                         ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
                         ipv4_longest_pref, ipv6_longest_pref  =\
                         self.processMultipleFiles(historical_files, False, files_path, KEEP, RIBfiles)
-                        
+                
+            self.bgp_data = bgp_data
+            self.ipv4_prefixes_indexes_pyt = ipv4_prefixes_indexes_pyt
+            self.ipv6_prefixes_indexes_pyt = ipv6_prefixes_indexes_pyt
+            self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
+            self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
+            
+            if ipv4_longest_pref != -1:
+                self.ipv4_longest_pref = ipv4_longest_pref
+            else:
+                self.ipv4_longest_pref = 32
+            if ipv6_longest_pref != -1:
+                self.ipv6_longest_pref = ipv6_longest_pref
+            else:
+                self.ipv6_longest_pref = 64
+                
             sys.stderr.write("BGPDataHandler instantiated successfully!\n")
         
     # This function downloads and processes all the files in the provided list
     # the boolean variable containsURLs must be True if the files_list is a list
     # of URLs or False if it is a list of paths
-    # TODO Modify to include date
     def processMultipleFiles(self, files_list, containsURLs, files_path, KEEP, RIBfiles):
         files_list_obj = open(files_list, 'r')
                     
@@ -113,7 +113,7 @@ class BGPDataHandler:
         ipv6_longest_pref = -1
         
         for line in files_list_obj:
-            if line.strip() != '':
+            if not line.startswith('#') and line.strip() != '':
                 # If we work with several routing files
                 sys.stderr.write("Starting to work with %s" % line)
 
@@ -223,12 +223,26 @@ class BGPDataHandler:
     # This function processes a readable file with routing info
     # putting all the info in a Data Frame  
     def processReadableDF(self, readable_file_name):
+        # We get the date from the file name.
+        dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]',\
+                            readable_file_name)
+                            
+        if len(dates) > 0:
+            date = int(dates[0])
+        # If there is no date in the file name, we use the date of today
+        else:
+            date =  datetime.date.today().strftime('%Y%m%d')
+
         bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
                                 index_col=False, usecols=[3,5,6,7],\
                                 names=['peer',\
                                         'prefix',\
                                         'ASpath',\
                                         'origin'])
+
+        # We add a column to the Data Frame with the corresponding date
+        bgp_df['date'] = date
+        
         # We create an index that is unique even amongst different routing files
         # so that we can merge partial data structures into a single structure
         file_id = hashlib.md5(readable_file_name).hexdigest()
@@ -286,7 +300,7 @@ class BGPDataHandler:
         return bgp_df, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
                 ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
                 ipv4_longest_prefix, ipv6_longest_prefix
-              
+
     def processRoutingData(self, url, files_path, routing_file, KEEP, RIBfiles):
         # If a routing file is not provided, download it from the provided URL        
         if routing_file == '':
