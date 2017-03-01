@@ -377,7 +377,7 @@ class BGPRIB(dict):
         if len(dates) > 0:
             year = int(dates[0][0:4])
             month = int(dates[0][5:7])
-            day = int(+dates[0][8:10])
+            day = int(dates[0][8:10])
             date = datetime.date(year, month, day).strftime('%Y%m%d%H%M')
         else:
             dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]', file_name)
