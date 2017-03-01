@@ -339,41 +339,38 @@ class BGPDataHandler:
         output_file_name = '%s/%s.readable' % (self.files_path, '.'.join(routing_file.split('/')[-1].split('.')[:-1]))
         output_file = open(output_file_name, 'w')
         
-        with open(routing_file, 'r') as file_h:
-        	# load routing table info  (the next loop does it automatically)
-#        	bgp_entries = []
-        	for entry_n, bgp_entry in enumerate(bgp_rib.BGPRIB.parse_cisco_show_ip_bgp_generator(file_h)):
-			date = bgp_entry[8]
-#			date_part = str(date)[0:8]
-#			time_part = str(date)[8:12]
-			timestamp = time.mktime(datetime.datetime.strptime(date, "%Y%m%d%H%M").timetuple())
-           		next_hop = bgp_entry[2]
-           		prefix = bgp_entry[0]
-           		as_path = bgp_entry[6]
-           		if as_path:
-                		nextas = as_path[0]
-           		else:
-                		nextas = ''
+        # load routing table info  (the next loop does it automatically)
+        for entry_n, bgp_entry in enumerate(bgp_rib.BGPRIB.parse_cisco_show_ip_bgp_generator(routing_file)):
+            date = bgp_entry[8]
+#           date_part = str(date)[0:8]
+#           time_part = str(date)[8:12]
+            timestamp = time.mktime(datetime.datetime.strptime(date, "%Y%m%d%H%M").timetuple())
+            next_hop = bgp_entry[2]
+            prefix = bgp_entry[0]
+            as_path = bgp_entry[6]
+            
+            if as_path:
+                nextas = as_path[0]
+            else:
+            	nextas = ''
 
-           		if bgp_entry[7] == 'i':
-                		origin = "IGP"
-           		elif bgp_entry[7] == 'e':
-                		origin = "EGP"
-           		elif bgp_entry[7] == "?":
-                		origin = "INCOMPLETE"
-           		else:
-                		sys.stderr.write("Found invalid prefix at bgp entry %s, with content %s, on file %s" %(entry_n, bgp_entry, routing_file))
-                		# ignore this line and continue
-                		continue
+            if bgp_entry[7] == 'i':
+                origin = "IGP"
+            elif bgp_entry[7] == 'e':
+                origin = "EGP"
+            elif bgp_entry[7] == "?":
+                origin = "INCOMPLETE"
+            else:
+                sys.stderr.write("Found invalid prefix at bgp entry %s, with content %s, on file %s" %(entry_n, bgp_entry, routing_file))
+            	# ignore this line and continue
+                continue
 
-            		# save information
+            # save information
 
-            		#the order for each line is
-            		#TABLE_DUMP2|date|A|nexthop|NextAS|prefix|AS_PATH|Origin
-			output_file.write('TABLE_DUMP|'+str(timestamp)[:-2]+'|B|'+next_hop+'|'+nextas+'|'+prefix+'|'+" ".join(as_path)+'|'+origin+'\n')
-
-#           		bgp_entries.append(['', '', '', next_hop, nextas, prefix, " ".join(as_path), origin])
-        file_h.close()
+            #the order for each line is
+            #TABLE_DUMP2|date|A|nexthop|NextAS|prefix|AS_PATH|Origin
+		output_file.write('TABLE_DUMP|'+str(timestamp)[:-2]+'|B|'+next_hop+'|'+nextas+'|'+prefix+'|'+" ".join(as_path)+'|'+origin+'\n')
+    
         output_file.close()
         
         return output_file_name

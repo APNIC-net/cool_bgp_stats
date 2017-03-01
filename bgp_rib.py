@@ -363,7 +363,7 @@ class BGPRIB(dict):
 
 
     @classmethod
-    def parse_cisco_show_ip_bgp_generator(cls, file_h):
+    def parse_cisco_show_ip_bgp_generator(cls, file_name):
 
         #show_bgp_file = open(filename)
 
@@ -372,7 +372,7 @@ class BGPRIB(dict):
         double_line = False
         start_process = False
         
-        dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]', file_h)                  
+        dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]', file_name)                  
         
         if len(dates) > 0:
             year = int(dates[0][0:4])
@@ -380,7 +380,7 @@ class BGPRIB(dict):
             day = int(+dates[0][8:10])
             date = datetime.date(year, month, day).strftime('%Y%m%d%H%M')
         else:
-            dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]', file_h)
+            dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]', file_name)
             if len(dates) > 0:
                 year = int(dates[0][0:4])
                 month = int(dates[0][4:6])
@@ -390,84 +390,85 @@ class BGPRIB(dict):
             else:
                 # If there is no date in the file name, we use the date of today
                 date =  datetime.datetime.today().strftime('%Y%m%d%H%M')
-                
-        for linecpt, line in enumerate(file_h):
-            try:
-                # start in the point where the first valid line is found (*)
-                if not line.strip():
-                    continue
-                if line[0:5] == "Total":
-                    # I found these lines at the end
-                    continue
-                if line[0:6] == "#DATE:":
-        		    date = line[7:19]
-        		    continue
-                if line and not start_process:
-                    if line[0] == "*" or line[1] == '*': 
-                        start_process = True
-                    else:
+
+        with open(file_name, 'r') as file_h:        
+            for linecpt, line in enumerate(file_h):
+                try:
+                    # start in the point where the first valid line is found (*)
+                    if not line.strip():
                         continue
-
-
-                #if linecpt % 400000 == 0:
-                    #print linecpt
-                linecpt = linecpt + 1
-                line = line.rstrip()
-                if not double_line:
-                    if len(line) < 62:
-                        #print "#DEBUG Double line entry:"
-                        #print current_line
-                        network = line[3:len(line)]
-                        bgp_type  = line[2]
-                        double_line = True
+                    if line[0:5] == "Total":
+                        # I found these lines at the end
                         continue
+                    if line[0:6] == "#DATE:":
+            		    date = line[7:19]
+            		    continue
+                    if line and not start_process:
+                        if line[0] == "*" or line[1] == '*': 
+                            start_process = True
+                        else:
+                            continue
+    
+    
+                    #if linecpt % 400000 == 0:
+                        #print linecpt
+                    linecpt = linecpt + 1
+                    line = line.rstrip()
+                    if not double_line:
+                        if len(line) < 62:
+                            #print "#DEBUG Double line entry:"
+                            #print current_line
+                            network = line[3:len(line)]
+                            bgp_type  = line[2]
+                            double_line = True
+                            continue
+                        else:
+                            network = line[3:20].rstrip()
+                            if network == "":
+                                network = previous_network
+                            bgp_type  = line[2]
                     else:
-                        network = line[3:20].rstrip()
-                        if network == "":
-                            network = previous_network
-                        bgp_type  = line[2]
-                else:
-                    double_line = False
-                previous_network = network
-
-                if '/' not in network:
-                    #print "#DEBUG no prefix length : " + pfx
-                    pfx = get_class_length(network)
-                    if pfx != -1:
-                        network = network + "/" + str(pfx)
-                    else:
-                        continue
-                #print "#DEBUG Prefix: " + pfx
-
-
-                nexthop = line[20:36].rstrip()
-                #print "#DEBUG NH : " + nexthop
-
-                metric = line[37:47].rstrip().lstrip()
-                #print "#DEBUG METRIC : " + metric
-
-                local_pref = line[48:54].rstrip().lstrip()
-                #print "#DEBUG LOC_PREF : " + local_pref
-
-                weight = line[55:60].rstrip().lstrip()
-                #print "#DEBUG WEIGHT : " + weight
-
-                as_path = line[61:].rstrip()
-                as_path = as_path[0:len(as_path) - 2]
-                as_path = as_path.split(' ')
-                if as_path == ['']:
-                    as_path = []
-                as_path = tuple(as_path)
-
-                #print "#DEBUG AS_PATH : " + as_path
-
-                origin = line[len(line) - 1]
-
-            except:
-                print "Error at line " + str(linecpt) + str(line)
-                raise
-
-            yield (network, bgp_type, nexthop, metric, local_pref, weight, as_path, origin, date)
+                        double_line = False
+                    previous_network = network
+    
+                    if '/' not in network:
+                        #print "#DEBUG no prefix length : " + pfx
+                        pfx = get_class_length(network)
+                        if pfx != -1:
+                            network = network + "/" + str(pfx)
+                        else:
+                            continue
+                    #print "#DEBUG Prefix: " + pfx
+    
+    
+                    nexthop = line[20:36].rstrip()
+                    #print "#DEBUG NH : " + nexthop
+    
+                    metric = line[37:47].rstrip().lstrip()
+                    #print "#DEBUG METRIC : " + metric
+    
+                    local_pref = line[48:54].rstrip().lstrip()
+                    #print "#DEBUG LOC_PREF : " + local_pref
+    
+                    weight = line[55:60].rstrip().lstrip()
+                    #print "#DEBUG WEIGHT : " + weight
+    
+                    as_path = line[61:].rstrip()
+                    as_path = as_path[0:len(as_path) - 2]
+                    as_path = as_path.split(' ')
+                    if as_path == ['']:
+                        as_path = []
+                    as_path = tuple(as_path)
+    
+                    #print "#DEBUG AS_PATH : " + as_path
+    
+                    origin = line[len(line) - 1]
+    
+                except:
+                    print "Error at line " + str(linecpt) + str(line)
+                    raise
+    
+                yield (network, bgp_type, nexthop, metric, local_pref, weight, as_path, origin, date)
 
         #finally:
         #    show_bgp_file.close()
