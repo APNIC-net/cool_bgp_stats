@@ -369,6 +369,7 @@ class BGPRIB(dict):
 
         network = ""
         previous_network = ""
+        nexthop = ""
         double_line = False
         start_process = False
         
@@ -415,15 +416,17 @@ class BGPRIB(dict):
                     linecpt = linecpt + 1
                     line = line.rstrip()
                     if not double_line:
-                        if len(line) < 62:
-                            #print "#DEBUG Double line entry:"
-                            #print current_line
-                            network = line[3:len(line)]
-                            bgp_type  = line[2]
+                        network = line[3:20].strip()
+                        bgp_type  = line[2]
+                        
+                        if len(line) < 62:   
                             double_line = True
+                            
+                            if len(line) > 20:
+                                nexthop = line[20:36].rstrip()
+                                
                             continue
                         else:
-                            network = line[3:20].rstrip()
                             if network == "":
                                 network = previous_network
                             bgp_type  = line[2]
@@ -440,9 +443,9 @@ class BGPRIB(dict):
                             continue
                     #print "#DEBUG Prefix: " + pfx
     
-    
-                    nexthop = line[20:36].rstrip()
-                    #print "#DEBUG NH : " + nexthop
+                    if nexthop == "":
+                        nexthop = line[20:36].rstrip()
+                        #print "#DEBUG NH : " + nexthop
     
                     metric = line[37:47].rstrip().lstrip()
                     #print "#DEBUG METRIC : " + metric
@@ -469,6 +472,7 @@ class BGPRIB(dict):
                     raise
     
                 yield (network, bgp_type, nexthop, metric, local_pref, weight, as_path, origin, date)
+                nexthop = ""
 
         #finally:
         #    show_bgp_file.close()

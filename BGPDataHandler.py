@@ -361,7 +361,7 @@ class BGPDataHandler:
             elif bgp_entry[7] == "?":
                 origin = "INCOMPLETE"
             else:
-                sys.stderr.write("Found invalid prefix at bgp entry %s, with content %s, on file %s" %(entry_n, bgp_entry, routing_file))
+                sys.stderr.write("Found invalid prefix at bgp entry %s, with content %s, on file %s\n" %(entry_n, bgp_entry, routing_file))
             	# ignore this line and continue
                 continue
 
