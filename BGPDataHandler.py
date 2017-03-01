@@ -387,9 +387,6 @@ class BGPDataHandler:
                                         'ASpath',\
                                         'origin'])
 
-        # We add a column to the Data Frame with the corresponding date
-        bgp_df['date'] = bgp_df.apply(lambda row: datetime.datetime.fromtimestamp(row['timestamp']).strftime('%Y%m%d'), axis=1)    
-        
         # We create an index that is unique even amongst different routing files
         # so that we can merge partial data structures into a single structure
         file_id = hashlib.md5(readable_file_name).hexdigest()
@@ -397,6 +394,9 @@ class BGPDataHandler:
         bgp_df['index'] = bgp_df.index.astype(str)
         bgp_df['index'] = bgp_df['source_file'] + bgp_df['index']
         bgp_df.index = bgp_df['index']
+        
+         # We add a column to the Data Frame with the corresponding date
+        bgp_df['date'] = bgp_df.apply(lambda row: datetime.datetime.fromtimestamp(row['timestamp']).strftime('%Y%m%d'), axis=1)
         
         ipv4_prefixes_indexes_pyt = pytricia.PyTricia()
         ipv6_prefixes_indexes_pyt = pytricia.PyTricia()
