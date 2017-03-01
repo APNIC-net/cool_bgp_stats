@@ -416,20 +416,20 @@ class BGPRIB(dict):
                     linecpt = linecpt + 1
                     line = line.rstrip()
                     if not double_line:
-                        network = line[3:20].strip()
+                        line_parts = line.split()
+                        if len(line_parts) > 1:
+                            network = line_parts[1]
+                        if len(line_parts) > 2:
+                            nexthop = line_parts[2]
+                        
                         bgp_type  = line[2]
                         
                         if len(line) < 62:   
-                            double_line = True
-                            
-                            if len(line) > 20:
-                                nexthop = line[20:36].rstrip()
-                                
+                            double_line = True       
                             continue
                         else:
                             if network == "":
                                 network = previous_network
-                            bgp_type  = line[2]
                     else:
                         double_line = False
                     previous_network = network
@@ -444,7 +444,7 @@ class BGPRIB(dict):
                     #print "#DEBUG Prefix: " + pfx
     
                     if nexthop == "":
-                        nexthop = line[20:36].rstrip()
+                        nexthop = line.split()[0]
                         #print "#DEBUG NH : " + nexthop
     
                     metric = line[37:47].rstrip().lstrip()
