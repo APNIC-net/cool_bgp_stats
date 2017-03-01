@@ -6,6 +6,7 @@ Minor fixes by Sofia Silva Berenguer
 import sys
 import datetime
 from collections import namedtuple
+import re
 #from  netaddr import IPAddress, IPNetwork
 
 def get_class_length(prefix):
@@ -370,8 +371,26 @@ class BGPRIB(dict):
         previous_network = ""
         double_line = False
         start_process = False
-        date = datetime.datetime.today().strftime('%Y%m%d%H%M')
+        
+        dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]', file_h)                  
+        
+        if len(dates) > 0:
+            year = int(dates[0][0:4])
+            month = int(dates[0][5:7])
+            day = int(+dates[0][8:10])
+            date = datetime.date(year, month, day).strftime('%Y%m%d%H%M')
+        else:
+            dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]', file_h)
+            if len(dates) > 0:
+                year = int(dates[0][0:4])
+                month = int(dates[0][4:6])
+                day = int(+dates[0][6:8])
+                date = datetime.date(year, month, day).strftime('%Y%m%d%H%M')
 
+            else:
+                # If there is no date in the file name, we use the date of today
+                date =  datetime.datetime.today().strftime('%Y%m%d%H%M')
+                
         for linecpt, line in enumerate(file_h):
             try:
                 # start in the point where the first valid line is found (*)

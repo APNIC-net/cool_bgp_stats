@@ -536,7 +536,7 @@ def main(argv):
     
     urls_file = './BGPoutputs.txt'
     urls_provided = False
-    RIBfile = True
+    RIBfiles = True
     files_path = ''
     routing_file = ''
     KEEP = False
@@ -556,6 +556,7 @@ def main(argv):
     ipv6_prefixes_indexes_file = ''
     ASes_originated_prefixes_file = ''
     ASes_propagated_prefixes_file = ''
+    prefixesDates_file = ''
     archive_folder = '' 
     COMPRESSED = False
 
@@ -570,14 +571,14 @@ def main(argv):
 #    archive_folder = '/data/wattle/bgplog'
     
     try:
-        opts, args = getopt.getopt(argv, "hp:u:r:H:ockny:m:D:d:ei:b:4:6:a:s:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file="])
+        opts, args = getopt.getopt(argv, "hp:u:r:H:ockny:m:D:d:ei:b:4:6:a:s:S:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file=", "prefixesDates_file="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder>] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
+        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder>] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>] [-S <prefixesDates file>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder>] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>]'
+            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder>] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>] [-S <prefixesDates file>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -605,13 +606,14 @@ def main(argv):
             print "a = ASes_originated_prefixes file. Path to pickle file containing ASes_originated_prefixes dictionary."
             print "s = ASes_propagated_prefixes file. Path to pickle file containing ASes_propagated_prefixes dictionary."
             print "If you want to work with BGP data from files, the three options -b, -x, -a and -s must be used."
-            print "If not, none of these three options should be used."
+            print "If not, none of these four options should be used."
+            print "S = prefixesDates file. Path to pickle file containing prefixesDates PyTricia with the dates in which each prefix was Seen."
             sys.exit()
         elif opt == '-u':
             urls_file = arg
             urls_provided = True
         elif opt == '-o':
-            RIBfile = False
+            RIBfiles = False
         elif opt == '-c':
             COMPRESSED = True
         elif opt == '-r':
@@ -640,19 +642,21 @@ def main(argv):
             bgp_data_file = arg
             fromFiles = True
         elif opt == '-4':
-            ipv4_prefixes_indexes_file = arg
+            ipv4_prefixes_indexes_file = os.path.abspath(arg)
             fromFiles = True
         elif opt == '-6':
-            ipv6_prefixes_indexes_file = arg
+            ipv6_prefixes_indexes_file = os.path.abspath(arg)
             fromFiles = True
         elif opt == '-a':
-            ASes_originated_prefixes_file = arg
+            ASes_originated_prefixes_file = os.path.abspath(arg)
             fromFiles = True
         elif opt == '-s':
-            ASes_propagated_prefixes_file = arg
+            ASes_propagated_prefixes_file = os.path.abspath(arg)
             fromFiles = True
         elif opt == '-H':
             archive_folder = os.path.abspath(arg.rstrip('/'))
+        elif opt == '-S':
+            prefixesDates_file = os.path.abspath(arg)
         else:
             assert False, 'Unhandled option'
             
@@ -711,10 +715,22 @@ def main(argv):
             del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
 
 
-    bgp_handler = BGPDataHandler(urls_file, files_path, routing_file,\
-                    archive_folder, KEEP, RIBfile, COMPRESSED, bgp_data_file,\
-                    ipv4_prefixes_indexes_file, ipv6_prefixes_indexes_file,\
-                    ASes_originated_prefixes_file, ASes_propagated_prefixes_file)
+    bgp_handler = BGPDataHandler(files_path, KEEP, RIBfiles, COMPRESSED)
+
+    if fromFiles:
+        bgp_handler.loadStructuresFromFiles(bgp_data_file, ipv4_prefixes_indexes_file,\
+                                ipv6_prefixes_indexes_file, ASes_originated_prefixes_file,\
+                                ASes_propagated_prefixes_file)
+    else:
+        if routing_file == '' and archive_folder == '':
+            bgp_handler.loadStructuresFromURLSfile(urls_file)
+        elif routing_file != '':
+            bgp_handler.loadStructuresFromRoutingFile(routing_file)
+        else: # archive_folder not null
+            bgp_handler.loadStructuresFromArchive(archive_folder)
+    
+    if prefixesDates_file != '':
+        bgp_handler.loadPrefixDatesFromFile(prefixesDates_file)
     
     if COMPUTE: 
         del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,\
@@ -727,9 +743,7 @@ def main(argv):
         # TODO Save Stats and routed prefixes to files and ElasticSearch
         
     else:
-       bgp_handler.saveDataToFiles(files_path)
-    
-
+       bgp_handler.saveDataToFiles()
         
         
 if __name__ == "__main__":
