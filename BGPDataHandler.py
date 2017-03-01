@@ -66,6 +66,8 @@ class BGPDataHandler:
     # prefix was seen
     def loadPrefixDatesFromFile(self, prefixesDates_file):
         self.prefixesDates = pickle.load(open(prefixesDates_file, 'rb'))
+        sys.stderr.write("PyTricia with dates in which prefixes were seen loaded successfully!\n")
+
     
     # This function loads the data structures of the class from previously
     # generated pickle files containing the result of already processed routing data
@@ -79,6 +81,8 @@ class BGPDataHandler:
         self.ASes_originated_prefixes_dic = pickle.load(open(ASes_originated_prefixes_file, "rb"))
         self.ASes_propagated_prefixes_dic = pickle.load(open(ASes_propagated_prefixes_file, "rb"))
         self.setLongestPrefixLengths()
+        sys.stderr.write("Class data structures loaded successfully!\n")
+
         
     # This function processes the routing data contained in the files to which
     # the URLs in the urls_file point, and loads the data structures of the class
@@ -103,6 +107,9 @@ class BGPDataHandler:
             self.ipv6_longest_pref = ipv6_longest_pref
         else:
             self.ipv6_longest_pref = 64
+
+        sys.stderr.write("Class data structures loaded successfully!\n")
+
                                                 
     # This function processes the routing data contained in the routing_file
     # and loads the data structures of the class with the results from this processing                                           
@@ -127,6 +134,9 @@ class BGPDataHandler:
             self.ipv6_longest_pref = ipv6_longest_pref
         else:
             self.ipv6_longest_pref = 64
+
+        sys.stderr.write("Class data structures loaded successfully!\n")
+
     
     # This function processes the routing data contained in the archive folder
     # provided, and loads the data structures of the class with the results
@@ -156,8 +166,12 @@ class BGPDataHandler:
             self.ipv6_longest_pref = ipv6_longest_pref
         else:
             self.ipv6_longest_pref = 64
-            
+
+        sys.stderr.write("Class data structures loaded successfully!\n")
+
         self.prefixesDates = self.getDatesSeenForPrefixes(historical_files)
+        sys.stderr.write("PyTricia with dates in which prefixes were seen loaded successfully!\n")
+
 
     # This function returns a path to the most recent file in the provided list 
     # of historical files
@@ -169,12 +183,20 @@ class BGPDataHandler:
         
         for line in files_list_obj:
             if not line.startswith('#') and line.strip() != '':
-                dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]',\
-                            line)
+                dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]',\
+                            line.strip())
+                            
                 if len(dates) > 0:
-                    if dates[0] > mostRecentDate:
-                        mostRecentDate = dates[0]
-                        mostRecentFile = line
+                    date = int(dates[0][0:4]+dates[0][5:7]+dates[0][8:10])
+                else:
+                    dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]',\
+                                line.strip())
+                    if len(dates) > 0:
+                        date = int(dates[0])
+       
+                if date > mostRecentDate:
+                    mostRecentDate = date
+                    mostRecentFile = line
         
         return mostRecentFile
     
