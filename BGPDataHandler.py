@@ -196,7 +196,7 @@ class BGPDataHandler:
        
                 if date > mostRecentDate:
                     mostRecentDate = date
-                    mostRecentFile = line
+                    mostRecentFile = line.strip()
         
         return mostRecentFile
     
