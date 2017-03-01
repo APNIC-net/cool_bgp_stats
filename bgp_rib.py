@@ -370,7 +370,7 @@ class BGPRIB(dict):
         network = ""
         previous_network = ""
         nexthop = ""
-        double_line = False
+        multiple_lines = False
         start_process = False
         
         dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]', file_name)                  
@@ -415,8 +415,8 @@ class BGPRIB(dict):
                         #print linecpt
                     linecpt = linecpt + 1
                     line = line.rstrip()
-                    if not double_line:
-                        line_parts = line.split()
+                    line_parts = line.split()
+                    if not multiple_lines:
                         if len(line_parts) > 1:
                             network = line_parts[1]
                         if len(line_parts) > 2:
@@ -425,13 +425,12 @@ class BGPRIB(dict):
                         bgp_type  = line[2]
                         
                         if len(line) < 62:   
-                            double_line = True       
+                            multiple_lines = True       
                             continue
                         else:
                             if network == "":
                                 network = previous_network
-                    else:
-                        double_line = False
+                    
                     previous_network = network
     
                     if '/' not in network:
@@ -444,16 +443,18 @@ class BGPRIB(dict):
                     #print "#DEBUG Prefix: " + pfx
     
                     if nexthop == "":
-                        nexthop = line.split()[0]
+                        nexthop = line_parts[0]
                         #print "#DEBUG NH : " + nexthop
-    
-                    metric = line[37:47].rstrip().lstrip()
+                        if len(line_parts) == 1:
+                            continue
+                        
+                    metric = line[37:47].strip()
                     #print "#DEBUG METRIC : " + metric
     
-                    local_pref = line[48:54].rstrip().lstrip()
+                    local_pref = line[48:54].strip()
                     #print "#DEBUG LOC_PREF : " + local_pref
     
-                    weight = line[55:60].rstrip().lstrip()
+                    weight = line[55:60].strip()
                     #print "#DEBUG WEIGHT : " + weight
     
                     as_path = line[61:].rstrip()
@@ -466,6 +467,7 @@ class BGPRIB(dict):
                     #print "#DEBUG AS_PATH : " + as_path
     
                     origin = line[len(line) - 1]
+                    
     
                 except:
                     print "Error at line " + str(linecpt) + str(line)
@@ -473,6 +475,7 @@ class BGPRIB(dict):
     
                 yield (network, bgp_type, nexthop, metric, local_pref, weight, as_path, origin, date)
                 nexthop = ""
+                multiple_lines = False
 
         #finally:
         #    show_bgp_file.close()
