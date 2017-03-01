@@ -17,8 +17,8 @@ def get_class_length(prefix):
         lead = int(digits[0])
     except ValueError:
         return -1
-        
-    if lead <128:
+
+    if lead < 128:
         return 8
 
     if lead <= 191:
@@ -101,12 +101,12 @@ class ASPath(tuple):
          #TODO handle summarization {}
         for asn in asn_tuple:
             if isinstance(asn, str):
-                if (asn.find('{') > -1 or asn.find('}') > -1):
+                if asn.find('{') > -1 or asn.find('}') > -1:
                     asn = asn.strip('{').strip('}')
             try:
                 new_asn_list.append(int(ASN(asn)))
             except:
-                print('Problem with AS_PATH %s' %(asn_tuple)) 
+                print 'Problem with AS_PATH %s' % (asn_tuple)
                 raise
         return tuple.__new__(cls, new_asn_list)
 
@@ -294,7 +294,6 @@ class BGPRIB(dict):
                         offset_1 = 0
                         offset_2 = 0
                         offset_3 = 0
-                        
 
                 linecpt = linecpt + 1
                 line = line.rstrip()
@@ -304,18 +303,18 @@ class BGPRIB(dict):
                         #print "#DEBUG Double line entry:"
                         #print current_line
                         network = line[3 + offset_2 :len(line)].rstrip()
-                        bgp_type  = line[2 + offset_1]
+                        bgp_type = line[2 + offset_1]
                         double_line = True
                         continue
                     else:
                         network = line[3 + offset_2 : 20 + offset_2].rstrip()
                         if network == "":
                             network = previous_network
-                        bgp_type  = line[2 + offset_1]
+                        bgp_type = line[2 + offset_1]
                 else:
                     offset_dl = offset_3
                     double_line = False
-                
+
                 previous_network = network
 
 
@@ -332,13 +331,13 @@ class BGPRIB(dict):
                 nexthop = line[20 + offset_2 + offset_dl: 36 + offset_2 + offset_dl].rstrip()
                 #print "#DEBUG NH : " + nexthop
 
-                metric = line[37 + offset_2 + offset_dl : 47 + offset_2 + offset_dl].rstrip().lstrip()
+                metric = line[37 + offset_2 + offset_dl : 47 + offset_2 + offset_dl].strip()
                 #print "#DEBUG METRIC : " + metric
 
-                local_pref = line[48 + offset_2 + offset_dl: 54 + offset_2 + offset_dl].rstrip().lstrip()
+                local_pref = line[48 + offset_2 + offset_dl: 54 + offset_2 + offset_dl].strip()
                 #print "#DEBUG LOC_PREF : " + local_pref
 
-                weight = line[55 + offset_2 + offset_dl: 60 + offset_2 + offset_dl].rstrip().lstrip()
+                weight = line[55 + offset_2 + offset_dl: 60 + offset_2 + offset_dl].strip()
                 #print "#DEBUG WEIGHT : " + weight
 
                 as_path = line[61 + offset_2 + offset_dl:].rstrip()
@@ -372,9 +371,9 @@ class BGPRIB(dict):
         nexthop = ""
         multiple_lines = False
         start_process = False
-        
-        dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]', file_name)                  
-        
+
+        dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]', file_name)
+
         if len(dates) > 0:
             year = int(dates[0][0:4])
             month = int(dates[0][5:7])
@@ -390,9 +389,9 @@ class BGPRIB(dict):
 
             else:
                 # If there is no date in the file name, we use the date of today
-                date =  datetime.datetime.today().strftime('%Y%m%d%H%M')
+                date = datetime.datetime.today().strftime('%Y%m%d%H%M')
 
-        with open(file_name, 'r') as file_h:        
+        with open(file_name, 'r') as file_h:
             for linecpt, line in enumerate(file_h):
                 try:
                     # start in the point where the first valid line is found (*)
@@ -402,37 +401,40 @@ class BGPRIB(dict):
                         # I found these lines at the end
                         continue
                     if line[0:6] == "#DATE:":
-            		    date = line[7:19]
-            		    continue
+                        date = line[7:19]
+                        continue
                     if line and not start_process:
-                        if line[0] == "*" or line[1] == '*': 
+                        if line[0] == "*" or line[1] == '*':
                             start_process = True
                         else:
                             continue
-    
-    
+
                     #if linecpt % 400000 == 0:
                         #print linecpt
                     linecpt = linecpt + 1
                     line = line.rstrip()
                     line_parts = line.split()
                     if not multiple_lines:
-                        if len(line_parts) > 1:
-                            network = line_parts[1]
-                        if len(line_parts) > 2:
-                            nexthop = line_parts[2]
-                        
-                        bgp_type  = line[2]
-                        
-                        if len(line) < 62:   
-                            multiple_lines = True       
+                        if line[2:20].strip() == '':
+                            network = previous_network
+                            nexthop = line_parts[1]
+                        else:
+                            if len(line_parts) > 1:
+                                network = line_parts[1]
+                            if len(line_parts) > 2:
+                                nexthop = line_parts[2]
+
+                        bgp_type = line[2]
+
+                        if len(line) < 62:
+                            multiple_lines = True
                             continue
                         else:
                             if network == "":
                                 network = previous_network
-                    
+
                     previous_network = network
-    
+
                     if '/' not in network:
                         #print "#DEBUG no prefix length : " + pfx
                         pfx = get_class_length(network)
@@ -441,44 +443,45 @@ class BGPRIB(dict):
                         else:
                             continue
                     #print "#DEBUG Prefix: " + pfx
-    
+
                     if nexthop == "":
                         nexthop = line_parts[0]
                         #print "#DEBUG NH : " + nexthop
                         if len(line_parts) == 1:
                             continue
-                        
+
                     metric = line[37:47].strip()
                     #print "#DEBUG METRIC : " + metric
-    
+
                     local_pref = line[48:54].strip()
                     #print "#DEBUG LOC_PREF : " + local_pref
-    
+
                     weight = line[55:60].strip()
                     #print "#DEBUG WEIGHT : " + weight
-    
+
                     as_path = line[61:].rstrip()
                     as_path = as_path[0:len(as_path) - 2]
                     as_path = as_path.split(' ')
                     if as_path == ['']:
                         as_path = []
                     as_path = tuple(as_path)
-    
+
                     #print "#DEBUG AS_PATH : " + as_path
-    
+
                     origin = line[len(line) - 1]
-                    
-    
+
+                    multiple_lines = False
+                    nexthop_for_yield = nexthop
+                    nexthop = ""
+
                 except:
                     print "Error at line " + str(linecpt) + str(line)
                     raise
-    
-                yield (network, bgp_type, nexthop, metric, local_pref, weight, as_path, origin, date)
-                nexthop = ""
-                multiple_lines = False
 
-        #finally:
-        #    show_bgp_file.close()
+                yield (network, bgp_type, nexthop_for_yield, metric, local_pref,\
+                        weight, as_path, origin, date)
+
+            file_h.close()
 
 
     @classmethod
@@ -538,7 +541,6 @@ class BGPRIB(dict):
         rib_in = BGPRIB()
         try:
             for linecpt, line in enumerate(show_bgp_file):
-                    
                 if linecpt == 0:
                     if line[0] == ' ':
                         offset_1 = 1
@@ -548,7 +550,6 @@ class BGPRIB(dict):
                         offset_1 = 0
                         offset_2 = 0
                         offset_3 = 0
-                        
 
                 if linecpt % 50000 == 0:
                     print linecpt
@@ -556,25 +557,25 @@ class BGPRIB(dict):
                 line = line.rstrip()
                 offset_dl = 0
                 if not double_line:
-                    if line[3] not in range(0,10):
+                    if line[3] not in range(0, 10):
                         # Not a valid line
                         continue
                     if len(line) < 62:
                         #print "#DEBUG Double line entry:"
                         #print current_line
                         network = line[3 + offset_2 :len(line)].rstrip()
-                        bgp_type  = line[2 + offset_1]
+                        bgp_type = line[2 + offset_1]
                         double_line = True
                         continue
                     else:
                         network = line[3 + offset_2 : 20 + offset_2].rstrip()
                         if network == "":
                             network = previous_network
-                        bgp_type  = line[2 + offset_1]
+                        bgp_type = line[2 + offset_1]
                 else:
                     offset_dl = offset_3
                     double_line = False
-                
+
                 previous_network = network
 
 
@@ -591,13 +592,13 @@ class BGPRIB(dict):
                 nexthop = line[20 + offset_2 + offset_dl: 36 + offset_2 + offset_dl].rstrip()
                 #print "#DEBUG NH : " + nexthop
 
-                metric = line[37 + offset_2 + offset_dl : 47 + offset_2 + offset_dl].rstrip().lstrip()
+                metric = line[37 + offset_2 + offset_dl : 47 + offset_2 + offset_dl].strip()
                 #print "#DEBUG METRIC : " + metric
 
-                local_pref = line[48 + offset_2 + offset_dl: 54 + offset_2 + offset_dl].rstrip().lstrip()
+                local_pref = line[48 + offset_2 + offset_dl: 54 + offset_2 + offset_dl].strip()
                 #print "#DEBUG LOC_PREF : " + local_pref
 
-                weight = line[55 + offset_2 + offset_dl: 60 + offset_2 + offset_dl].rstrip().lstrip()
+                weight = line[55 + offset_2 + offset_dl: 60 + offset_2 + offset_dl].strip()
                 #print "#DEBUG WEIGHT : " + weight
 
                 as_path = line[61 + offset_2 + offset_dl:].rstrip()
@@ -619,7 +620,7 @@ class BGPRIB(dict):
                     properties['real_nh'] = nexthop
                 if inc_nexthop:
                     if next_hop_self and not bgp_type == 'i':
-                            properties['next_hop'] = next_hop_self
+                        properties['next_hop'] = next_hop_self
                     else:
                         properties['next_hop'] = nexthop
                     #properties['next_hop'] = \
@@ -656,7 +657,7 @@ class BGPRIB(dict):
                 if inc_aspath:
                     # prepare the as_path
                     if as_number:
-                        temp_as_path = as_path 
+                        temp_as_path = as_path
                         temp_as_path.insert(0, as_number)
                         aspath = ASPath(temp_as_path)
                     else:
@@ -755,7 +756,8 @@ class BGPRIB(dict):
         # should be based on prefix as the key of the DB (and add code to not
         # mix IPv4 with IPv6) or change everythign that says prefix to simple
         # key_value.
-        PrefixInfo = namedtupledict('PrefixInfo', [char_position[prop] for prop in char_position if not prop == key_char])
+        PrefixInfo = namedtupledict('PrefixInfo', [char_position[prop] for prop\
+                                    in char_position if not prop == key_char])
         filehandler = open(filename, 'r')
 
         rib_in = BGPRIB()
@@ -905,7 +907,7 @@ class BGPRIB(dict):
                             as_path_temp = ASPath(as_path.split(' '))
                             as_path = as_path_temp
                     except:
-                        print('Invalid AS_Path: %s for prefix %s' %(as_path, prefix))
+                        print 'Invalid AS_Path: %s for prefix %s' %(as_path, prefix)
                         as_path = ()
                 # Create an edge for the graph between each one of the adjacent
                 # pairs found in the as_path

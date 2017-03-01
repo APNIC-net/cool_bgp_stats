@@ -368,8 +368,8 @@ class BGPDataHandler:
             # save information
 
             #the order for each line is
-            #TABLE_DUMP2|date|A|nexthop|NextAS|prefix|AS_PATH|Origin
-		output_file.write('TABLE_DUMP|'+str(timestamp)[:-2]+'|B|'+next_hop+'|'+nextas+'|'+prefix+'|'+" ".join(as_path)+'|'+origin+'\n')
+            #TABLE_DUMP2|date|B|nexthop|NextAS|prefix|AS_PATH|Origin
+            output_file.write('TABLE_DUMP|'+str(timestamp)[:-2]+'|B|'+next_hop+'|'+nextas+'|'+prefix+'|'+" ".join(as_path)+'|'+origin+'\n')
     
         output_file.close()
         
@@ -378,25 +378,6 @@ class BGPDataHandler:
     # This function processes a readable file with routing info
     # putting all the info into a Data Frame  
     def processReadableDF(self, readable_file_name):
-       
-        bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
-                                index_col=False, usecols=[1, 3,5,6,7],\
-                                names=['timestamp',\
-                                        'peer',\
-                                        'prefix',\
-                                        'ASpath',\
-                                        'origin'])
-
-        # We create an index that is unique even amongst different routing files
-        # so that we can merge partial data structures into a single structure
-        file_id = hashlib.md5(readable_file_name).hexdigest()
-        bgp_df['source_file'] = '%s_' % file_id
-        bgp_df['index'] = bgp_df.index.astype(str)
-        bgp_df['index'] = bgp_df['source_file'] + bgp_df['index']
-        bgp_df.index = bgp_df['index']
-        
-         # We add a column to the Data Frame with the corresponding date
-        bgp_df['date'] = bgp_df.apply(lambda row: datetime.datetime.fromtimestamp(row['timestamp']).strftime('%Y%m%d'), axis=1)
         
         ipv4_prefixes_indexes_pyt = pytricia.PyTricia()
         ipv6_prefixes_indexes_pyt = pytricia.PyTricia()
@@ -406,49 +387,69 @@ class BGPDataHandler:
         ipv4_longest_prefix = -1
         ipv6_longest_prefix = -1
         
-        for index, value in bgp_df.iterrows():
-            prefix = value['prefix']
-            ASpath = str(value['ASpath']).split(' ')
-            originAS = ASpath[-1]
-            middleASes = ASpath[:-1]
-          
-            network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
-            if network.version == 4:
-                if network.prefixlen > ipv4_longest_prefix:
-                    ipv4_longest_prefix = network.prefixlen
-                
-                if ipv4_prefixes_indexes_pyt.has_key(prefix):
-                    ipv4_prefixes_indexes_pyt[prefix].add(index)
-                else:
-                    ipv4_prefixes_indexes_pyt[prefix] = set([index])
+        bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
+                                index_col=False, usecols=[1, 3,5,6,7],\
+                                names=['timestamp',\
+                                        'peer',\
+                                        'prefix',\
+                                        'ASpath',\
+                                        'origin'])
+        if bgp_df.shape[0] > 0:
+
+            # We create an index that is unique even amongst different routing files
+            # so that we can merge partial data structures into a single structure
+            file_id = hashlib.md5(readable_file_name).hexdigest()
+            bgp_df['source_file'] = '%s_' % file_id
+            bgp_df['index'] = bgp_df.index.astype(str)
+            bgp_df['index'] = bgp_df['source_file'] + bgp_df['index']
+            bgp_df.index = bgp_df['index']
+            
+             # We add a column to the Data Frame with the corresponding date
+            bgp_df['date'] = bgp_df.apply(lambda row: datetime.datetime.fromtimestamp(row['timestamp']).strftime('%Y%m%d'), axis=1)
+            
+            for index, value in bgp_df.iterrows():
+                prefix = value['prefix']
+                ASpath = str(value['ASpath']).split(' ')
+                originAS = ASpath[-1]
+                middleASes = ASpath[:-1]
+              
+                network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
+                if network.version == 4:
+                    if network.prefixlen > ipv4_longest_prefix:
+                        ipv4_longest_prefix = network.prefixlen
                     
-            elif network.version == 6:
-                if network.prefixlen > ipv6_longest_prefix:
-                    ipv6_longest_prefix = network.prefixlen  
-                
-                if ipv6_prefixes_indexes_pyt.has_key(prefix):
-                    ipv6_prefixes_indexes_pyt[prefix].add(index)
+                    if ipv4_prefixes_indexes_pyt.has_key(prefix):
+                        ipv4_prefixes_indexes_pyt[prefix].add(index)
+                    else:
+                        ipv4_prefixes_indexes_pyt[prefix] = set([index])
+                        
+                elif network.version == 6:
+                    if network.prefixlen > ipv6_longest_prefix:
+                        ipv6_longest_prefix = network.prefixlen  
+                    
+                    if ipv6_prefixes_indexes_pyt.has_key(prefix):
+                        ipv6_prefixes_indexes_pyt[prefix].add(index)
+                    else:
+                        ipv6_prefixes_indexes_pyt[prefix] = set([index])
+                       
+                if originAS in ASes_originated_prefixes_dic.keys():
+                    if prefix not in ASes_originated_prefixes_dic[originAS]:
+                        ASes_originated_prefixes_dic[originAS].add(prefix)
                 else:
-                    ipv6_prefixes_indexes_pyt[prefix] = set([index])
-                   
-            if originAS in ASes_originated_prefixes_dic.keys():
-                if prefix not in ASes_originated_prefixes_dic[originAS]:
-                    ASes_originated_prefixes_dic[originAS].add(prefix)
-            else:
-                ASes_originated_prefixes_dic[originAS] = set([prefix])
-                
-            for asn in middleASes:
-                if asn in ASes_propagated_prefixes_dic.keys():
-                    if prefix not in ASes_propagated_prefixes_dic[asn]:
-                        ASes_propagated_prefixes_dic[asn].add(prefix)
-                else:
-                    ASes_propagated_prefixes_dic[asn] = set([prefix])
-        
-        if not self.KEEP:
-            try:
-                os.remove(readable_file_name)
-            except OSError:
-                pass
+                    ASes_originated_prefixes_dic[originAS] = set([prefix])
+                    
+                for asn in middleASes:
+                    if asn in ASes_propagated_prefixes_dic.keys():
+                        if prefix not in ASes_propagated_prefixes_dic[asn]:
+                            ASes_propagated_prefixes_dic[asn].add(prefix)
+                    else:
+                        ASes_propagated_prefixes_dic[asn] = set([prefix])
+            
+            if not self.KEEP:
+                try:
+                    os.remove(readable_file_name)
+                except OSError:
+                    pass
             
         return bgp_df, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
                 ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
@@ -461,6 +462,7 @@ class BGPDataHandler:
     # output of the 'show ip bgp' command
     # The path to the resulting readable file is returned
     def getReadableFile(self, source, isURL):
+    
         # If a routing file is not provided, download it from the provided URL        
         if isURL:
             routing_file = '%s/%s' % (self.files_path, source.split('/')[-1])
