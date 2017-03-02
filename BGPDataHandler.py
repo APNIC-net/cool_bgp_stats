@@ -33,7 +33,11 @@ class BGPDataHandler:
     # PyTricia indexed by routed IPv6 prefix containing the indexes of the rows in
     # the bgp_data Data Frame that contain info of BGP announcements of the IPv6 prefix
     ipv6_prefixes_indexes_pyt = pytricia.PyTricia()
-    # PyTricia indexed by routed prefix containing the dates in which the
+    # PyTricia indexed by routed prefix containing as values dictionaries with two keys:
+    # * periodsSeen - the value for this key is a list of tuples representing
+    # periods of time during which the corresponding prefix was seen
+    # Each tuple has the format (startDate, endDate)
+    # * firstSeen - the value for this key is the first date in which the
     # prefix was seen
     prefixesDates = pytricia.PyTricia()
     # Dictionary indexed by AS containing all the prefixes originated by each AS
@@ -206,9 +210,13 @@ class BGPDataHandler:
                 date = int(dates[0])
         return date
     
-    # This function loads the prefixesDates PyTricia (class variable)
-    # This variable contains as values lists of the dates
-    # in which the corresponding prefix (key) was seen
+    # This function loads the prefixesDates PyTricia (class variable) which
+    # is indexed by prefix and contains as values dictionaries with two keys:
+    # * periodsSeen - the value for this key is a list of tuples representing
+    # periods of time during which the corresponding prefix was seen
+    # Each tuple has the format (startDate, endDate)
+    # * firstSeen - the value for this key is the first date in which the
+    # prefix was seen
     def loadPrefixesDates(self, historical_files, startDate):
 
         files_list_obj = open(historical_files, 'r')
@@ -225,10 +233,26 @@ class BGPDataHandler:
                 prefixes_list, date = self.getPrefixesAndDate(line.strip())
 
                 for pref in prefixes_list:
+                    dateInserted = False
                     if self.prefixesDates.has_key(pref):
-                        self.prefixesDates[pref].add(date)
+                        if date < self.prefixesDates[pref]['firstSeen']:
+                            self.prefixesDates[pref]['firstSeen'] = date
+                            
+                        for period in self.prefixesDates[pref]['periodsSeen']:
+                            if date > period[0]:
+                                if date < period[1]:
+                                    dateInserted = True
+                                    continue
+                                elif date == period[1]+1:
+                                    self.prefixesDates[pref]['periodsSeen'].remove(period)
+                                    self.prefixesDates[pref]['periodsSeen'].append((period[0], date))
+                                    dateInserted = True
+                        if not dateInserted:
+                            self.prefixesDates[pref]['periodsSeen'].append((date, date))
                     else:
-                        self.prefixesDates[pref] = set([date])
+                        self.prefixesDates[pref] = dict()
+                        self.prefixesDates[pref]['periodsSeen'] = [(date, date)]
+                        self.prefixesDates[pref]['firstSeen'] = date
 
     # This function returns a list of prefixes for which the routing_file has
     # announcements and the date of the routing file

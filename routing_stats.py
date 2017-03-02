@@ -272,16 +272,18 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
             del_routed[net]['more_specifics'] = net_more_specifics
             del_routed[net]['less_specifics'] = net_less_specifics
               
-                
-        # Based on [1]
 
-        # TODO Compute Usage Latency
+        # For not aggregated blocks (blocks that were delegated as-is) we compute
+        # their Usage Latency and Stability of Visibility
+        
+        # Based on [1]
         # We define usage latency of an allocated address block as
         # the time interval between the allocation time and the first
         # time a part of, or the entire, allocated block shows up in
         # the BGP routing table
-
-        # TODO Analyze stability of visibility
+        
+        #TODO define Stability of Visibility
+        
         # Our first observation about covered prefixes is that they
         # show up and disappear in the routing table more frequently
         # than the covering prefixes. To show this, we compare the
@@ -294,6 +296,12 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
         # at the end, and (4) a covered prefix at the beginning disappears
         # before the end and its address space is no longer
         # covered in the routing table.
+        if not orgs_aggr_networks.ix[i, 'aggregated']: 
+            # TODO Compute Usage Latency
+            # TODO Analyze stability of visibility
+        
+
+
           
         visibility = -1
         
