@@ -559,6 +559,7 @@ def main(argv):
     prefixesDates_file = ''
     archive_folder = '' 
     COMPRESSED = False
+    startDate = ''
 
 #For DEBUG
 #    files_path = '/Users/sofiasilva/BGP_files'
@@ -573,7 +574,7 @@ def main(argv):
     try:
         opts, args = getopt.getopt(argv, "hp:u:r:H:ockny:m:D:d:ei:b:4:6:a:s:S:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file=", "prefixesDates_file="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder>] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>] [-S <prefixesDates file>]'
+        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> [-I <start date>]] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>] [-S <prefixesDates file>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
@@ -586,6 +587,8 @@ def main(argv):
             print 'If the URLs point to files containing "show ip bgp" outputs, the "-o" option must be used to specify this.'
             print 'r = Use already downloaded Internet Routing data file.'
             print "H = Historical data. Instead of processing a single file, process the routing data contained in the archive folder provided."
+            print "I = Incremental dates. If you use this option you must provide a start date for the period of time for which you want to get the dates in which the prefixes were seen."
+            print "If you also use the -S option to provide an existing prefixesDates file, the new dates will be added to the existing dates in the PyTricia."
             print "If none of the three options -u, -r or -H are provided, the script will try to work with routing data from URLs included ./BGPoutputs.txt"
             print 'o = The routing data to be processed is in the format of "show ip bgp" outputs.'
             print 'c = Compressed. The files containing routing data are compressed.'
@@ -655,6 +658,8 @@ def main(argv):
             fromFiles = True
         elif opt == '-H':
             archive_folder = os.path.abspath(arg.rstrip('/'))
+        elif opt == '-I':
+            startDate = int(arg)
         elif opt == '-S':
             prefixesDates_file = os.path.abspath(arg)
         else:
@@ -717,6 +722,9 @@ def main(argv):
 
     bgp_handler = BGPDataHandler(files_path, KEEP, RIBfiles, COMPRESSED)
 
+    if prefixesDates_file != '':
+        bgp_handler.loadPrefixDatesFromFile(prefixesDates_file)    
+    
     if fromFiles:
         bgp_handler.loadStructuresFromFiles(bgp_data_file, ipv4_prefixes_indexes_file,\
                                 ipv6_prefixes_indexes_file, ASes_originated_prefixes_file,\
@@ -727,10 +735,7 @@ def main(argv):
         elif routing_file != '':
             bgp_handler.loadStructuresFromRoutingFile(routing_file)
         else: # archive_folder not null
-            bgp_handler.loadStructuresFromArchive(archive_folder)
-    
-    if prefixesDates_file != '':
-        bgp_handler.loadPrefixDatesFromFile(prefixesDates_file)
+            bgp_handler.loadStructuresFromArchive(archive_folder, startDate)
     
     if COMPUTE: 
         del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,\

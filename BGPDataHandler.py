@@ -141,12 +141,12 @@ class BGPDataHandler:
     # This function processes the routing data contained in the archive folder
     # provided, and loads the data structures of the class with the results
     # from this processing       
-    def loadStructuresFromArchive(self, archive_folder):
+    def loadStructuresFromArchive(self, archive_folder, startDate):
         historical_files = self.getPathsToHistoricalData(archive_folder)
         mostRecent_routing_file = self.getMostRecentFromHistoricalList(historical_files)
        
         readable_file_name =  self.getReadableFile(mostRecent_routing_file, False)
-                                                    
+        
         bgp_data, ipv4_prefixes_indexes_pyt, ipv6_prefixes_indexes_pyt,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref =\
@@ -169,9 +169,9 @@ class BGPDataHandler:
 
         sys.stderr.write("Class data structures loaded successfully!\n")
 
-        self.prefixesDates = self.getDatesSeenForPrefixes(historical_files)
+        self.loadPrefixesDates(historical_files, startDate)
         sys.stderr.write("PyTricia with dates in which prefixes were seen loaded successfully!\n")
-
+        
 
     # This function returns a path to the most recent file in the provided list 
     # of historical files
@@ -183,32 +183,41 @@ class BGPDataHandler:
         
         for line in files_list_obj:
             if not line.startswith('#') and line.strip() != '':
-                dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]',\
-                            line.strip())
-                            
-                if len(dates) > 0:
-                    date = int(dates[0][0:4]+dates[0][5:7]+dates[0][8:10])
-                else:
-                    dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]',\
-                                line.strip())
-                    if len(dates) > 0:
-                        date = int(dates[0])
+                date = self.getDateFromFileName(line.strip())
        
                 if date > mostRecentDate:
                     mostRecentDate = date
                     mostRecentFile = line.strip()
         
         return mostRecentFile
+        
+    def getDateFromFileName(self, filename):
+        date = ''
+        
+        dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]',\
+                    filename)
+                    
+        if len(dates) > 0:
+            date = int(dates[0][0:4]+dates[0][5:7]+dates[0][8:10])
+        else:
+            dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]',\
+                        filename)
+            if len(dates) > 0:
+                date = int(dates[0])
+        return date
     
-    # This function returns a PyTricia containing as values lists of the dates
-    # in which the corresponding prefix was seen
-    def getDatesSeenForPrefixes(self, historical_files):
+    # This function loads the prefixesDates PyTricia (class variable)
+    # This variable contains as values lists of the dates
+    # in which the corresponding prefix (key) was seen
+    def loadPrefixesDates(self, historical_files, startDate):
 
         files_list_obj = open(historical_files, 'r')
-
-        prefixes_dates = pytricia.PyTricia()
         
         for line in files_list_obj:
+            if startDate != '':
+                file_date = self.getDateFromFileName(line)
+                if file_date == '' or int(file_date) < int(startDate):
+                    continue
             if not line.startswith('#') and line.strip() != '':
                  # If we work with several routing files
                 sys.stderr.write("Starting to work with %s" % line)
@@ -216,12 +225,10 @@ class BGPDataHandler:
                 prefixes_list, date = self.getPrefixesAndDate(line.strip())
 
                 for pref in prefixes_list:
-                    if prefixes_dates.has_key(pref):
-                        prefixes_dates[pref].add(date)
+                    if self.prefixesDates.has_key(pref):
+                        self.prefixesDates[pref].add(date)
                     else:
-                        prefixes_dates[pref] = set([date])
-                                                 
-        return prefixes_dates
+                        self.prefixesDates[pref] = set([date])
 
     # This function returns a list of prefixes for which the routing_file has
     # announcements and the date of the routing file
