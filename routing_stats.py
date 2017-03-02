@@ -11,102 +11,9 @@ from BGPDataHandler import BGPDataHandler
 import ipaddress
 import pandas as pd
 #import numpy as np
-#import pytricia
 import datetime
 import copy
 
-# This function returns a list of prefixes less specific than the one provided
-# that are included in the keys of the PyTricia
-def getRoutedParentAndGrandparents(prefix, pyt):
-    # Get the key in the PyTricia corresponding to the prefix
-    # key_pref is prefix if prefix is in keys
-    # or the longest prefix match in keys
-    key_pref = pyt.get_key(prefix) 
-    
-    net_less_specifics = []
-    
-    if key_pref is not None:
-        if key_pref != prefix:
-            net_less_specifics.append(key_pref)
-            
-        prefix = key_pref
-        net_parent = pyt.parent(prefix)
-        if net_parent is not None:
-            net_less_specifics.append(net_parent)
-            granpa = pyt.parent(net_parent)
-                    
-            while granpa is not None:
-                net_less_specifics.append(granpa)
-                granpa = pyt.parent(granpa)
-        
-    return net_less_specifics
-
-# This function returns a list of prefixes more specific than the one provided
-# that are included in the keys of the PyTricia
-def getRoutedChildren(prefix, pyt, longest_pref):
-    more_specifics = []
-   
-    if pyt.has_key(prefix): # Exact match        
-        # We return a list of the children of the prefix in the PyTricia
-        # including the prefix itself if it is routed as-is
-        more_specifics.append(prefix)
-        more_specifics.extend(pyt.children(prefix))
-        return more_specifics
-                
-    else: # If net is not in the PyTricia keys
-        # we cannot use the children method for it
-        # so we get the corresponding key (longest prefix match)
-        key_pref = pyt.get_key(prefix)
-        prefix_network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
-
-        # If there is no corresponding key
-        # it means there is no less specific prefix being routed
-        if key_pref is None:
-            # so we have to look for children of the prefix's subnets
-            if prefix_network.prefixlen < longest_pref:
-                immediate_subnets = list(prefix_network.subnets())
-                more_specifics.extend(getRoutedChildren(str(immediate_subnets[0]), pyt, longest_pref))
-                more_specifics.extend(getRoutedChildren(str(immediate_subnets[1]), pyt, longest_pref))
-            
-        else:
-            # If there is a corresponding key, we can use the children function
-            # to get the key's children
-            key_children = pyt.children(key_pref)
-            # but then we have to check whether these children are also
-            # subnets of the given prefix
-            for child in key_children:
-                child_network = ipaddress.ip_network(unicode(child, 'utf-8'))
-                if child_network.subnet_of(prefix_network):
-                    more_specifics.append(child)
-                    
-        return more_specifics
-    
-# This function returns the origin AS for a specific prefix
-# as seen in the given BGP data
-def getOriginASForBlock(prefix, indexes_pyt, bgp_data):
-    originASes = set()
-    for index in indexes_pyt[prefix]:
-        originAS = bgp_data.ix[index, 'ASpath'].split(' ')[-1]
-        originASes.add(originAS)
-    
-    if len(originASes) > 1:
-        print "Found prefix originated by more than one AS (%s)" % prefix
-        # TODO Analyze these special cases
-        # Geoff says there are a lot of these
-        # I have already asked him what to do in these cases
-    if len(originASes) > 0:
-        return list(originASes)[0]
-    else:
-        return None
-
-# This function returns a set with all the AS paths for a specific prefix
-# seen in the given BGP data    
-def getASpathsForBlock(prefix, indexes_pyt, bgp_data):
-    ASpaths = set()
-    for index in indexes_pyt[prefix]:
-        ASpaths.add(bgp_data.ix[index, 'ASpath'])
-    
-    return ASpaths
 
 # This function downloads information about relationships between ASes inferred
 # by CAIDA and stores it in a dictionary in which all the active ASes appear as keys
@@ -230,11 +137,6 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
             pd.Series([False]*orgs_aggr_networks.shape[0],\
             index=orgs_aggr_networks.index)
     
-    # Obtain BGP data
-    bgp_data = bgp_handler.bgp_data
-    ipv4_prefixes_indexes_pyt = bgp_handler.ipv4_prefixes_indexes_pyt
-    ipv6_prefixes_indexes_pyt = bgp_handler.ipv6_prefixes_indexes_pyt
-    
     # Obtain ASN delegation data
     asn_del = del_handler.delegated_df[del_handler.delegated_df['resource_type'] == 'asn']
 
@@ -251,21 +153,10 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
         net = orgs_aggr_networks.ix[i]['ip_block']
         network = ipaddress.ip_network(unicode(net, "utf-8"))
         ips_delegated = network.num_addresses
-
-        if network.version == 4:
-            prefixes_indexes_pyt = ipv4_prefixes_indexes_pyt
-            longest_pref = bgp_handler.ipv4_longest_pref
-        
-        if network.version == 6:
-            prefixes_indexes_pyt = ipv6_prefixes_indexes_pyt
-            longest_pref = bgp_handler.ipv6_longest_pref
-                
-        net_less_specifics = []
-        net_more_specifics = []
+   
         # Find routed blocks related to the delegated or aggregated block 
-        if len(prefixes_indexes_pyt.keys()) > 0:       
-            net_less_specifics = getRoutedParentAndGrandparents(net, prefixes_indexes_pyt)
-            net_more_specifics = getRoutedChildren(net, prefixes_indexes_pyt, longest_pref)          
+        net_less_specifics = bgp_handler.getRoutedParentAndGrandparents(net)
+        net_more_specifics = bgp_handler.getRoutedChildren(net)
 
         if len(net_more_specifics) > 0 or len(net_less_specifics) > 0:
             del_routed[net] = dict()
@@ -296,7 +187,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
         # at the end, and (4) a covered prefix at the beginning disappears
         # before the end and its address space is no longer
         # covered in the routing table.
-        if not orgs_aggr_networks.ix[i, 'aggregated']: 
+#        if not orgs_aggr_networks.ix[i, 'aggregated']: 
             # TODO Compute Usage Latency
             # TODO Analyze stability of visibility
         
@@ -340,20 +231,18 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # prefix
       
                     # We get the origin AS for the block
-                    blockOriginAS = getOriginASForBlock(net, prefixes_indexes_pyt, bgp_data)
+                    blockOriginAS = bgp_handler.getOriginASForBlock(net)
                     
                     # and the set of AS paths for the block
-                    blockASpaths = getASpathsForBlock(net, prefixes_indexes_pyt, bgp_data)
+                    blockASpaths = bgp_handler.getASpathsForBlock(net)
 
                     # The corresponding covering prefix is the last prefix in the
                     # list of less specifics
                     coveringPref = del_routed[net]['less_specifics'][-1]
     
-                    coveringPrefOriginAS = getOriginASForBlock(coveringPref,\
-                                                prefixes_indexes_pyt, bgp_data)
+                    coveringPrefOriginAS = bgp_handler.getOriginASForBlock(coveringPref)
     
-                    coveringPrefASpaths = getASpathsForBlock(coveringPref,\
-                                                prefixes_indexes_pyt, bgp_data)               
+                    coveringPrefASpaths = bgp_handler.getASpathsForBlock(coveringPref)       
               
                     if blockOriginAS == coveringPrefOriginAS:
                         if len(blockASpaths) == 1:
@@ -570,14 +459,16 @@ def main(argv):
     startDate = ''
 
 #For DEBUG
-#    files_path = '/Users/sofiasilva/BGP_files'
+    files_path = '/Users/sofiasilva/BGP_files'
 #    routing_file = '/Users/sofiasilva/BGP_files/bgptable.txt'
-#    KEEP = True
-#    RIBfile = False
+    KEEP = True
+    RIBfiles = False
 #    DEBUG = True
 #    EXTENDED = True
 #    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
-#    archive_folder = '/data/wattle/bgplog'
+    archive_folder = '/Users/sofiasilva/BGP_files'
+    COMPRESSED = True
+    COMPUTE = False    
     
     try:
         opts, args = getopt.getopt(argv, "hp:u:r:H:ockny:m:D:d:ei:b:4:6:a:s:S:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file=", "prefixesDates_file="])
@@ -728,7 +619,7 @@ def main(argv):
             del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
 
 
-    bgp_handler = BGPDataHandler(files_path, KEEP, RIBfiles, COMPRESSED)
+    bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP, RIBfiles, COMPRESSED)
 
     if prefixesDates_file != '':
         bgp_handler.loadPrefixDatesFromFile(prefixesDates_file)    
