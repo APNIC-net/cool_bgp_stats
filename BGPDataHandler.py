@@ -116,7 +116,8 @@ class BGPDataHandler:
         bgp_data, ipv4_prefixes_indexes_radix, ipv6_prefixes_indexes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref  =\
-                        self.processMultipleFiles(urls_file)
+                        self.processMultipleFiles(files_list=urls_file,\
+                                                isList=False, containsURLs=True)
                         
         self.bgp_data = bgp_data
         self.ipv4_prefixes_indexes_radix = ipv4_prefixes_indexes_radix
@@ -168,14 +169,16 @@ class BGPDataHandler:
     # from this processing       
     def loadStructuresFromArchive(self, archive_folder, startDate):
         historical_files = self.getPathsToHistoricalData(archive_folder)
-        mostRecent_routing_file = self.getMostRecentFromHistoricalList(historical_files)
-       
-        readable_file_name =  self.getReadableFile(mostRecent_routing_file, False)
+        ipv4_mostRecent_routing_file, ipv6_mostRecent_routing_file  =\
+                        self.getMostRecentFromHistoricalList(historical_files)
         
         bgp_data, ipv4_prefixes_indexes_radix, ipv6_prefixes_indexes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref =\
-                                self.processReadableDF(readable_file_name)
+                                self.processMultipleFiles(\
+                                    files_list=[ipv4_mostRecent_routing_file,\
+                                                ipv6_mostRecent_routing_file],\
+                                                isList=True, containsURLs=False)
         
         self.bgp_data = bgp_data
         self.ipv4_prefixes_indexes_radix = ipv4_prefixes_indexes_radix
@@ -195,7 +198,7 @@ class BGPDataHandler:
         sys.stderr.write("Class data structures were loaded successfully!\n")
 
         self.loadPrefixesDates(historical_files, startDate)
-        sys.stderr.write("Radix with dates in which prefixes were seen was loaded successfully!\n")
+        sys.stderr.write("Radixes with dates in which prefixes were seen were loaded successfully!\n")
         
 
     # This function returns a path to the most recent file in the provided list 
@@ -203,18 +206,26 @@ class BGPDataHandler:
     def getMostRecentFromHistoricalList(self, historical_files):
         files_list_obj = open(historical_files, 'r')
 
-        mostRecentDate = 0
-        mostRecentFile = ''
+        ipv4_mostRecentDate = 0
+        ipv4_mostRecentFile = ''
+        
+        ipv6_mostRecentDate = 0
+        ipv6_mostRecentFile = ''
         
         for line in files_list_obj:
             if not line.startswith('#') and line.strip() != '':
                 date = self.getDateFromFileName(line.strip())
-       
-                if date > mostRecentDate:
-                    mostRecentDate = date
-                    mostRecentFile = line.strip()
+                
+                if line.strip().endswith('v6.dmp.gz'):
+                    if date > ipv6_mostRecentDate:
+                        ipv6_mostRecentDate = date
+                        ipv6_mostRecentFile = line.strip()
+                else:
+                    if date > ipv4_mostRecentDate:
+                        ipv4_mostRecentDate = date
+                        ipv4_mostRecentFile = line.strip()
         
-        return mostRecentFile
+        return ipv4_mostRecentFile, ipv6_mostRecentFile
         
     def getDateFromFileName(self, filename):
         date = ''
@@ -324,8 +335,9 @@ class BGPDataHandler:
     # This function downloads and processes all the files in the provided list.
     # The boolean variable containsURLs must be True if the files_list is a list
     # of URLs or False if it is a list of paths
-    def processMultipleFiles(self, files_list, containsURLs):
-        files_list_obj = open(files_list, 'r')
+    def processMultipleFiles(self, files_list, isList, containsURLs):
+        if not isList:
+            files_list = open(files_list, 'r')
                     
         bgp_data = pd.DataFrame()
         ipv4_prefixes_indexes_radix = radix.Radix()
@@ -336,7 +348,7 @@ class BGPDataHandler:
         ipv6_longest_pref = -1
         
         i = 0
-        for line in files_list_obj:
+        for line in files_list:
             if not line.startswith('#') and line.strip() != '':
                 # If we work with several routing files
                 sys.stderr.write("Starting to work with %s\n" % line)
@@ -370,6 +382,7 @@ class BGPDataHandler:
                     if node_gral is not None:
                         node_gral.data['indexes'].update(list(node_partial.data['indexes']))
                     else:
+                        node_gral = ipv4_prefixes_indexes_radix.add(prefix)
                         node_gral.data['indexes'] = node_partial.data['indexes']
 
                 for prefix in ipv6_prefixes_indexes_radix_partial.prefixes():
@@ -378,6 +391,7 @@ class BGPDataHandler:
                     if node_gral is not None:
                         node_gral.data['indexes'].update(list(node_partial.data['indexes']))
                     else:
+                        node_gral = ipv6_prefixes_indexes_radix.add(prefix)
                         node_gral.data['indexes'] = node_partial.data['indexes']
                         
                 for aut_sys, prefixes in ASes_originated_prefixes_dic_partial.iteritems():
@@ -401,8 +415,9 @@ class BGPDataHandler:
             i += 1
             if self.DEBUG and i > 1:
                 break
-                        
-        files_list_obj.close()
+
+        if not isList:        
+            files_list.close()
         
         return bgp_data, ipv4_prefixes_indexes_radix, ipv6_prefixes_indexes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
@@ -448,7 +463,7 @@ class BGPDataHandler:
             output_file.write('TABLE_DUMP|'+str(timestamp)[:-2]+'|B|'+next_hop+'|'+nextas+'|'+prefix+'|'+" ".join(as_path)+'|'+origin+'\n')
     
             i += 1
-            if self.DEBUG and i > 1:
+            if self.DEBUG and i > 10:
                 break
             
         output_file.close()
@@ -679,7 +694,7 @@ class BGPDataHandler:
             less_spec_pref = less_spec_node.prefix
         
             if less_spec_pref != prefix:
-                less_specifics.append()
+                less_specifics.append(less_spec_pref)
             
         return less_specifics
     

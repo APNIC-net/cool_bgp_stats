@@ -479,15 +479,15 @@ def main(argv):
     startDate = ''
 
 #For DEBUG
-#    files_path = '/Users/sofiasilva/BGP_files'
+    files_path = '/Users/sofiasilva/BGP_files'
 #    routing_file = '/Users/sofiasilva/BGP_files/bgptable.txt'
-#    KEEP = True
-#    RIBfiles = False
-#    DEBUG = True
-#    EXTENDED = True
-#    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
-#    archive_folder = '/Users/sofiasilva/BGP_files'
-#    COMPRESSED = True
+    KEEP = True
+    RIBfiles = False
+    DEBUG = True
+    EXTENDED = True
+    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
+    archive_folder = '/Users/sofiasilva/BGP_files'
+    COMPRESSED = True
 #    COMPUTE = False    
     
     try:
