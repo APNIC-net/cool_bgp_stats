@@ -251,33 +251,34 @@ class BGPDataHandler:
                 sys.stderr.write("Starting to work with %s" % line)
                 
                 if line.strip().endswith('v6.dmp.gz'):
-                    prefixesDates = self.ipv6_prefixesDates
+                    prefixesDates = self.ipv6_prefixesDates_radix
                 else:
-                    prefixesDates = self.ipv4_prefixesDates
+                    prefixesDates = self.ipv4_prefixesDates_radix
 
                 prefixes_list, date = self.getPrefixesAndDate(line.strip())
 
                 for pref in prefixes_list:
                     dateInserted = False
-                    if pref in prefixesDates.keys():
-                        if date < prefixesDates[pref]['firstSeen']:
-                            prefixesDates[pref]['firstSeen'] = date
+                    pref_node = prefixesDates.search_exact(pref)
+                    if pref_node is not None:
+                        if date < pref_node.data['firstSeen']:
+                            pref_node.data['firstSeen'] = date
                             
-                        for period in prefixesDates[pref]['periodsSeen']:
+                        for period in pref_node.data['periodsSeen']:
                             if date > period[0]:
                                 if date < period[1]:
                                     dateInserted = True
                                     continue
                                 elif date == period[1]+1:
-                                    prefixesDates[pref]['periodsSeen'].remove(period)
-                                    prefixesDates[pref]['periodsSeen'].append((period[0], date))
+                                    pref_node.data['periodsSeen'].remove(period)
+                                    pref_node.data['periodsSeen'].append((period[0], date))
                                     dateInserted = True
                         if not dateInserted:
-                            prefixesDates[pref]['periodsSeen'].append((date, date))
+                            pref_node.data['periodsSeen'].append((date, date))
                     else:
-                        prefixesDates[pref] = dict()
-                        prefixesDates[pref]['periodsSeen'] = [(date, date)]
-                        prefixesDates[pref]['firstSeen'] = date
+                        pref_node = prefixesDates.add(pref)
+                        pref_node.data['periodsSeen'] = [(date, date)]
+                        pref_node.data['firstSeen'] = date
                         
             i += 1
             if self.DEBUG and i > 1:
