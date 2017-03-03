@@ -501,9 +501,9 @@ class BGPDataHandler:
                     
                     ipv4_node = ipv4_prefixes_indexes_radix.search_exact(prefix)
                     if ipv4_node is not None:
-                        ipv4_node.date['indexes'].add(index)
+                        ipv4_node.data['indexes'].add(index)
                     else:
-                        ipv4_node.date['indexes'] = set([index])
+                        ipv4_node.data['indexes'] = set([index])
                         
                 elif network.version == 6:
                     if network.prefixlen > ipv6_longest_prefix:

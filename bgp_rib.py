@@ -397,7 +397,7 @@ class BGPRIB(dict):
                     # start in the point where the first valid line is found (*)
                     if not line.strip():
                         continue
-                    if line[0:5] == "Total":
+                    if line.startswith("Total") or line.startswith('Displayed'):
                         # I found these lines at the end
                         continue
                     if line[0:6] == "#DATE:":
