@@ -250,7 +250,7 @@ class BGPDataHandler:
                     continue
             if not line.startswith('#') and line.strip() != '':
                  # If we work with several routing files
-                sys.stderr.write("Starting to work with %s" % line)
+                sys.stderr.write("Starting to work with %s\n" % line)
                 
                 if line.strip().endswith('v6.dmp.gz'):
                     prefixesDates = self.ipv6_prefixesDates_radix
@@ -339,7 +339,7 @@ class BGPDataHandler:
         for line in files_list_obj:
             if not line.startswith('#') and line.strip() != '':
                 # If we work with several routing files
-                sys.stderr.write("Starting to work with %s" % line)
+                sys.stderr.write("Starting to work with %s\n" % line)
 
                 # We obtain partial data structures
                 if containsURLs:
@@ -611,37 +611,37 @@ class BGPDataHandler:
         bgp_file_name = '%s/bgp_data_%s.pkl' % (self.files_path, today)
         with open(bgp_file_name, 'wb') as f:
             pickle.dump(self.bgp_data, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing DataFrame with BGP data." % bgp_file_name)
+            sys.stderr.write("Saved to disk %s pickle file containing DataFrame with BGP data.\n" % bgp_file_name)
 
         ipv4_radix_file_name = '%s/ipv4_prefixes_indexes_%s.pkl' % (self.files_path, today)
         with open(ipv4_radix_file_name, 'wb') as f:
             pickle.dump(self.ipv4_prefixes_indexes_radix, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing Radix with indexes in the BGP data DataFrame for each IPv4 prefix." % ipv4_radix_file_name)
+            sys.stderr.write("Saved to disk %s pickle file containing Radix with indexes in the BGP data DataFrame for each IPv4 prefix.\n" % ipv4_radix_file_name)
 
         ipv6_radix_file_name = '%s/ipv6_prefixes_indexes_%s.pkl' % (self.files_path, today)
         with open(ipv6_radix_file_name, 'wb') as f:
             pickle.dump(self.ipv6_prefixes_indexes_radix, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing Radix with indexes in the BGP data DataFrame for each IPv6 prefix." % ipv6_radix_file_name)
+            sys.stderr.write("Saved to disk %s pickle file containing Radix with indexes in the BGP data DataFrame for each IPv6 prefix.\n" % ipv6_radix_file_name)
 
         o_ases_dic_file_name = '%s/ASes_originated_prefixes_%s.pkl' % (self.files_path, today)
         with open(o_ases_dic_file_name, 'wb') as f:
             pickle.dump(self.ASes_originated_prefixes_dic, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing dictionary with prefixes originated by each AS." % o_ases_dic_file_name)
+            sys.stderr.write("Saved to disk %s pickle file containing dictionary with prefixes originated by each AS.\n" % o_ases_dic_file_name)
         
         p_ases_dic_file_name = '%s/ASes_propagated_prefixes_%s.pkl' % (self.files_path, today)
         with open(p_ases_dic_file_name, 'wb') as f:
             pickle.dump(self.ASes_propagated_prefixes_dic, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing dictionary with prefixes propagated by each AS." % p_ases_dic_file_name)
+            sys.stderr.write("Saved to disk %s pickle file containing dictionary with prefixes propagated by each AS.\n" % p_ases_dic_file_name)
         
         ipv4_prefDates_file_name = '%s/ipv4_prefixesDates_%s.pkl' % (self.files_path, today)
         with open(ipv4_prefDates_file_name, 'wb') as f:
             pickle.dump(self.ipv4_prefixesDates_radix, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing Radix with the dates in which each IPv4 prefix was seen." % ipv4_prefDates_file_name)
+            sys.stderr.write("Saved to disk %s pickle file containing Radix with the dates in which each IPv4 prefix was seen.\n" % ipv4_prefDates_file_name)
         
         ipv6_prefDates_file_name = '%s/ipv6_prefixesDates_%s.pkl' % (self.files_path, today)
         with open(ipv6_prefDates_file_name, 'wb') as f:
             pickle.dump(self.ipv6_prefixesDates_radix, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing Radix with the dates in which each IPv6 prefix was seen." % ipv6_prefDates_file_name)
+            sys.stderr.write("Saved to disk %s pickle file containing Radix with the dates in which each IPv6 prefix was seen.\n" % ipv6_prefDates_file_name)
             
         return bgp_file_name, ipv4_radix_file_name, ipv6_radix_file_name,\
                 o_ases_dic_file_name, p_ases_dic_file_name,\
