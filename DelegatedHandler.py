@@ -278,11 +278,11 @@ class DelegatedHandler:
                     regions = set()
                     for del_block in del_networks_list:
                         if aggr_net.supernet_of(del_block):
-                            row = ip_subset[(ip_subset['initial_resource'] ==\
+                            row = ip_subset.ix[ip_subset[(ip_subset['initial_resource'] ==\
                                             str(del_block.network_address)) &\
-                                            (ip_subset['count'] == del_block.prefixlen)]
-                            ccs.add(str(row['cc']))
-                            regions.add(str(row['region']))
+                                            (ip_subset['count'] == del_block.prefixlen)].index[0]]
+                            ccs.add(row['cc'])
+                            regions.add(row['region'])
                             
                     ccs = list(ccs)
                     if len(ccs) == 1:
@@ -331,4 +331,24 @@ class DelegatedHandler:
                 expanded_df.loc[expanded_df.shape[0]] = row
             
         return expanded_df
+
+    # Given a prefix this function returns the date in which it was delegated.
+    # If the prefix is not in the delegated_df DataFrame a null string is returned
+    def getDelegationDate(self, prefix):
+        network = ipaddress.ip_network(unicode(prefix, "utf-8"))
+        
+        if network.version == 4:
+            count = network.num_addresses
+        else:
+            count = network.prefixlen
+        
+        subset = self.delegated_df[\
+                (self.delegated_df['initial_resource'] == network.network_address) &\
+                (self.delegated_df['count'] == count)]
+        
+        if subset.shape[0] > 0:
+            row = self.delegated_df.ix[subset.index[0]]
+            return row['date']
+        else:
+            return ''
             

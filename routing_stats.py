@@ -13,6 +13,7 @@ import pandas as pd
 #import numpy as np
 import datetime
 import copy
+import radix
 
 
 # This function downloads information about relationships between ASes inferred
@@ -39,60 +40,64 @@ def getASrelInfo(serial, files_path, KEEP):
                 except ValueError:
                     continue
             
-        index.close()
-        if not KEEP:
-            os.remove(index_file)
-        
-        if serial == 1:
-            as_rel_url = '%s%s.as-rel.txt.bz2' % (folder_url, maxDate)
-            as_rel_file = '%s/CAIDA_ASrel_%s.txt.bz2' % (files_path, maxDate)
-        elif serial == 2:
-            as_rel_url = '%s%s.as-rel2.txt.bz2' % (folder_url, maxDate)
-            as_rel_file = '%s/CAIDA_ASrel2_%s.txt.bz2' % (files_path, maxDate)
+    index.close()
+    if not KEEP:
+        os.remove(index_file)
+    
+    if serial == 1:
+        as_rel_url = '%s%s.as-rel.txt.bz2' % (folder_url, maxDate)
+        as_rel_file = '%s/CAIDA_ASrel_%s.txt.bz2' % (files_path, maxDate)
+    elif serial == 2:
+        as_rel_url = '%s%s.as-rel2.txt.bz2' % (folder_url, maxDate)
+        as_rel_file = '%s/CAIDA_ASrel2_%s.txt.bz2' % (files_path, maxDate)
 
-        get_file(as_rel_url, as_rel_file)
-        
-        ASrels = dict()
-        
-        print 'Working with file %s\n' % as_rel_file
-        
-        with bz2.BZ2File(as_rel_file, 'rb') as as_rel:
-            for line in as_rel.readlines():
-                if not line.startswith('#'):
-                    line_parts = line.split('|')
-                    as1 = int(line_parts[0])
-                    as2 = int(line_parts[1])
-                    rel_type = line_parts[2]
-                    if rel_type == '0':
-                        rel_type = 'P2P'
-                    elif rel_type == '-1':
-                        rel_type = 'P2C'
+    get_file(as_rel_url, as_rel_file)
+    
+    ASrels = dict()
+    
+    print 'Working with file %s\n' % as_rel_file
+    
+    with bz2.BZ2File(as_rel_file, 'rb') as as_rel:
+        for line in as_rel.readlines():
+            if not line.startswith('#'):
+                line_parts = line.split('|')
+                as1 = int(line_parts[0])
+                as2 = int(line_parts[1])
+                rel_type = line_parts[2]
+                if rel_type == '0':
+                    rel_type = 'P2P'
+                elif rel_type == '-1':
+                    rel_type = 'P2C'
+                
+                if as1 not in ASrels:
+                    ASrels[as1] = dict()
+                if as2 not in ASrels[as1]:
+                    ASrels[as1][as2] = rel_type
+
+                if rel_type == 'P2C':
+                    rel_type = 'C2P'
+
+                if as2 not in ASrels:
+                    ASrels[as2] = dict()
+                if as2 not in ASrels[as2]:
+                    ASrels[as2][as1] = rel_type
                     
-                    if as1 not in ASrels:
-                        ASrels[as1] = dict()
-                    if as2 not in ASrels[as1]:
-                        ASrels[as1][as2] = rel_type
-
-                    if rel_type == 'P2C':
-                        rel_type = 'C2P'
-
-                    if as2 not in ASrels:
-                        ASrels[as2] = dict()
-                    if as2 not in ASrels[as2]:
-                        ASrels[as2][as1] = rel_type
-                        
-        as_rel.close()
-        if not KEEP:
-            os.remove(as_rel_file)
-            
-        return ASrels
+    as_rel.close()
+    if not KEEP:
+        os.remove(as_rel_file)
+        
+    return ASrels
     
 # This function computes statistics for each delegated block
 # and for each aggregated block resulting from summarizing multiple delegations
 # to the same organization.
 # Returns a DataFrame with the computed statistics and
-# a PyTricia with the routed blocks covering each delegated or aggregated block.
-# The key is a string representing a block, the value is a list of IPNetwroks
+# a Radix with the routed blocks covering each delegated or aggregated block.
+# The data dictionary of each node in the Radix contains two keys:
+# * more_specifics - the value for this key is a list of more specific blocks
+# being routed (including the block itself if it is being routed as-is)
+# * less_specifics - the value for this key is a list of less specific blocks
+# being routed
 def computePerPrefixStats(bgp_handler, del_handler, ASrels):
     # Obtain a DataFrame with all the delegated blocks and all the aggregated
     # block resulting from summarizing multiple delegations
@@ -106,7 +111,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                 'SOSP', 'SODP1', 'SODP2', 'DOSP', 'DODP1', 'DODP2', 'DODP3']
 
     # The concept of 'aggregation over multiple allocations' defined in the paper
-    # cited above is also slightly modified to suit our needs.
+    # cited above is slightly modified to suit our needs.
     # (Note that we use 'delegation' instead of 'allocation' as it is a more
     # general term.)
     # In the paper each announcement is analyzed. While here we analyze each delegated
@@ -141,12 +146,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
     asn_del = del_handler.delegated_df[del_handler.delegated_df['resource_type'] == 'asn']
 
     
-    del_routed = dict()
-    # Using dict instead of PyTricia due to issues accessing PyTricia values
-    # Depending on what is stored as a value and how that value is stored,
-    # there are some issues when trying to access the value by key
-    # By now we use a dict
-    # If we want better perfomance for prefix lookups, PyTricia should be used
+    del_routed = radix.Radix()
     
     # For each delegated or aggregated block
     for i in orgs_aggr_networks.index:
@@ -159,9 +159,9 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
         net_more_specifics = bgp_handler.getRoutedChildren(net)
 
         if len(net_more_specifics) > 0 or len(net_less_specifics) > 0:
-            del_routed[net] = dict()
-            del_routed[net]['more_specifics'] = net_more_specifics
-            del_routed[net]['less_specifics'] = net_less_specifics
+            routed_node = del_routed.add(net)
+            routed_node.data['more_specifics'] = net_more_specifics
+            routed_node.data['less_specifics'] = net_less_specifics
               
 
         # For not aggregated blocks (blocks that were delegated as-is) we compute
@@ -187,8 +187,26 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
         # at the end, and (4) a covered prefix at the beginning disappears
         # before the end and its address space is no longer
         # covered in the routing table.
-#        if not orgs_aggr_networks.ix[i, 'aggregated']: 
-            # TODO Compute Usage Latency
+        if not orgs_aggr_networks.ix[i, 'aggregated']: 
+            # Usage Latency computation
+            del_date = del_handler.getDelegationDate(net)
+            if del_date != '':
+                del_date = datetime.datetime.strptime(''.join(del_date.split('-')), '%Y%m%d')
+
+            if network.version == 4:
+                prefixesDates = bgp_handler.ipv4_prefixesDates_radix
+            else:
+                prefixesDates = bgp_handler.ipv6_prefixesDates_radix
+                
+            sometime_routed_node = prefixesDates.search_exact(net)
+            
+            if sometime_routed_node is not None and del_date != '':
+                first_seen = datetime.datetime.strptime(str(sometime_routed_node.data['firstSeen']), '%Y%m%d')
+                orgs_aggr_networks.ix[i, 'UsageLatency'] = (first_seen-del_date).days
+            else:
+                orgs_aggr_networks.ix[i, 'UsageLatency'] = float('inf')
+
+                
             # TODO Analyze stability of visibility
         
 
@@ -196,13 +214,14 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
           
         visibility = -1
         
-        if del_routed.has_key(net):
+        routed_node = del_routed.search_exact(net)
+        if routed_node is not None:
             # block is being announced, at least partially
             
-            more_specifics_wo_block = copy.copy(del_routed[net]['more_specifics'])
+            more_specifics_wo_block = copy.copy(routed_node.data['more_specifics'])
             
             # If the block is being announced as-is            
-            if net in del_routed[net]['more_specifics']:
+            if net in routed_node.data['more_specifics']:
                 # we get a list of the more specifics not including the block itself
                 more_specifics_wo_block.remove(net)
             
@@ -216,16 +235,16 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
            
             # If there is at least one less specific block being routed
             # the block is covered and therefore its visibility is 100 %
-            if len(del_routed[net]['less_specifics']) > 0:
+            if len(routed_node.data['less_specifics']) > 0:
                 visibility = 100
-                if len(del_routed[net]['less_specifics']) == 1:
+                if len(routed_node.data['less_specifics']) == 1:
                     orgs_aggr_networks.ix[i, 'isCovered_Level1'] = True
                 else:
                     orgs_aggr_networks.ix[i, 'isCovered_Level2plus'] = True
 
                 # If apart from having less specific blocks being routed,
                 # the block itself is being routed
-                if net in del_routed[net]['more_specifics']:
+                if net in routed_node.data['more_specifics']:
                     # we classify the prefix based on its advertisement paths
                     # paths relative to that of their corresponding covering
                     # prefix
@@ -238,7 +257,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
 
                     # The corresponding covering prefix is the last prefix in the
                     # list of less specifics
-                    coveringPref = del_routed[net]['less_specifics'][-1]
+                    coveringPref = routed_node.data['less_specifics'][-1]
     
                     coveringPrefOriginAS = bgp_handler.getOriginASForBlock(coveringPref)
     
@@ -288,7 +307,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
             else:
                 # If the list of more specific blocks being routed includes
                 # the block itself
-                if net in del_routed[net]['more_specifics']:
+                if net in routed_node.data['more_specifics']:
                     # The block is 100 % visible
                     visibility = 100
                     
@@ -296,7 +315,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # includes the block itself, taking into account we are 
                     # under the case of the block not having less specific
                     # blocks being routed,
-                    if del_routed[net]['more_specifics'] == 1:
+                    if routed_node.data['more_specifics'] == 1:
                         # the block is a Lonely prefix
                         # • Lonely: a prefix that does not overlap
                         # with any other prefix.
@@ -334,7 +353,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                 # Independently of the block being a covering or a covered prefix,
                 # if the delegated block (not aggregated) is being announced as-is,
                 # allocIntact is True
-                if net in del_routed[net]['more_specifics']:
+                if net in routed_node.data['more_specifics']:
                     orgs_aggr_networks.ix[i, 'allocIntact'] = True
                     
                     # We check if the prefix and its origin AS were delegated
@@ -362,29 +381,29 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                 # If there are no less specific blocks being routed and the list
                 # of more specific blocks being routed only contains the block
                 # itself
-                if len(del_routed[net]['less_specifics']) == 0 and del_routed[net]['more_specifics'] == [net]:
+                if len(routed_node.data['less_specifics']) == 0 and routed_node.data['more_specifics'] == [net]:
                     orgs_aggr_networks.ix[i, 'onlyRoot'] = True
                     # This variable is similar to the variable isLonely but can
                     # only be True for not aggregated blocks 
                 
-                if net in del_routed[net]['more_specifics']:
-                    if len(del_routed[net]['more_specifics']) >= 3 and net in [str(ip_net) for ip_net in aggr_less_spec]:
+                if net in routed_node.data['more_specifics']:
+                    if len(routed_node.data['more_specifics']) >= 3 and net in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • root/MS-complete: The root prefix and at least two subprefixes
                         # are announced. The set of all sub-prefixes spans
                         # the whole root prefix.
                         orgs_aggr_networks.ix[i, 'root_MScompl'] = True
-                    if len(del_routed[net]['more_specifics']) >= 2 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
+                    if len(routed_node.data['more_specifics']) >= 2 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • root/MS-incomplete: The root prefix and at least one subprefix
                         # is announced. Together, the set of announced subprefixes
                         # does not cover the root prefix.
                         orgs_aggr_networks.ix[i, 'root_MSincompl'] = True
                 else:
-                    if len(del_routed[net]['more_specifics']) >= 2 and net in [str(ip_net) for ip_net in aggr_less_spec]:
+                    if len(routed_node.data['more_specifics']) >= 2 and net in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • no root/MS-complete: The root prefix is not announced.
                         # However, there are at least two sub-prefixes which together
                         # cover the complete root prefix.
                         orgs_aggr_networks.ix[i, 'noRoot_MScompl'] = True
-                    if len(del_routed[net]['more_specifics']) >= 1 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
+                    if len(routed_node.data['more_specifics']) >= 1 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • no root/MS-incomplete: The root prefix is not announced.
                         # There is at least one sub-prefix. Taking all sub-prefixes
                         # together, they do not cover the complete root prefix.
@@ -393,7 +412,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
             # if the block is the result of an aggregation of multiple delegations
             else:
                 # and the block itself is being routed
-                if net in del_routed[net]['more_specifics']:
+                if net in routed_node.data['more_specifics']:
                     # the maximum aggregation over multiple delegations is being routed
                     orgs_aggr_networks.ix[i, 'maxAggrRouted'] = True
         
@@ -453,7 +472,8 @@ def main(argv):
     ipv6_prefixes_indexes_file = ''
     ASes_originated_prefixes_file = ''
     ASes_propagated_prefixes_file = ''
-    prefixesDates_file = ''
+    ipv4_prefixesDates_file = ''
+    ipv6_prefixesDates_file = ''
     archive_folder = '' 
     COMPRESSED = False
     startDate = ''
@@ -463,22 +483,22 @@ def main(argv):
 #    routing_file = '/Users/sofiasilva/BGP_files/bgptable.txt'
     KEEP = True
     RIBfiles = False
-#    DEBUG = True
-#    EXTENDED = True
-#    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
+    DEBUG = True
+    EXTENDED = True
+    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
     archive_folder = '/Users/sofiasilva/BGP_files'
     COMPRESSED = True
-    COMPUTE = False    
+#    COMPUTE = False    
     
     try:
-        opts, args = getopt.getopt(argv, "hp:u:r:H:ockny:m:D:d:ei:b:4:6:a:s:S:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file=", "prefixesDates_file="])
+        opts, args = getopt.getopt(argv, "hp:u:r:H:ockny:m:D:d:ei:b:4:6:a:s:F:S:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file=", "ipv4_prefixesDates_file=", "ipv6_prefixesDates_file="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> [-I <start date>]] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>] [-S <prefixesDates file>]'
+        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> [-I <start date>]] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder>] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>] [-S <prefixesDates file>]'
+            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> [-I <start date>]] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -487,7 +507,7 @@ def main(argv):
             print 'r = Use already downloaded Internet Routing data file.'
             print "H = Historical data. Instead of processing a single file, process the routing data contained in the archive folder provided."
             print "I = Incremental dates. If you use this option you must provide a start date for the period of time for which you want to get the dates in which the prefixes were seen."
-            print "If you also use the -S option to provide an existing prefixesDates file, the new dates will be added to the existing dates in the PyTricia."
+            print "If you also use the -F or the -S option to provide an existing prefixesDates file, the new dates will be added to the existing dates in the Radix."
             print "If none of the three options -u, -r or -H are provided, the script will try to work with routing data from URLs included ./BGPoutputs.txt"
             print 'o = The routing data to be processed is in the format of "show ip bgp" outputs.'
             print 'c = Compressed. The files containing routing data are compressed.'
@@ -503,13 +523,14 @@ def main(argv):
             print "i = Incremental. Compute incremental statistics from existing stats file (CSV)."
             print "If option -i is used, a statistics file MUST be provided."
             print "b = BGP_data file. Path to pickle file containing bgp_data DataFrame."
-            print "4 = IPv4 prefixes_indexes file. Path to pickle file containing IPv4 prefixes_indexes PyTricia."
-            print "6 = IPv6 prefixes_indexes file. Path to pickle file containing IPv6 prefixes_indexes PyTricia."
+            print "4 = IPv4 prefixes_indexes file. Path to pickle file containing IPv4 prefixes_indexes Radix."
+            print "6 = IPv6 prefixes_indexes file. Path to pickle file containing IPv6 prefixes_indexes Radix."
             print "a = ASes_originated_prefixes file. Path to pickle file containing ASes_originated_prefixes dictionary."
             print "s = ASes_propagated_prefixes file. Path to pickle file containing ASes_propagated_prefixes dictionary."
             print "If you want to work with BGP data from files, the three options -b, -x, -a and -s must be used."
             print "If not, none of these four options should be used."
-            print "S = prefixesDates file. Path to pickle file containing prefixesDates PyTricia with the dates in which each prefix was Seen."
+            print "F = IPv4 (Four) prefixesDates file. Path to pickle file containing prefixesDates Radix with the dates in which each IPv4 prefix was seen."
+            print "S = IPv6 (Six) prefixesDates file. Path to pickle file containing prefixesDates Radix with the dates in which each IPv6 prefix was seen."
             sys.exit()
         elif opt == '-u':
             urls_file = arg
@@ -559,8 +580,10 @@ def main(argv):
             archive_folder = os.path.abspath(arg.rstrip('/'))
         elif opt == '-I':
             startDate = int(arg)
+        elif opt == '-F':
+            ipv4_prefixesDates_file = os.path.abspath(arg)
         elif opt == '-S':
-            prefixesDates_file = os.path.abspath(arg)
+            ipv6_prefixesDates_file = os.path.abspath(arg)
         else:
             assert False, 'Unhandled option'
             
@@ -621,8 +644,8 @@ def main(argv):
 
     bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP, RIBfiles, COMPRESSED)
 
-    if prefixesDates_file != '':
-        bgp_handler.loadPrefixDatesFromFile(prefixesDates_file)    
+    if ipv4_prefixesDates_file != '' or ipv6_prefixesDates_file != '':
+        bgp_handler.loadPrefixDatesFromFiles(ipv4_prefixesDates_file, ipv6_prefixesDates_file)    
     
     if fromFiles:
         bgp_handler.loadStructuresFromFiles(bgp_data_file, ipv4_prefixes_indexes_file,\
@@ -640,9 +663,9 @@ def main(argv):
         del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,\
                         final_existing_date, year, month, day)
 
-        ASrels = getASrelInfo(2, files_path, KEEP)
+        ASrels = getASrelInfo(serial=2, files_path=files_path, KEEP=KEEP)
 
-        prefixes_Stats, routed_pyt = computePerPrefixStats(bgp_handler, del_handler, ASrels)
+        prefixes_Stats, routed_radix = computePerPrefixStats(bgp_handler, del_handler, ASrels)
         statsForASes = computeASesStats(bgp_handler, del_handler)
         # TODO Save Stats and routed prefixes to files and ElasticSearch
         

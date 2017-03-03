@@ -84,12 +84,14 @@ class BGPDataHandler:
     # Each tuple has the format (startDate, endDate)
     # * firstSeen - the value for this key is the first date in which the
     # prefix was seen
-    def loadPrefixDatesFromFile(self, ipv4_prefixesDates_file, ipv6_prefixesDates_file):
-        self.ipv4_prefixesDates_radix = pickle.load(open(ipv4_prefixesDates_file, 'rb'))
-        sys.stderr.write("Radix with dates in which IPv4 prefixes were seen loaded successfully!\n")
-        
-        self.ipv6_prefixesDates_radix = pickle.load(open(ipv6_prefixesDates_file, 'rb'))
-        sys.stderr.write("Radix with dates in which IPv6 prefixes were seen loaded successfully!\n")
+    def loadPrefixDatesFromFiles(self, ipv4_prefixesDates_file, ipv6_prefixesDates_file):
+        if ipv4_prefixesDates_file != '':        
+            self.ipv4_prefixesDates_radix = pickle.load(open(ipv4_prefixesDates_file, 'rb'))
+            sys.stderr.write("Radix with dates in which IPv4 prefixes were seen was loaded successfully!\n")
+    
+        if ipv6_prefixesDates_file != '':        
+            self.ipv6_prefixesDates_radix = pickle.load(open(ipv6_prefixesDates_file, 'rb'))
+            sys.stderr.write("Radix with dates in which IPv6 prefixes were seen was loaded successfully!\n")
 
     
     # This function loads the data structures of the class from previously
@@ -104,7 +106,7 @@ class BGPDataHandler:
         self.ASes_originated_prefixes_dic = pickle.load(open(ASes_originated_prefixes_file, "rb"))
         self.ASes_propagated_prefixes_dic = pickle.load(open(ASes_propagated_prefixes_file, "rb"))
         self.setLongestPrefixLengths()
-        sys.stderr.write("Class data structures loaded successfully!\n")
+        sys.stderr.write("Class data structures were loaded successfully!\n")
 
         
     # This function processes the routing data contained in the files to which
@@ -131,7 +133,7 @@ class BGPDataHandler:
         else:
             self.ipv6_longest_pref = 64
 
-        sys.stderr.write("Class data structures loaded successfully!\n")
+        sys.stderr.write("Class data structures were loaded successfully!\n")
 
                                                 
     # This function processes the routing data contained in the routing_file
@@ -158,7 +160,7 @@ class BGPDataHandler:
         else:
             self.ipv6_longest_pref = 64
 
-        sys.stderr.write("Class data structures loaded successfully!\n")
+        sys.stderr.write("Class data structures were loaded successfully!\n")
 
     
     # This function processes the routing data contained in the archive folder
@@ -190,10 +192,10 @@ class BGPDataHandler:
         else:
             self.ipv6_longest_pref = 64
 
-        sys.stderr.write("Class data structures loaded successfully!\n")
+        sys.stderr.write("Class data structures were loaded successfully!\n")
 
         self.loadPrefixesDates(historical_files, startDate)
-        sys.stderr.write("Radix with dates in which prefixes were seen loaded successfully!\n")
+        sys.stderr.write("Radix with dates in which prefixes were seen was loaded successfully!\n")
         
 
     # This function returns a path to the most recent file in the provided list 
@@ -504,6 +506,7 @@ class BGPDataHandler:
                     if ipv4_node is not None:
                         ipv4_node.data['indexes'].add(index)
                     else:
+                        ipv4_node = ipv4_prefixes_indexes_radix.add(prefix)
                         ipv4_node.data['indexes'] = set([index])
                         
                 elif network.version == 6:
@@ -514,6 +517,7 @@ class BGPDataHandler:
                     if ipv6_node is not None:
                         ipv6_node.data['indexes'].add(index)
                     else:
+                        ipv6_node = ipv6_prefixes_indexes_radix.add(prefix)
                         ipv6_node.data['indexes'] = set([index])
                        
                 if originAS in ASes_originated_prefixes_dic.keys():
@@ -629,13 +633,19 @@ class BGPDataHandler:
             pickle.dump(self.ASes_propagated_prefixes_dic, f, pickle.HIGHEST_PROTOCOL)
             sys.stderr.write("Saved to disk %s pickle file containing dictionary with prefixes propagated by each AS." % p_ases_dic_file_name)
         
-        prefDates_file_name = '%s/prefixesDates_%s.pkl' % (self.files_path, today)
-        with open(prefDates_file_name, 'wb') as f:
-            pickle.dump(self.prefixesDates, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing Radix with the dates in which each prefix was seen." % prefDates_file_name)
+        ipv4_prefDates_file_name = '%s/ipv4_prefixesDates_%s.pkl' % (self.files_path, today)
+        with open(ipv4_prefDates_file_name, 'wb') as f:
+            pickle.dump(self.ipv4_prefixesDates_radix, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing Radix with the dates in which each IPv4 prefix was seen." % ipv4_prefDates_file_name)
+        
+        ipv6_prefDates_file_name = '%s/ipv6_prefixesDates_%s.pkl' % (self.files_path, today)
+        with open(ipv6_prefDates_file_name, 'wb') as f:
+            pickle.dump(self.ipv6_prefixesDates_radix, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing Radix with the dates in which each IPv6 prefix was seen." % ipv6_prefDates_file_name)
             
         return bgp_file_name, ipv4_radix_file_name, ipv6_radix_file_name,\
-                o_ases_dic_file_name, p_ases_dic_file_name, prefDates_file_name
+                o_ases_dic_file_name, p_ases_dic_file_name,\
+                ipv4_prefDates_file_name, ipv6_prefDates_file_name
 
     # This function sets the ipv4_longest_pref and ipv6_longest_pref class variables
     # with the corresponding maximum prefix lengths in the ipv4_prefixes_indexes
