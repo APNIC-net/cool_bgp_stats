@@ -572,9 +572,11 @@ class BGPDataHandler:
     # The path to the resulting readable file is returned
     def getReadableFile(self, source, isURL):
     
+        source_filename = source.split('/')[-1]
+        
         # If a routing file is not provided, download it from the provided URL        
         if isURL:
-            routing_file = '%s/%s' % (self.files_path, source.split('/')[-1])
+            routing_file = '%s/%s' % (self.files_path, source_filename)
             get_file(source, routing_file)
             source = routing_file
         
@@ -597,7 +599,7 @@ class BGPDataHandler:
         # If the routing file is a RIB file, we process it using BGPdump
         if self.RIBfiles:            
             today = datetime.date.today().strftime('%Y%m%d')
-            readable_file_name = '%s_%s.readable' % (source, today)
+            readable_file_name = '%s/%s_%s.readable' % (self.files_path, os.path.splitext(source_filename)[0], today)
 
             cmd = shlex.split('%s -m -O %s %s' % (bgpdump, readable_file_name, source))
             #        cmd = shlex.split('bgpdump -m -O %s %s' % (readable_file_name, routing_file))   
