@@ -333,7 +333,7 @@ class DelegatedHandler:
         return expanded_df
 
     # Given a prefix this function returns the date in which it was delegated.
-    # If the prefix is not in the delegated_df DataFrame a null string is returned
+    # If the prefix is not in the delegated_df DataFrame None is returned
     def getDelegationDate(self, prefix):
         network = ipaddress.ip_network(unicode(prefix, "utf-8"))
         
@@ -343,12 +343,12 @@ class DelegatedHandler:
             count = network.prefixlen
         
         subset = self.delegated_df[\
-                (self.delegated_df['initial_resource'] == network.network_address) &\
+                (self.delegated_df['initial_resource'] == str(network.network_address)) &\
                 (self.delegated_df['count'] == count)]
         
         if subset.shape[0] > 0:
             row = self.delegated_df.ix[subset.index[0]]
-            return row['date']
+            return row['date'].to_pydatetime()
         else:
-            return ''
+            return None
             

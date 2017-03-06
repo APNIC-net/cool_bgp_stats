@@ -190,18 +190,10 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
         if not orgs_aggr_networks.ix[i, 'aggregated']: 
             # Usage Latency computation
             del_date = del_handler.getDelegationDate(net)
-            if del_date != '':
-                del_date = datetime.datetime.strptime(''.join(del_date.split('-')), '%Y%m%d')
-
-            if network.version == 4:
-                prefixesDates = bgp_handler.ipv4_prefixesDates_radix
-            else:
-                prefixesDates = bgp_handler.ipv6_prefixesDates_radix
-                
-            sometime_routed_node = prefixesDates.search_exact(net)
             
-            if sometime_routed_node is not None and del_date != '':
-                first_seen = datetime.datetime.strptime(str(sometime_routed_node.data['firstSeen']), '%Y%m%d')
+            first_seen = bgp_handler.getDateFirstSeen(net)
+                        
+            if first_seen is not None and del_date is not None:
                 orgs_aggr_networks.ix[i, 'UsageLatency'] = (first_seen-del_date).days
             else:
                 orgs_aggr_networks.ix[i, 'UsageLatency'] = float('inf')
@@ -217,6 +209,11 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
         routed_node = del_routed.search_exact(net)
         if routed_node is not None:
             # block is being announced, at least partially
+        
+            # We get the origin AS for the block
+            # If the block is not being routed as-is (net is not in the more
+            # specifics list), blockOriginAS is None
+            blockOriginAS = bgp_handler.getOriginASForBlock(net)
             
             more_specifics_wo_block = copy.copy(routed_node.data['more_specifics'])
             
@@ -248,11 +245,8 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # we classify the prefix based on its advertisement paths
                     # paths relative to that of their corresponding covering
                     # prefix
-      
-                    # We get the origin AS for the block
-                    blockOriginAS = bgp_handler.getOriginASForBlock(net)
                     
-                    # and the set of AS paths for the block
+                    # We get the set of AS paths for the block
                     blockASpaths = bgp_handler.getASpathsForBlock(net)
 
                     # The corresponding covering prefix is the last prefix in the
@@ -315,7 +309,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # includes the block itself, taking into account we are 
                     # under the case of the block not having less specific
                     # blocks being routed,
-                    if routed_node.data['more_specifics'] == 1:
+                    if len(routed_node.data['more_specifics']) == 1:
                         # the block is a Lonely prefix
                         # • Lonely: a prefix that does not overlap
                         # with any other prefix.
@@ -362,6 +356,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # by a NIR do not appear in the delegated file
                     # TODO Should we get the organization holding a specific
                     # resource from WHOIS?
+                    # https://www.apnic.net/about-apnic/whois_search/about/rdap/
                     originASorg = asn_del[(pd.to_numeric(asn_del['initial_resource']) <= int(blockOriginAS)) &
                                         (pd.to_numeric(asn_del['initial_resource'])+
                                         pd.to_numeric(asn_del['count'])>int(blockOriginAS))]['opaque_id'].get_values()
@@ -386,13 +381,13 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # This variable is similar to the variable isLonely but can
                     # only be True for not aggregated blocks 
                 
-                if net in routed_node.data['more_specifics']:
+                elif net in routed_node.data['more_specifics']:
                     if len(routed_node.data['more_specifics']) >= 3 and net in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • root/MS-complete: The root prefix and at least two subprefixes
                         # are announced. The set of all sub-prefixes spans
                         # the whole root prefix.
                         orgs_aggr_networks.ix[i, 'root_MScompl'] = True
-                    if len(routed_node.data['more_specifics']) >= 2 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
+                    elif len(routed_node.data['more_specifics']) >= 2 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • root/MS-incomplete: The root prefix and at least one subprefix
                         # is announced. Together, the set of announced subprefixes
                         # does not cover the root prefix.
@@ -403,7 +398,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                         # However, there are at least two sub-prefixes which together
                         # cover the complete root prefix.
                         orgs_aggr_networks.ix[i, 'noRoot_MScompl'] = True
-                    if len(routed_node.data['more_specifics']) >= 1 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
+                    elif len(routed_node.data['more_specifics']) >= 1 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • no root/MS-incomplete: The root prefix is not announced.
                         # There is at least one sub-prefix. Taking all sub-prefixes
                         # together, they do not cover the complete root prefix.
@@ -475,30 +470,32 @@ def main(argv):
     ipv4_prefixesDates_file = ''
     ipv6_prefixesDates_file = ''
     archive_folder = '' 
+    extension = ''
     COMPRESSED = False
     startDate = ''
 
 #For DEBUG
-#    files_path = '/Users/sofiasilva/BGP_files'
+    files_path = '/Users/sofiasilva/BGP_files'
 #    routing_file = '/Users/sofiasilva/BGP_files/bgptable.txt'
-#    KEEP = True
+    KEEP = True
 #    RIBfiles = False
-#    DEBUG = True
-#    EXTENDED = True
-#    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
-#    archive_folder = '/Users/sofiasilva/BGP_files'
+    DEBUG = True
+    EXTENDED = True
+    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
+    archive_folder = '/Users/sofiasilva/BGP_files'
+    extension = 'bgprib.mrt'
 #    COMPRESSED = True
 #    COMPUTE = False    
     
     try:
-        opts, args = getopt.getopt(argv, "hp:u:r:H:ockny:m:D:d:ei:b:4:6:a:s:F:S:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file=", "ipv4_prefixesDates_file=", "ipv6_prefixesDates_file="])
+        opts, args = getopt.getopt(argv, "hp:u:r:H:E:I:ockny:m:D:d:ei:b:4:6:a:s:F:S:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "Extension=", "InitialDate=", "year=", "month=", "day=", "delegated_file=", "stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_originated_prefixes_file=", "ASes_propagated_prefixes_file=", "ipv4_prefixesDates_file=", "ipv6_prefixesDates_file="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> [-I <start date>]] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>]'
+        print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> [-I <start date>]] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>]'
+            print 'Usage: routing_stats.py -h | -p <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -a <ASes_originated_prefixes file> -s <ASes_propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -506,6 +503,7 @@ def main(argv):
             print 'If the URLs point to files containing "show ip bgp" outputs, the "-o" option must be used to specify this.'
             print 'r = Use already downloaded Internet Routing data file.'
             print "H = Historical data. Instead of processing a single file, process the routing data contained in the archive folder provided."
+            print "E = Extension. If you use the -H option you MUST also use the -E option to provide the extension of the files in the archive you want to work with."
             print "I = Incremental dates. If you use this option you must provide a start date for the period of time for which you want to get the dates in which the prefixes were seen."
             print "If you also use the -F or the -S option to provide an existing prefixesDates file, the new dates will be added to the existing dates in the Radix."
             print "If none of the three options -u, -r or -H are provided, the script will try to work with routing data from URLs included ./BGPoutputs.txt"
@@ -578,6 +576,8 @@ def main(argv):
             fromFiles = True
         elif opt == '-H':
             archive_folder = os.path.abspath(arg.rstrip('/'))
+        elif opt == '-E':
+            extension = arg
         elif opt == '-I':
             startDate = int(arg)
         elif opt == '-F':
@@ -606,6 +606,11 @@ def main(argv):
     # If files_path does not exist, we create it
     if not os.path.exists(files_path):
         os.makedirs(files_path)
+        
+    if archive_folder != '' and extension == '':
+        print "If you use the -H option you MUST also use the -E option to provide the extension of the files in the archive you want to work with."
+        sys.exit()
+
                 
     if DEBUG and del_file == '':
         print "If you choose to run in DEBUG mode you must provide the path to\
@@ -644,21 +649,27 @@ def main(argv):
 
     bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP, RIBfiles, COMPRESSED)
 
+    loaded = False 
+    
     if ipv4_prefixesDates_file != '' or ipv6_prefixesDates_file != '':
         bgp_handler.loadPrefixDatesFromFiles(ipv4_prefixesDates_file, ipv6_prefixesDates_file)    
     
     if fromFiles:
-        bgp_handler.loadStructuresFromFiles(bgp_data_file, ipv4_prefixes_indexes_file,\
+        loaded = bgp_handler.loadStructuresFromFiles(bgp_data_file, ipv4_prefixes_indexes_file,\
                                 ipv6_prefixes_indexes_file, ASes_originated_prefixes_file,\
                                 ASes_propagated_prefixes_file)
     else:
         if routing_file == '' and archive_folder == '':
-            bgp_handler.loadStructuresFromURLSfile(urls_file)
+            loaded = bgp_handler.loadStructuresFromURLSfile(urls_file)
         elif routing_file != '':
-            bgp_handler.loadStructuresFromRoutingFile(routing_file)
+            loaded = bgp_handler.loadStructuresFromRoutingFile(routing_file)
         else: # archive_folder not null
-            bgp_handler.loadStructuresFromArchive(archive_folder, startDate)
+            loaded = bgp_handler.loadStructuresFromArchive(archive_folder, extension, startDate)
     
+    if not loaded:
+        print "Data structures not loaded!\n"
+        sys.exit()
+        
     if COMPUTE: 
         del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,\
                         final_existing_date, year, month, day)

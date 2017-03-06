@@ -107,7 +107,7 @@ class BGPDataHandler:
         self.ASes_propagated_prefixes_dic = pickle.load(open(ASes_propagated_prefixes_file, "rb"))
         self.setLongestPrefixLengths()
         sys.stderr.write("Class data structures were loaded successfully!\n")
-
+        return True
         
     # This function processes the routing data contained in the files to which
     # the URLs in the urls_file point, and loads the data structures of the class
@@ -135,7 +135,7 @@ class BGPDataHandler:
             self.ipv6_longest_pref = 64
 
         sys.stderr.write("Class data structures were loaded successfully!\n")
-
+        return True
                                                 
     # This function processes the routing data contained in the routing_file
     # and loads the data structures of the class with the results from this processing                                           
@@ -164,21 +164,34 @@ class BGPDataHandler:
                 self.ipv6_longest_pref = 64
     
             sys.stderr.write("Class data structures were loaded successfully!\n")
+            return True
         else:
             sys.stderr.write("Could not process routing file.\n")
-
+            return False
 
     
     # This function processes the routing data contained in the archive folder
     # provided, and loads the data structures of the class with the results
     # from this processing       
-    def loadStructuresFromArchive(self, archive_folder, startDate):
-        historical_files = self.getPathsToHistoricalData(archive_folder)
+    def loadStructuresFromArchive(self, archive_folder, extension, startDate):
+        historical_files = self.getPathsToHistoricalData(archive_folder, extension)
+        
+        if historical_files == '':
+            sys.stderr.write("Archive is empty!\n")
+            return False
+
         mostRecent_routing_file  =\
                         self.getMostRecentFromHistoricalList(historical_files)
         
         mostRecent_readable = self.getReadableFile(mostRecent_routing_file,\
                                 False)
+
+        # In order for the most recent file not to be processed twice,
+        # we load data from this file into the prefixesDates Radixes
+        # now that we have the readable file available
+        self.loadPrefixesDatesFromFile(mostRecent_readable, True)
+
+        # We then load the rest of the data structures
         bgp_data, ipv4_prefixes_indexes_radix, ipv6_prefixes_indexes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref =\
@@ -201,9 +214,13 @@ class BGPDataHandler:
 
         sys.stderr.write("Class data structures were loaded successfully!\n")
 
-        self.loadPrefixesDates(historical_files, startDate)
+        # Finally, we load the prefixesDates Radixes with the rest of the
+        # routing files from the archive, providing the name of the most
+        # recent file in order for it to be skipped.
+        self.loadPrefixesDates(historical_files, startDate, mostRecent_routing_file)
         sys.stderr.write("Radixes with dates in which prefixes were seen were loaded successfully!\n")
         
+        return True
 
     # This function returns a path to the most recent file in the provided list 
     # of historical files
@@ -245,61 +262,74 @@ class BGPDataHandler:
     # Each tuple has the format (startDate, endDate)
     # * firstSeen - the value for this key is the first date in which the
     # prefix was seen
-    def loadPrefixesDates(self, historical_files, startDate):
+    def loadPrefixesDates(self, historical_files, startDate, mostRecent):
 
         files_list_obj = open(historical_files, 'r')
         
         i = 0
         for line in files_list_obj:
+            line = line.strip()
+            if line == mostRecent:
+                continue
+            
             if startDate != '':
                 file_date = self.getDateFromFileName(line)
                 if file_date == '' or int(file_date) < int(startDate):
                     continue
-            if not line.startswith('#') and line.strip() != '':
+            if not line.startswith('#') and line != '':
                  # If we work with several routing files
                 sys.stderr.write("Starting to work with %s\n" % line)
-                
-                if line.strip().endswith('v6.dmp.gz'):
-                    prefixesDates = self.ipv6_prefixesDates_radix
-                else:
-                    prefixesDates = self.ipv4_prefixesDates_radix
 
-                prefixes_list, date = self.getPrefixesAndDate(line.strip())
-
-                for pref in prefixes_list:
-                    dateInserted = False
-                    pref_node = prefixesDates.search_exact(pref)
-                    if pref_node is not None:
-                        if date < pref_node.data['firstSeen']:
-                            pref_node.data['firstSeen'] = date
-                            
-                        for period in pref_node.data['periodsSeen']:
-                            if date > period[0]:
-                                if date < period[1]:
-                                    dateInserted = True
-                                    continue
-                                elif date == period[1]+1:
-                                    pref_node.data['periodsSeen'].remove(period)
-                                    pref_node.data['periodsSeen'].append((period[0], date))
-                                    dateInserted = True
-                        if not dateInserted:
-                            pref_node.data['periodsSeen'].append((date, date))
-                    else:
-                        pref_node = prefixesDates.add(pref)
-                        pref_node.data['periodsSeen'] = [(date, date)]
-                        pref_node.data['firstSeen'] = date
+                self.loadPrefixesDatesFromFile(line, False)
                         
             i += 1
             if self.DEBUG and i > 1:
                 break
 
+    def loadPrefixesDatesFromFile(self, routing_file, isReadable):
+        prefixes_list, date = self.getPrefixesAndDate(routing_file, isReadable)
+
+        for pref in prefixes_list:
+            network = ipaddress.ip_network(unicode(pref, 'utf-8'))
+            
+            if network.version == 4:
+                prefixesDates = self.ipv4_prefixesDates_radix
+            else:
+                prefixesDates = self.ipv6_prefixesDates_radix
+
+            dateInserted = False
+            pref_node = prefixesDates.search_exact(pref)
+            if pref_node is not None:
+                if date < pref_node.data['firstSeen']:
+                    pref_node.data['firstSeen'] = date
+                    
+                for period in pref_node.data['periodsSeen']:
+                    if date >= period[0]:
+                        if date <= period[1]:
+                            dateInserted = True
+                            continue
+                        elif date == period[1]+1:
+                            pref_node.data['periodsSeen'].remove(period)
+                            pref_node.data['periodsSeen'].append((period[0], date))
+                            dateInserted = True
+                if not dateInserted:
+                    pref_node.data['periodsSeen'].append((date, date))
+            else:
+                pref_node = prefixesDates.add(pref)
+                pref_node.data['periodsSeen'] = [(date, date)]
+                pref_node.data['firstSeen'] = date
+    
+    
     # This function returns a list of prefixes for which the routing_file has
     # announcements and the date of the routing file
     # The function searches the routing file name looking for a date in the
     # formats YYYY-MM-DD or YYYYMMDD. If a date is not found in the file name,
     # the date is assumed to be the date of today.
-    def getPrefixesAndDate(self, routing_file):
-        readable_file_name = self.getReadableFile(routing_file, False)
+    def getPrefixesAndDate(self, routing_file, isReadable):
+        if not isReadable:
+            readable_file_name = self.getReadableFile(routing_file, False)
+        else:
+            readable_file_name = routing_file
         
         if readable_file_name == '':
             return [], ''
@@ -618,17 +648,28 @@ class BGPDataHandler:
         return readable_file_name
            
     # This function walks a folder with historical routing info and creates a
-    # file with a list of paths to the .dmp.gz files in the archive folder
+    # file with a list of paths to the files with the provided extension
+    # in the archive folder
     # It returns the path to the created file
-    def getPathsToHistoricalData(self, archive_folder):
+    def getPathsToHistoricalData(self, archive_folder, extension):
         files_list_file = '%s/RoutingFiles.txt' % self.files_path
+        
+        empty = True
+        
         with open(files_list_file, 'wb') as list_file:
             for root, subdirs, files in os.walk(archive_folder):
                 for filename in files:
-                    if filename.endswith('bgprib.mrt'):
+                    if filename.endswith(extension):
                         list_file.write('%s\n' % os.path.join(root, filename))
+                        empty = False
+                        
         list_file.close()
-        return files_list_file
+        
+        if empty:
+            os.remove(files_list_file)
+            return ''
+        else:
+            return files_list_file
 
     # This function saves the data structures of the class to pickle files
     def saveDataToFiles(self):
@@ -737,17 +778,22 @@ class BGPDataHandler:
             indexes_radix = self.ipv6_prefixes_indexes_radix
             
         originASes = set()
-        for index in indexes_radix.search_exact(prefix).data['indexes']:
-            originAS = self.bgp_data.ix[index, 'ASpath'].split(' ')[-1]
-            originASes.add(originAS)
-        
-        if len(originASes) > 1:
-            print "Found prefix originated by more than one AS (%s)" % prefix
-            # TODO Analyze these special cases
-            # Geoff says there are a lot of these
-            # I have already asked him what to do in these cases
-        if len(originASes) > 0:
-            return list(originASes)[0]
+
+        pref_node = indexes_radix.search_exact(prefix)
+        if pref_node is not None:
+            for index in pref_node.data['indexes']:
+                originAS = self.bgp_data.ix[index, 'ASpath'].split(' ')[-1]
+                originASes.add(originAS)
+            
+            if len(originASes) > 1:
+                print "Found prefix originated by more than one AS (%s)" % prefix
+                # TODO Analyze these special cases
+                # Geoff says there are a lot of these
+                # I have already asked him what to do in these cases
+            if len(originASes) > 0:
+                return list(originASes)[0]
+            else:
+                return None
         else:
             return None
     
@@ -766,3 +812,30 @@ class BGPDataHandler:
             ASpaths.add(self.bgp_data.ix[index, 'ASpath'])
         
         return ASpaths
+
+    # This function returns the date in which a prefix or part of it
+    # was first seen
+    # If the prefix hasn't been seen yet according to the routing data in the
+    # archive, None is returned
+    def getDateFirstSeen(self, prefix):
+        network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
+
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        sometime_routed_covered_nodes = prefixesDates.search_covered(prefix)
+        
+        first_seen = float('inf')
+        
+        for node in sometime_routed_covered_nodes:
+            node_first_seen = int(node.data['firstSeen'])
+            if node_first_seen < first_seen:
+                first_seen = node_first_seen
+
+        if first_seen != float('inf'):
+            return datetime.datetime.strptime(str(first_seen), '%Y%m%d')
+        else:
+            return None
+        
