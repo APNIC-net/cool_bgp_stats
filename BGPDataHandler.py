@@ -858,7 +858,7 @@ class BGPDataHandler:
     # This function returns the date in which a prefix was first seen
     # If the prefix has never been seen according to the routing data in the
     # archive, None is returned
-    def getDateFirstSeenIntact(self, network):
+    def getDateFirstSeenExact(self, network):
         
         if network.version == 4:
             prefixesDates = self.ipv4_prefixesDates_radix
@@ -875,7 +875,7 @@ class BGPDataHandler:
     # This function returns the list of periods of time during which a prefix
     # was seen. If the prefix has never been seen according to the routing data
     # in the archive, an empty list is returned
-    def getPeriodsSeenIntact(self, network):        
+    def getPeriodsSeenExact(self, network):        
         if network.version == 4:
             prefixesDates = self.ipv4_prefixesDates_radix
         else:
@@ -913,7 +913,7 @@ class BGPDataHandler:
             
 
     # This function returns the number of days during which a prefix was seen.
-    def getTotalDaysSeenIntact(self, network):
+    def getTotalDaysSeenExact(self, network):
         if network.version == 4:
             prefixesDates = self.ipv4_prefixesDates_radix
         else:
@@ -929,7 +929,7 @@ class BGPDataHandler:
     # This function returns the date in which a prefix was last seen.
     # If the prefix has never been seen according to the routing data in the
     # archive, None is returned
-    def getDateLastSeenIntact(self, network):
+    def getDateLastSeenExact(self, network):
         
         if network.version == 4:
             prefixesDates = self.ipv4_prefixesDates_radix
