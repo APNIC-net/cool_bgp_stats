@@ -757,9 +757,7 @@ class BGPDataHandler:
                 
     # This function returns a list of prefixes less specific than the one provided
     # that are included in the keys of the corresponding Radix
-    def getRoutedParentAndGrandparents(self, prefix):
-        network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
-        
+    def getRoutedParentAndGrandparents(self, network):        
         if network.version == 4:
             indexes_radix = self.ipv4_prefixes_indexes_radix
         else:
@@ -767,19 +765,17 @@ class BGPDataHandler:
             
         less_specifics = []
        
-        for less_spec_node in indexes_radix.search_covering(prefix):
+        for less_spec_node in indexes_radix.search_covering(str(network)):
             less_spec_pref = less_spec_node.prefix
         
-            if less_spec_pref != prefix:
+            if less_spec_pref != str(network):
                 less_specifics.append(less_spec_pref)
             
         return less_specifics
     
     # This function returns a list of prefixes more specific than the one provided
     # that are included in the keys of the corresponding Radix
-    def getRoutedChildren(self, prefix):
-        network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
-        
+    def getRoutedChildren(self, network):
         if network.version == 4:
             indexes_radix = self.ipv4_prefixes_indexes_radix
         else:
@@ -787,16 +783,14 @@ class BGPDataHandler:
             
         more_specifics = []
        
-        for more_spec_node in indexes_radix.search_covered(prefix):
+        for more_spec_node in indexes_radix.search_covered(str(network)):
             more_specifics.append(more_spec_node.prefix)
                         
         return more_specifics
         
     # This function returns the origin AS for a specific prefix
     # according to the routing data included in the BGP_data class variable
-    def getOriginASForBlock(self, prefix):
-        network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
-        
+    def getOriginASForBlock(self, network):        
         if network.version == 4:
             indexes_radix = self.ipv4_prefixes_indexes_radix
         else:
@@ -804,14 +798,14 @@ class BGPDataHandler:
             
         originASes = set()
 
-        pref_node = indexes_radix.search_exact(prefix)
+        pref_node = indexes_radix.search_exact(str(network))
         if pref_node is not None:
             for index in pref_node.data['indexes']:
                 originAS = self.bgp_data.ix[index, 'ASpath'].split(' ')[-1]
                 originASes.add(originAS)
             
             if len(originASes) > 1:
-                print "Found prefix originated by more than one AS (%s)" % prefix
+                print "Found prefix originated by more than one AS (%s)" % str(network)
                 # TODO Analyze these special cases
                 # Geoff says there are a lot of these
                 # I have already asked him what to do in these cases
@@ -824,16 +818,14 @@ class BGPDataHandler:
     
     # This function returns a set with all the AS paths for a specific prefix
     # according to the routing data included in the BGP_data class variable
-    def getASpathsForBlock(self, prefix):
-        network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
-        
+    def getASpathsForBlock(self, network):
         if network.version == 4:
             indexes_radix = self.ipv4_prefixes_indexes_radix
         else:
             indexes_radix = self.ipv6_prefixes_indexes_radix
             
         ASpaths = set()
-        for index in indexes_radix.search_exact(prefix).data['indexes']:
+        for index in indexes_radix.search_exact(str(network)).data['indexes']:
             ASpaths.add(self.bgp_data.ix[index, 'ASpath'])
         
         return ASpaths
@@ -842,15 +834,14 @@ class BGPDataHandler:
     # was first seen
     # If the prefix hasn't been seen yet according to the routing data in the
     # archive, None is returned
-    def getDateFirstSeen(self, prefix):
-        network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
+    def getDateFirstSeen(self, network):
 
         if network.version == 4:
             prefixesDates = self.ipv4_prefixesDates_radix
         else:
             prefixesDates = self.ipv6_prefixesDates_radix
                 
-        sometime_routed_covered_nodes = prefixesDates.search_covered(prefix)
+        sometime_routed_covered_nodes = prefixesDates.search_covered(str(network))
         
         first_seen = float('inf')
         
@@ -863,4 +854,93 @@ class BGPDataHandler:
             return datetime.datetime.strptime(str(first_seen), '%Y%m%d')
         else:
             return None
+
+    # This function returns the date in which a prefix was first seen
+    # If the prefix has never been seen according to the routing data in the
+    # archive, None is returned
+    def getDateFirstSeenIntact(self, network):
+        
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        network_node = prefixesDates.search_exact(str(network))
+
+        if network_node is not None:
+            return datetime.datetime.strptime(str(network_node.data['firstSeen']), '%Y%m%d')
+        else:
+            return None
+
+    # This function returns the list of periods of time during which a prefix
+    # was seen. If the prefix has never been seen according to the routing data
+    # in the archive, an empty list is returned
+    def getPeriodsSeenIntact(self, network):        
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        network_node = prefixesDates.search_exact(str(network))
+        
+        if network_node is not None:
+            return network_node.data['periodsSeen']
+        else:
+            return []
+
+    # This function returns a dictionary with the lists of periods of time
+    # during which parts of a prefix were seen.
+    # If any part of the prefix has ever been seen according to the routing data
+    # in the archive, an empty dictionary is returned
+    def getPeriodsSeenFragments(self, network):        
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        covered_nodes = prefixesDates.search_covered(str(network))
+        
+        periods_dict = dict()
+        
+        for covered_node in covered_nodes:
+            covered_prefix = covered_node.prefix
+            if covered_prefix == str(network):
+                continue
+            
+            periods_dict[covered_prefix] = covered_node.data['periodsSeen']
+      
+        return periods_dict
+            
+
+    # This function returns the number of days during which a prefix was seen.
+    def getTotalDaysSeenIntact(self, network):
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        network_node = prefixesDates.search_exact(str(network))
+        
+        if network_node is not None:
+            return int(network_node.data['totalDays'])
+        else:
+            return 0
+
+    # This function returns the date in which a prefix was last seen.
+    # If the prefix has never been seen according to the routing data in the
+    # archive, None is returned
+    def getDateLastSeenIntact(self, network):
+        
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        network_node = prefixesDates.search_exact(str(network))
+
+        if network_node is not None:
+            return datetime.datetime.strptime(str(network_node.data['lastSeen']), '%Y%m%d')
+        else:
+            return None
+        
         

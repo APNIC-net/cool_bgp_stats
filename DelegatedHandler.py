@@ -334,8 +334,7 @@ class DelegatedHandler:
 
     # Given a prefix this function returns the date in which it was delegated.
     # If the prefix is not in the delegated_df DataFrame None is returned
-    def getDelegationDate(self, prefix):
-        network = ipaddress.ip_network(unicode(prefix, "utf-8"))
+    def getDelegationDate(self, network):
         
         if network.version == 4:
             count = network.num_addresses
