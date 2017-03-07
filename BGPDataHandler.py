@@ -41,6 +41,10 @@ class BGPDataHandler:
     # Each tuple has the format (startDate, endDate)
     # * firstSeen - the value for this key is the first date in which the
     # IPv4 prefix was seen
+    # * lastSeen - the value for this key is the last date in which the
+    # IPv4 prefix was seen
+    # * totalDays - the value for this key is the number of days during
+    # which the IPv4 prefix was seen
     ipv4_prefixesDates_radix = radix.Radix()
     # Radix indexed by routed IPv6 prefix containing as values dictionaries
     # with two keys:
@@ -49,6 +53,10 @@ class BGPDataHandler:
     # Each tuple has the format (startDate, endDate)
     # * firstSeen - the value for this key is the first date in which the
     # IPv6 prefix was seen
+    # * lastSeen - the value for this key is the last date in which the
+    # IPv6 prefix was seen
+    # * totalDays - the value for this key is the number of days during
+    # which the IPv6 prefix was seen
     ipv6_prefixesDates_radix = radix.Radix()
     # Dictionary indexed by AS containing all the prefixes originated by each AS
     ASes_originated_prefixes_dic = dict()
@@ -84,6 +92,10 @@ class BGPDataHandler:
     # Each tuple has the format (startDate, endDate)
     # * firstSeen - the value for this key is the first date in which the
     # prefix was seen
+    # * lastSeen - the value for this key is the last date in which the
+    # prefix was seen
+    # * totalDays - the value for this key is the number of days during
+    # which the prefix was seen
     def loadPrefixDatesFromFiles(self, ipv4_prefixesDates_file, ipv6_prefixesDates_file):
         if ipv4_prefixesDates_file != '':        
             self.ipv4_prefixesDates_radix = pickle.load(open(ipv4_prefixesDates_file, 'rb'))
@@ -262,6 +274,10 @@ class BGPDataHandler:
     # Each tuple has the format (startDate, endDate)
     # * firstSeen - the value for this key is the first date in which the
     # prefix was seen
+    # * lastSeen - the value for this key is the last date in which the
+    # prefix was seen
+    # * totalDays - the value for this key is the number of days during
+    # which the prefix was seen
     def loadPrefixesDates(self, historical_files, startDate, mostRecent):
 
         files_list_obj = open(historical_files, 'r')
@@ -297,27 +313,35 @@ class BGPDataHandler:
             else:
                 prefixesDates = self.ipv6_prefixesDates_radix
 
-            dateInserted = False
+            dateReady = False
             pref_node = prefixesDates.search_exact(pref)
             if pref_node is not None:
                 if date < pref_node.data['firstSeen']:
                     pref_node.data['firstSeen'] = date
+                
+                if date > pref_node.data['lastSeen']:
+                    pref_node.data['lastSeen'] = date
                     
                 for period in pref_node.data['periodsSeen']:
                     if date >= period[0]:
                         if date <= period[1]:
-                            dateInserted = True
+                            dateReady = True
                             continue
                         elif date == period[1]+1:
                             pref_node.data['periodsSeen'].remove(period)
                             pref_node.data['periodsSeen'].append((period[0], date))
-                            dateInserted = True
-                if not dateInserted:
+                            pref_node.data['totalDays'] += 1
+                            dateReady = True
+                if not dateReady:
                     pref_node.data['periodsSeen'].append((date, date))
+                    pref_node.data['totalDays'] = 1
             else:
                 pref_node = prefixesDates.add(pref)
                 pref_node.data['periodsSeen'] = [(date, date)]
                 pref_node.data['firstSeen'] = date
+                pref_node.data['lastSeen'] = date
+                pref_node.data['totalDays'] = 1
+
     
     
     # This function returns a list of prefixes for which the routing_file has
@@ -652,24 +676,25 @@ class BGPDataHandler:
     # in the archive folder
     # It returns the path to the created file
     def getPathsToHistoricalData(self, archive_folder, extension):
-        files_list_file = '%s/RoutingFiles.txt' % self.files_path
+        files_list_filename = '%s/RoutingFiles.txt' % self.files_path
         
-        empty = True
+        files_list_list = []
         
-        with open(files_list_file, 'wb') as list_file:
-            for root, subdirs, files in os.walk(archive_folder):
-                for filename in files:
-                    if filename.endswith(extension):
-                        list_file.write('%s\n' % os.path.join(root, filename))
-                        empty = False
-                        
-        list_file.close()
+        for root, subdirs, files in os.walk(archive_folder):
+            for filename in files:
+                if filename.endswith(extension):
+                    files_list_list.append(os.path.join(root, filename))
         
-        if empty:
-            os.remove(files_list_file)
+        if len(files_list_list) == 0:
             return ''
         else:
-            return files_list_file
+            files_list_list_sorted = sorted(files_list_list)
+            
+            with open(files_list_filename, 'wb') as files_list:
+                for filename in files_list_list_sorted:
+                    files_list.write("%s\n" % filename)
+
+            return files_list_filename
 
     # This function saves the data structures of the class to pickle files
     def saveDataToFiles(self):
