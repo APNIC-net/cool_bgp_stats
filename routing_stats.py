@@ -10,7 +10,7 @@ from DelegatedHandler import DelegatedHandler
 from BGPDataHandler import BGPDataHandler
 import ipaddress
 import pandas as pd
-#import numpy as np
+import numpy as np
 import datetime
 import copy
 import radix
@@ -155,8 +155,8 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
         ips_delegated = network.num_addresses
    
         # Find routed blocks related to the delegated or aggregated block 
-        net_less_specifics = bgp_handler.getRoutedParentAndGrandparents(net)
-        net_more_specifics = bgp_handler.getRoutedChildren(net)
+        net_less_specifics = bgp_handler.getRoutedParentAndGrandparents(network)
+        net_more_specifics = bgp_handler.getRoutedChildren(network)
 
         if len(net_more_specifics) > 0 or len(net_less_specifics) > 0:
             routed_node = del_routed.add(net)
@@ -177,7 +177,9 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
         
         # Our first observation about covered prefixes is that they
         # show up and disappear in the routing table more frequently
-        # than the covering prefixes. To show this, we compare the
+        # than the covering prefixes. 
+        
+        # To show this, we compare the
         # routing prefixes between the beginning and end of each 2-
         # month interval and count the following four events: (1) a
         # covered prefix at the beginning remains unchanged at the
@@ -187,33 +189,77 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
         # at the end, and (4) a covered prefix at the beginning disappears
         # before the end and its address space is no longer
         # covered in the routing table.
+        
         if not orgs_aggr_networks.ix[i, 'aggregated']: 
             # Usage Latency computation
-            del_date = del_handler.getDelegationDate(net)
+            del_date = del_handler.getDelegationDate(network)
             
-            first_seen = bgp_handler.getDateFirstSeen(net)
+            first_seen = bgp_handler.getDateFirstSeen(network)
                         
             if first_seen is not None and del_date is not None:
                 orgs_aggr_networks.ix[i, 'UsageLatency'] = (first_seen-del_date).days
             else:
                 orgs_aggr_networks.ix[i, 'UsageLatency'] = float('inf')
-
-                
-            # TODO Analyze stability of visibility
+      
+            # Intact Allocation Usage Latency computation
+            # We compute the number of days between the date the block
+            # was delegated and the date the block as-is was first seen
+            first_seen_intact = bgp_handler.getDateFirstSeenIntact(network)
+                        
+            if first_seen_intact is not None and del_date is not None:
+                orgs_aggr_networks.ix[i, 'UsageLatencyAllocIntact'] = (first_seen_intact-del_date).days
+            else:
+                orgs_aggr_networks.ix[i, 'UsageLatencyAllocIntact'] = float('inf')
         
+            if del_date is not None:
 
+                # Stability of Visibility analysis
+                periodsSeen = bgp_handler.getPeriodsSeenFragments(network)
+                
+                # TODO Compute average, standard deviation, min and max
+                # amongst all fragments for daysUsable, daysUsed, daysSeen,
+                # avgPeriodsLength, stdPeriodLength, minPeriodLength and
+                # maxPeriodLength
+                
+                # TODO Compute visibility per period
+                
+                # TODO Anything else?
+
+                # Intact Allocation Stability of Visibility analysis
+                periodsIntact = bgp_handler.getPeriodsSeenIntact(network)
+                numOfPeriods = len(periodsIntact)
+                
+                if numOfPeriods > 0:
+                    today = datetime.date.today().strftime('%Y%m%d')
+                    daysUsable = (today-del_date).days
+                    
+                    last_seen_intact = bgp_handler.getDateLastSeenIntact(network)
+                    daysUsed= (last_seen_intact-first_seen_intact).days
+                    daysSeen = bgp_handler.getTotalDaysSeenIntact(network)
+                                    
+                    periodsLengths = []
+                    for period in periodsIntact:
+                        periodsLengths.append(\
+                            (datetime.datetime.strptime(str(period[1]), '%Y%m%d') -\
+                            datetime.datetime.strptime(str(period[0]), '%Y%m%d')).days)
+                    
+                    avgPeriodLength = np.average(periodsLengths)
+                    stdPeriodLength = np.std(periodsLengths)
+                    minPeriodLength = np.min(periodsLengths)
+                    maxPeriodLength = np.max(periodsLengths)
+                
 
           
         visibility = -1
         
         routed_node = del_routed.search_exact(net)
         if routed_node is not None:
-            # block is being announced, at least partially
+            # block is currently being announced, at least partially
         
             # We get the origin AS for the block
             # If the block is not being routed as-is (net is not in the more
             # specifics list), blockOriginAS is None
-            blockOriginAS = bgp_handler.getOriginASForBlock(net)
+            blockOriginAS = bgp_handler.getOriginASForBlock(network)
             
             more_specifics_wo_block = copy.copy(routed_node.data['more_specifics'])
             
@@ -247,15 +293,14 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # prefix
                     
                     # We get the set of AS paths for the block
-                    blockASpaths = bgp_handler.getASpathsForBlock(net)
+                    blockASpaths = bgp_handler.getASpathsForBlock(network)
 
                     # The corresponding covering prefix is the last prefix in the
                     # list of less specifics
                     coveringPref = routed_node.data['less_specifics'][-1]
-    
-                    coveringPrefOriginAS = bgp_handler.getOriginASForBlock(coveringPref)
-    
-                    coveringPrefASpaths = bgp_handler.getASpathsForBlock(coveringPref)       
+                    coveringNet = ipaddress.ip_network(unicode(coveringPref, 'utf-8'))
+                    coveringPrefOriginAS = bgp_handler.getOriginASForBlock(coveringNet)
+                    coveringPrefASpaths = bgp_handler.getASpathsForBlock(coveringNet)       
               
                     if blockOriginAS == coveringPrefOriginAS:
                         if len(blockASpaths) == 1:
@@ -372,7 +417,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # received the delegation of the block                 
                     if originASorg != prefixOrg:
                         orgs_aggr_networks.ix[i, 'originatedByDiffOrg'] = True
-                
+                   
                 # If there are no less specific blocks being routed and the list
                 # of more specific blocks being routed only contains the block
                 # itself
