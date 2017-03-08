@@ -289,8 +289,6 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     
                 # TODO Anything else?
 
-                # TODO Do we want to store all these variables?
-                # If yes, store them into orgs_aggr_networks
                 
                 # We summarize all the prefixes seen during each period
                 for period in prefixesPerPeriod:
@@ -323,7 +321,15 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     visibilityPerPeriods[(timeBreaks[i], timeBreaks[i+1])] = numOfIPsVisible*100/network.num_addresses
                 
                 # TODO How do we want to store the visibility per periods?
-          
+
+                avgVisibility = np.average(visibilityPerPeriods.values())
+                stdVisibility = np.std(visibilityPerPeriods.values())
+                minVisibility = np.min(visibilityPerPeriods.values())
+                maxVisibility = np.max(visibilityPerPeriods.values())
+
+                # TODO Do we want to store all these variables?
+                # If yes, store them into orgs_aggr_networks
+
         visibility = -1
         
         routed_node = del_routed.search_exact(net)
