@@ -161,38 +161,17 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
             routed_node = del_routed.add(net)
             routed_node.data['more_specifics'] = net_more_specifics
             routed_node.data['less_specifics'] = net_less_specifics
-              
-
-        # For not aggregated blocks (blocks that were delegated as-is) we compute
-        # their Usage Latency and Stability of Visibility
-        
-        # Based on [1]
-        # We define usage latency of an allocated address block as
-        # the time interval between the allocation time and the first
-        # time a part of, or the entire, allocated block shows up in
-        # the BGP routing table
-        
-        #TODO define Stability of Visibility
-        # Según Ale un prefijo es inestable si aparece y desapaece en un día.
-        # Si el análisis es con una granularidad mayor, no hablaría de estabilidad.
-        # Habría que pensar otro nombre para el análisis?
-        
-        # Our first observation about covered prefixes is that they
-        # show up and disappear in the routing table more frequently
-        # than the covering prefixes. 
-        
-        # To show this, we compare the
-        # routing prefixes between the beginning and end of each 2-
-        # month interval and count the following four events: (1) a
-        # covered prefix at the beginning remains unchanged at the
-        # end of the interval, (2) a covered prefix at the beginning
-        # disappears at the end, but its address space is covered by
-        # some other prefix(es), (3) a new covered prefix is advertised
-        # at the end, and (4) a covered prefix at the beginning disappears
-        # before the end and its address space is no longer
-        # covered in the routing table.
         
         if not orgs_aggr_networks.ix[i, 'aggregated']: 
+            # For not aggregated blocks (blocks that were delegated as-is)
+            # we compute their Usage Latency and Stability of Visibility
+            
+            # Based on [1]
+            # We define usage latency of an allocated address block as
+            # the time interval between the allocation time and the first
+            # time a part of, or the entire, allocated block shows up in
+            # the BGP routing table
+            
             # Usage Latency computation
             del_date = del_handler.getDelegationDate(network)
             
@@ -213,15 +192,59 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
             else:
                 orgs_aggr_networks.ix[i, 'UsageLatencyAllocIntact'] = float('inf')
         
+            #TODO define Stability of Visibility
+            # Según Ale un prefijo es inestable si aparece y desapaece en un día.
+            # Si el análisis es con una granularidad mayor, no hablaría de estabilidad.
+            # Habría que pensar otro nombre para el análisis?
+        
             if del_date is not None:
-
-                # Stability of Visibility analysis
+                today = datetime.date.today()
+                daysUsable = (today-del_date).days
+                
+                prefixesPerPeriod = dict()
+                timeBreaks = set()
+                
+                # Intact Allocation Stability of Visibility
+                periodsIntact = bgp_handler.getPeriodsSeenExact(network)
+                numOfPeriods = len(periodsIntact)
+                
+                if numOfPeriods > 0:
+                    
+                    last_seen_intact = bgp_handler.getDateLastSeenExact(network)
+                    daysUsed= (last_seen_intact-first_seen_intact).days
+                    daysSeen = bgp_handler.getTotalDaysSeenExact(network)
+                    
+                    # We define the "time fragmentation" as the average number
+                    # of periods in a 60 days (aprox 2 months) time lapse.
+                    # We chose to use 60 days to be coherent with the
+                    # considered interval of time used to analyze visibility
+                    # stability in [1]
+                    timeFragmentation = numOfPeriods/(daysUsed/60)
+                                    
+                    periodsLengths = []
+                    for period in periodsIntact:
+                        prefixesPerPeriod[period] = [net]
+                        timeBreaks.add(period[0])
+                        timeBreaks.add(period[1])
+                        
+                        periodsLengths.append(\
+                            (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
+                            datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days)
+                    
+                    avgPeriodLength = np.average(periodsLengths)
+                    stdPeriodLength = np.std(periodsLengths)
+                    minPeriodLength = np.min(periodsLengths)
+                    maxPeriodLength = np.max(periodsLengths)
+                    
+                # Stability of Visibility of fragments
                 periodsSeen = bgp_handler.getPeriodsSeenFragments(network)
                 
                 if len(periodsSeen) > 0:
                     
                     numsOfPeriods_fragments = []
                     daysUsed_fragments = []
+                    daysSeen_fragments = []
+                    periodsLengths_fragments = []
                     
                     for fragment in periodsSeen:
                         frag_network = ipaddress.ip_network(unicode(fragment, "utf-8"))
@@ -229,53 +252,77 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                         daysUsed_fragments.append(\
                             (bgp_handler.getDateLastSeenExact(frag_network) -\
                             bgp_handler.getDateFirstSeenExact(frag_network)).days)
+                        daysSeen_fragments.append(bgp_handler.getTotalDaysSeenExact(frag_network))
                         
+                        for period in periodsSeen[fragment]:
+                            timeBreaks.add(period[0])
+                            timeBreaks.add(period[1])
+                            
+                            if period not in prefixesPerPeriod:
+                                prefixesPerPeriod[period] = [fragment]
+                            else:
+                                prefixesPerPeriod[period].append(fragment)
+                                
+                            periodsLengths_fragments.append(\
+                                (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
+                                datetime.datetime.strptime(str(period[0]), '%Y%m%d').date).days)
+                            
                     avgNumOfPeriods_fragments = np.average(numsOfPeriods_fragments)
                     stdNumOfPeriods_fragments = np.std(numsOfPeriods_fragments)
                     minNumOfPeriods_fragments = np.min(numsOfPeriods_fragments)
                     maxNumOfPeriods_fragments = np.max(numsOfPeriods_fragments)
                     
+                    avgDaysUsed_fragments = np.average(daysUsed_fragments)
+                    stdDaysUsed_fragments = np.std(daysUsed_fragments)
+                    minDaysUsed_fragments = np.min(daysUsed_fragments)
+                    maxDaysUsed_fragments = np.max(daysUsed_fragments)
+
+                    avgDaysSeen_fragments = np.average(daysSeen_fragments)
+                    stdDaysSeen_fragments = np.std(daysSeen_fragments)
+                    minDaysSeen_fragments = np.min(daysSeen_fragments)
+                    maxDaysSeen_fragments = np.max(daysSeen_fragments)
                     
-                # TODO Compute average, standard deviation, min and max
-                # amongst all fragments for daysUsable, daysUsed, daysSeen,
-                # avgPeriodsLength, stdPeriodLength, minPeriodLength and
-                # maxPeriodLength
-                
-                # TODO Compute visibility per period
-                
+                    avgPeriodLength_fragments = np.average(periodsLengths_fragments)
+                    stdPeriodLength_fragments = np.std(periodsLengths_fragments)
+                    minPeriodLength_fragments = np.min(periodsLengths_fragments)
+                    maxPeriodLength_fragments = np.max(periodsLengths_fragments)
+                    
                 # TODO Anything else?
-                
-                # TODO Stability of Visibility of ASN
-                # ver fechas en las que cada ASN está activo
-                
 
-                # Intact Allocation Stability of Visibility analysis
-                periodsIntact = bgp_handler.getPeriodsSeenExact(network)
-                numOfPeriods = len(periodsIntact)
+                # TODO Do we want to store all these variables?
+                # If yes, store them into orgs_aggr_networks
                 
-                if numOfPeriods > 0:
-                    today = datetime.date.today().strftime('%Y%m%d')
-                    daysUsable = (today-del_date).days
-                    
-                    last_seen_intact = bgp_handler.getDateLastSeenExact(network)
-                    daysUsed= (last_seen_intact-first_seen_intact).days
-                    daysSeen = bgp_handler.getTotalDaysSeenExact(network)
-                                    
-                    periodsLengths = []
-                    for period in periodsIntact:
-                        periodsLengths.append(\
-                            (datetime.datetime.strptime(str(period[1]), '%Y%m%d') -\
-                            datetime.datetime.strptime(str(period[0]), '%Y%m%d')).days)
-                    
-                    avgPeriodLength = np.average(periodsLengths)
-                    stdPeriodLength = np.std(periodsLengths)
-                    minPeriodLength = np.min(periodsLengths)
-                    maxPeriodLength = np.max(periodsLengths)
-                    
-                    # TODO Do we want to store all these variables?
-                    # If yes, store them into orgs_aggr_networks
-                
+                # We summarize all the prefixes seen during each period
+                for period in prefixesPerPeriod:
+                    aggregated_fragments = [ipaddr for ipaddr in
+                                ipaddress.collapse_addresses(
+                                [ipaddress.ip_network(unicode(ip_net, 'utf-8'))
+                                for ip_net in prefixesPerPeriod[period]])]
+                    prefixesPerPeriod[period] = aggregated_fragments
+                                
+                # Evolution of Visibility (Visibility per period)
+                visibilityPerPeriods = dict()
+                visibilityPerPeriods[(int(del_date.strftime('%Y%m%d')), timeBreaks[0])] = 0
 
+                last_seen = bgp_handler.getDateLastSeen(network)
+                if last_seen < today:
+                    visibilityPerPeriods[\
+                        (int(last_seen.strftime('%Y%m%d')),\
+                        int(today.strftime('%Y%m%d')))] = 0
+
+                for i in range(len(timeBreaks)-1):
+                    numOfIPsVisible = 0
+                    
+                    for period in prefixesPerPeriod:
+                        if timeBreaks[i] >= period[0] and timeBreaks[i+1] <= period[1]:
+                            for prefix in prefixesPerPeriod[period]:
+                                numOfIPsVisible += ipaddress.ip_network(\
+                                                    unicode(prefix, "utf-8")).\
+                                                    num_addresses
+                    
+                    visibilityPerPeriods[(timeBreaks[i], timeBreaks[i+1])] = numOfIPsVisible*100/network.num_addresses
+                
+                # TODO How do we want to store the visibility per periods?
           
         visibility = -1
         
@@ -497,6 +544,10 @@ def computeASesStats(bgp_handler, del_handler):
     expanded_del_asns_df = del_handler.getExpandedASNsDF() 
     ASes_originated_prefixes_dic = bgp_handler.ASes_originated_prefixes_dic
     ASes_propagated_prefixes_dic = bgp_handler.ASes_propagated_prefixes_dic
+    
+    # TODO Stability of Visibility of ASN
+    # ver fechas en las que cada ASN está activo
+    # hay que agregar código en BGPDataHandler
     
     statsForASes = dict()
     

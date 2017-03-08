@@ -851,7 +851,7 @@ class BGPDataHandler:
                 first_seen = node_first_seen
 
         if first_seen != float('inf'):
-            return datetime.datetime.strptime(str(first_seen), '%Y%m%d')
+            return datetime.datetime.strptime(str(first_seen), '%Y%m%d').date()
         else:
             return None
 
@@ -868,7 +868,7 @@ class BGPDataHandler:
         network_node = prefixesDates.search_exact(str(network))
 
         if network_node is not None:
-            return datetime.datetime.strptime(str(network_node.data['firstSeen']), '%Y%m%d')
+            return datetime.datetime.strptime(str(network_node.data['firstSeen']), '%Y%m%d').date()
         else:
             return None
 
@@ -939,8 +939,31 @@ class BGPDataHandler:
         network_node = prefixesDates.search_exact(str(network))
 
         if network_node is not None:
-            return datetime.datetime.strptime(str(network_node.data['lastSeen']), '%Y%m%d')
+            return datetime.datetime.strptime(str(network_node.data['lastSeen']), '%Y%m%d').date()
         else:
             return None
         
+    # This function returns the date in which a prefix or part of it
+    # was last seen.
+    # If the prefix has never been seen according to the routing data in the
+    # archive, None is returned
+    def getDateLastSeen(self, network):
+
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        sometime_routed_covered_nodes = prefixesDates.search_covered(str(network))
         
+        last_seen = 0
+        
+        for node in sometime_routed_covered_nodes:
+            node_last_seen = int(node.data['lastSeen'])
+            if node_last_seen > last_seen:
+                last_seen = node_last_seen
+
+        if last_seen != 0:
+            return datetime.datetime.strptime(str(last_seen), '%Y%m%d').date()
+        else:
+            return None
