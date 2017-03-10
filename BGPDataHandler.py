@@ -939,10 +939,10 @@ class BGPDataHandler:
             return []
 
     # This function returns a dictionary with the lists of periods of time
-    # during which parts of a prefix were seen.
+    # during which a prefix or parts of it were seen.
     # If any part of the prefix has ever been seen according to the routing data
     # in the archive, an empty dictionary is returned
-    def getPeriodsSeenFragments(self, network):        
+    def getPeriodsSeenGral(self, network):        
         if network.version == 4:
             prefixesDates = self.ipv4_prefixesDates_radix
         else:
@@ -954,9 +954,6 @@ class BGPDataHandler:
         
         for covered_node in covered_nodes:
             covered_prefix = covered_node.prefix
-            if covered_prefix == str(network):
-                continue
-            
             periods_dict[covered_prefix] = covered_node.data['periodsSeen']
       
         return periods_dict

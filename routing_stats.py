@@ -23,8 +23,8 @@ import radix
 # The serial variable must be 1 or 2 depending on CAIDAS's data to be used
 def getASrelInfo(serial, files_path, KEEP):
     
-    folder_url = 'http://data.caida.org/datasets/as-relationships/serial-%s/' % serial
-    index_file = '%s/CAIDA_index.txt' % files_path
+    folder_url = 'http://data.caida.org/datasets/as-relationships/serial-{}/'.format(serial)
+    index_file = '{}/CAIDA_index.txt'.format(files_path)
     get_file(folder_url, index_file)
     
     with open(index_file, 'r') as index:
@@ -45,17 +45,17 @@ def getASrelInfo(serial, files_path, KEEP):
         os.remove(index_file)
     
     if serial == 1:
-        as_rel_url = '%s%s.as-rel.txt.bz2' % (folder_url, maxDate)
-        as_rel_file = '%s/CAIDA_ASrel_%s.txt.bz2' % (files_path, maxDate)
+        as_rel_url = '{}{}.as-rel.txt.bz2'.format(folder_url, maxDate)
+        as_rel_file = '{}/CAIDA_ASrel_{}.txt.bz2'.format(files_path, maxDate)
     elif serial == 2:
-        as_rel_url = '%s%s.as-rel2.txt.bz2' % (folder_url, maxDate)
-        as_rel_file = '%s/CAIDA_ASrel2_%s.txt.bz2' % (files_path, maxDate)
+        as_rel_url = '{}{}.as-rel2.txt.bz2'.format(folder_url, maxDate)
+        as_rel_file = '{}/CAIDA_ASrel2_{}.txt.bz2'.format(files_path, maxDate)
 
     get_file(as_rel_url, as_rel_file)
     
     ASrels = dict()
     
-    print 'Working with file %s\n' % as_rel_file
+    print 'Working with file {}\n'.format(as_rel_file)
     
     with bz2.BZ2File(as_rel_file, 'rb') as as_rel:
         for line in as_rel.readlines():
@@ -164,16 +164,16 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
         
         if not orgs_aggr_networks.ix[i, 'aggregated']: 
             # For not aggregated blocks (blocks that were delegated as-is)
-            # we compute their Usage Latency and Stability of Visibility
+            # we compute their Usage Latency and History of Visibility
             
             # Based on [1]
-            # We define usage latency of an allocated address block as
-            # the time interval between the allocation time and the first
-            # time a part of, or the entire, allocated block shows up in
-            # the BGP routing table
+            # We define usage latency of a delegated address block as
+            # the time interval between the delegation date and the first
+            # time a part of, or the entire, delegated block shows up in
+            # the BGP routing table baing analyzed
             
             # Usage Latency computation
-            del_date = del_handler.getDelegationDate(network)
+            del_date = del_handler.getDelegationDateIPBlock(network)
             
             first_seen = bgp_handler.getDateFirstSeen(network)
                         
@@ -192,19 +192,14 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
             else:
                 orgs_aggr_networks.ix[i, 'UsageLatencyAllocIntact'] = float('inf')
         
-            #TODO define Stability of Visibility
-            # Según Ale un prefijo es inestable si aparece y desapaece en un día.
-            # Si el análisis es con una granularidad mayor, no hablaría de estabilidad.
-            # Habría que pensar otro nombre para el análisis?
-        
+            # History of Visibility (Visibility Evoluntion in Time) computation
             if del_date is not None:
                 today = datetime.date.today()
                 daysUsable = (today-del_date).days
                 
-                prefixesPerPeriod = dict()
-                timeBreaks = set()
-                
-                # Intact Allocation Stability of Visibility
+                # Intact Allocation History of Visibility
+                # The Intact Allocation History of Visibility only takes into
+                # account the exact block that was delegated
                 periodsIntact = bgp_handler.getPeriodsSeenExact(network)
                 numOfPeriods = len(periodsIntact)
                 
@@ -233,38 +228,39 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                                     
                     periodsLengths = []
                     for period in periodsIntact:
-                        prefixesPerPeriod[period] = [net]
-                        timeBreaks.add(period[0])
-                        timeBreaks.add(period[1])
-                        
                         periodsLengths.append(\
                             (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
                             datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days)
                     
-                    orgs_aggr_networks.ix[i, 'avgPeriodLength'] = np.average(periodsLengths)
-                    orgs_aggr_networks.ix[i, 'stdPeriodLength'] = np.std(periodsLengths)
-                    orgs_aggr_networks.ix[i, 'minPeriodLength'] = np.min(periodsLengths)
-                    orgs_aggr_networks.ix[i, 'maxPeriodLength'] = np.max(periodsLengths)
+                    periodsLengths = np.array(periodsLengths)
+                    orgs_aggr_networks.ix[i, 'avgPeriodLength'] = periodsLengths.mean()
+                    orgs_aggr_networks.ix[i, 'stdPeriodLength'] = periodsLengths.std()
+                    orgs_aggr_networks.ix[i, 'minPeriodLength'] = periodsLengths.min()
+                    orgs_aggr_networks.ix[i, 'maxPeriodLength'] = periodsLengths.max()
                     
-                # Stability of Visibility of fragments
-                periodsSeen = bgp_handler.getPeriodsSeenFragments(network)
+                # General History of Visibility of Prefix
+                # The General History of Visibility takes into account not only
+                # the block itself being routed but also its fragments
+                periodsGral = bgp_handler.getPeriodsSeenGral(network)
                 
-                if len(periodsSeen) > 0:
+                if len(periodsGral) > 0:
                     
-                    numsOfPeriods_fragments = []
-                    daysUsed_fragments = []
-                    daysSeen_fragments = []
-                    periodsLengths_fragments = []
+                    numsOfPeriods_gral = []
+                    daysUsed_gral = []
+                    daysSeen_gral = []
+                    periodsLengths_gral = []
+                    prefixesPerPeriod = dict()
+                    timeBreaks = set()
                     
-                    for fragment in periodsSeen:
+                    for fragment in periodsGral:
                         frag_network = ipaddress.ip_network(unicode(fragment, "utf-8"))
-                        numsOfPeriods_fragments.append(len(periodsSeen[fragment]))
-                        daysUsed_fragments.append(\
+                        numsOfPeriods_gral.append(len(periodsGral[fragment]))
+                        daysUsed_gral.append(\
                             (bgp_handler.getDateLastSeenExact(frag_network) -\
                             bgp_handler.getDateFirstSeenExact(frag_network)).days)
-                        daysSeen_fragments.append(bgp_handler.getTotalDaysSeenExact(frag_network))
+                        daysSeen_gral.append(bgp_handler.getTotalDaysSeenExact(frag_network))
                         
-                        for period in periodsSeen[fragment]:
+                        for period in periodsGral[fragment]:
                             timeBreaks.add(period[0])
                             timeBreaks.add(period[1])
                             
@@ -273,42 +269,46 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                             else:
                                 prefixesPerPeriod[period].append(fragment)
                                 
-                            periodsLengths_fragments.append(\
+                            periodsLengths_gral.append(\
                                 (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
                                 datetime.datetime.strptime(str(period[0]), '%Y%m%d').date).days)
                             
-                    avgNumOfPeriods_fragments = np.average(numsOfPeriods_fragments)
-                    stdNumOfPeriods_fragments = np.std(numsOfPeriods_fragments)
-                    minNumOfPeriods_fragments = np.min(numsOfPeriods_fragments)
-                    maxNumOfPeriods_fragments = np.max(numsOfPeriods_fragments)
+                    numsOfPeriods_gral = np.array(numsOfPeriods_gral)
+                    avgNumOfPeriods_gral = numsOfPeriods_gral.mean()
+                    stdNumOfPeriods_gral = numsOfPeriods_gral.std()
+                    minNumOfPeriods_gral = numsOfPeriods_gral.min()
+                    maxNumOfPeriods_gral = numsOfPeriods_gral.max()
                     
-                    avgDaysUsed_fragments = np.average(daysUsed_fragments)
-                    stdDaysUsed_fragments = np.std(daysUsed_fragments)
-                    minDaysUsed_fragments = np.min(daysUsed_fragments)
-                    maxDaysUsed_fragments = np.max(daysUsed_fragments)
+                    daysUsed_gral = np.array(daysUsed_gral)
+                    avgDaysUsed_gral = daysUsed_gral.mean()
+                    stdDaysUsed_gral = daysUsed_gral.std()
+                    minDaysUsed_gral = daysUsed_gral.min()
+                    maxDaysUsed_gral = daysUsed_gral.max()
 
-                    orgs_aggr_networks.ix[i, 'avgRelUsedTime_fragments'] =\
-                                            100*avgDaysUsed_fragments/daysUsable
+                    orgs_aggr_networks.ix[i, 'avgRelUsedTime_gral'] =\
+                                            100*avgDaysUsed_gral/daysUsable
 
-                    orgs_aggr_networks.ix[i, 'avgTimeFragmentation_fragments'] =\
-                            avgNumOfPeriods_fragments/(avgDaysUsed_fragments/60)
-                        
-                    avgDaysSeen_fragments = np.average(daysSeen_fragments)
-                    stdDaysSeen_fragments = np.std(daysSeen_fragments)
-                    minDaysSeen_fragments = np.min(daysSeen_fragments)
-                    maxDaysSeen_fragments = np.max(daysSeen_fragments)
+                    orgs_aggr_networks.ix[i, 'avgTimeFragmentation_gral'] =\
+                            avgNumOfPeriods_gral/(avgDaysUsed_gral/60)
                     
-                    orgs_aggr_networks.ix[i, 'avgEffectiveUsage_fragments'] =\
-                                100*avgDaysSeen_fragments/avgDaysUsed_fragments
+                    daysSeen_gral = np.array(daysSeen_gral)
+                    avgDaysSeen_gral = daysSeen_gral.mean()
+                    stdDaysSeen_gral = daysSeen_gral.std()
+                    minDaysSeen_gral = daysSeen_gral.min()
+                    maxDaysSeen_gral = daysSeen_gral.max()
                     
-                    orgs_aggr_networks.ix[i, 'avgPeriodLength_fragments'] =\
-                                            np.average(periodsLengths_fragments)
-                    orgs_aggr_networks.ix[i, 'stdPeriodLength_fragments'] =\
-                                                np.std(periodsLengths_fragments)
-                    orgs_aggr_networks.ix[i, 'minPeriodLength_fragments'] =\
-                                                np.min(periodsLengths_fragments)
-                    orgs_aggr_networks.ix[i, 'maxPeriodLength_fragments'] =\
-                                                np.max(periodsLengths_fragments)
+                    orgs_aggr_networks.ix[i, 'avgEffectiveUsage_gral'] =\
+                                100*avgDaysSeen_gral/avgDaysUsed_gral
+                    
+                    periodsLengths_gral = np.array(periodsLengths_gral)
+                    orgs_aggr_networks.ix[i, 'avgPeriodLength_gral'] =\
+                                                periodsLengths_gral.mean()
+                    orgs_aggr_networks.ix[i, 'stdPeriodLength_gral'] =\
+                                                    periodsLengths_gral.std()
+                    orgs_aggr_networks.ix[i, 'minPeriodLength_gral'] =\
+                                                    periodsLengths_gral.min()
+                    orgs_aggr_networks.ix[i, 'maxPeriodLength_gral'] =\
+                                                    periodsLengths_gral.max()
 
                 # TODO Are we interested in the std, min and max for numOfPeriods,
                 # daysUsed and daysSeen? Do we want to store all these variables?
@@ -323,6 +323,8 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     prefixesPerPeriod[period] = aggregated_fragments
                                 
                 # Evolution of Visibility (Visibility per period)
+                # Taking into account the block itself being routed and
+                # and its fragments being routed
                 visibilityPerPeriods = dict()
                 visibilityPerPeriods[(int(del_date.strftime('%Y%m%d')), timeBreaks[0])] = 0
 
@@ -346,14 +348,15 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                 
                 # TODO Do we want to store the visibility per periods? How?
 
+                visibilityPerPeriods = np.array(visibilityPerPeriods.values())
                 orgs_aggr_networks.ix[i, 'avgVisibility'] =\
-                                        np.average(visibilityPerPeriods.values())
+                                                    visibilityPerPeriods.mean()
                 orgs_aggr_networks.ix[i, 'stdVisibility'] =\
-                                            np.std(visibilityPerPeriods.values())
+                                                        visibilityPerPeriods.std()
                 orgs_aggr_networks.ix[i, 'minVisibility'] =\
-                                            np.min(visibilityPerPeriods.values())
+                                                        visibilityPerPeriods.min()
                 orgs_aggr_networks.ix[i, 'maxVisibility'] =\
-                                            np.max(visibilityPerPeriods.values())
+                                                        visibilityPerPeriods.max()
                                             
                 orgs_aggr_networks.ix[i, 'isDead'] = ((today-last_seen).days > 365)
                 orgs_aggr_networks.ix[i, 'isDeadIntact'] = ((today-last_seen_intact).days > 365)
@@ -508,8 +511,9 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # This not necessarily works correctly as delegations made
                     # by a NIR do not appear in the delegated file
                     # TODO Should we get the organization holding a specific
-                    # resource from WHOIS?
+                    # resource from WHOIS? NO! I need opaque_id
                     # https://www.apnic.net/about-apnic/whois_search/about/rdap/
+                    # Ask George and Byron
                     originASorg = asn_del[(pd.to_numeric(asn_del['initial_resource']) <= int(blockOriginAS)) &
                                         (pd.to_numeric(asn_del['initial_resource'])+
                                         pd.to_numeric(asn_del['count'])>int(blockOriginAS))]['opaque_id'].get_values()
@@ -575,28 +579,80 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
 # (BGP announcements for which the AS appears in the middle of the AS path)
 # * a numeric variable (numOfPrefixesOriginated) specifying the number of prefixes originated by the AS
 def computeASesStats(bgp_handler, del_handler):
+    today = datetime.date.today()
     expanded_del_asns_df = del_handler.getExpandedASNsDF() 
-    ASes_originated_prefixes_dic = bgp_handler.ASes_originated_prefixes_dic
-    ASes_propagated_prefixes_dic = bgp_handler.ASes_propagated_prefixes_dic
-    
-    # TODO Stability of Visibility of ASN
-    # ver fechas en las que cada ASN está activo
-
-    # TODO Look for 'dead' ASNs (ASNs that have not been active for more than X time)
     
     statsForASes = dict()
     
-    for asn in expanded_del_asns_df['initial_resource']:
+    for i in expanded_del_asns_df.index:
+        asn = int(expanded_del_asns_df.ix[i]['initial_resource'])
+        
         statsForASes[asn] = dict()
         try:
-            statsForASes[asn]['numOfPrefixesOriginated'] = len(ASes_originated_prefixes_dic[asn])
+            statsForASes[asn]['numOfPrefixesOriginated_curr'] =\
+                                len(bgp_handler.ASes_originated_prefixes_dic[asn])
         except KeyError:
-            statsForASes[asn]['numOfPrefixesOriginated'] = 0
+            statsForASes[asn]['numOfPrefixesOriginated_curr'] = 0
        
         try:
-            statsForASes[asn]['numOfPrefixesPropagated'] = len(ASes_propagated_prefixes_dic[asn])
+            statsForASes[asn]['numOfPrefixesPropagated_curr'] =\
+                                len(bgp_handler.ASes_propagated_prefixes_dic[asn])
         except KeyError:
-            statsForASes[asn]['numOfPrefixesPropagated'] = 0
+            statsForASes[asn]['numOfPrefixesPropagated_curr'] = 0
+        
+        if asn in bgp_handler.originASesDates_dict:
+            del_date = expanded_del_asns_df.ix[i]['date'].to_pydatetime().date()
+            daysUsable = (today-del_date).days
+
+            # Usage Latency
+            # We define usage latency of an ASN as the time interval between
+            # the delegation date and the first the ASN is seen as an origin AS
+            # in the BGP routing table being analyzed
+            first_seen = bgp_handler.originASesDates_dict[asn]['firstSeen']
+                        
+            if first_seen is not None:
+                statsForASes[asn]['UsageLatency'] = (first_seen-del_date).days
+            else:
+                statsForASes[asn]['UsageLatency'] = float('inf')               
+                
+            # History of Activity
+            periodsActive = bgp_handler.originASesDates_dict[asn]['periodsSeen']
+            numOfPeriods = len(periodsActive)
+                
+            if numOfPeriods > 0:
+                last_seen = bgp_handler.originASesDates_dict[asn]['lastSeen']
+                statsForASes[asn]['isDead'] = ((today-last_seen).days > 365)
+                
+                daysUsed= (last_seen-first_seen).days
+                daysSeen = bgp_handler.originASesDates_dict[asn]['totalDays']
+                    
+                # We define the "relative used time" as the percentage of
+                # days the ASN was used from the total number of days
+                # the ASN could have been used (Usable time)
+                statsForASes[asn]['relUsedTime'] = 100*daysUsed/daysUsable
+                
+                # We define the "effective usage" as the percentage of days
+                # the ASN was seen from the number of days the ASN was used
+                statsForASes[asn]['effectiveUsage'] = 100*daysSeen/daysUsed
+                
+                # We define the "time fragmentation" as the average number
+                # of periods in a 60 days (aprox 2 months) time lapse.
+                # We chose to use 60 days to be coherent with the
+                # considered interval of time used to analyze visibility
+                # stability in [1]
+                statsForASes[asn]['timeFragmentation'] = numOfPeriods/(daysUsed/60)
+                                                
+                periodsLengths = []
+                for period in periodsActive:
+                    periodsLengths.append(\
+                        (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
+                        datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days)
+                
+                periodsLengths = np.array(periodsLengths)
+                statsForASes[asn]['avgPeriodLength'] = periodsLengths.mean()
+                statsForASes[asn]['stdPeriodLength'] = periodsLengths.std()
+                statsForASes[asn]['minPeriodLength'] = periodsLengths.min()
+                statsForASes[asn]['maxPeriodLength'] = periodsLengths.max()
        
     return statsForASes
     
@@ -804,9 +860,9 @@ def main(argv):
     if not DEBUG:
 
         if EXTENDED:
-            del_file = '%s/extended_apnic_%s.txt' % (files_path, today)
+            del_file = '{}/extended_apnic_{}.txt'.format(files_path, today)
         else:
-            del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
+            del_file = '{}/delegated_apnic_{}.txt'.format(files_path, today)
 
 
     bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP, RIBfiles, COMPRESSED)

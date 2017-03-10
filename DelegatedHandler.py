@@ -334,7 +334,7 @@ class DelegatedHandler:
 
     # Given a prefix this function returns the date in which it was delegated.
     # If the prefix is not in the delegated_df DataFrame None is returned
-    def getDelegationDate(self, network):
+    def getDelegationDateIPBlock(self, network):
         
         if network.version == 4:
             count = network.num_addresses
@@ -347,7 +347,6 @@ class DelegatedHandler:
         
         if subset.shape[0] > 0:
             row = self.delegated_df.ix[subset.index[0]]
-            return row['date'].to_pydatetime()
+            return row['date'].to_pydatetime().date()
         else:
             return None
-            
