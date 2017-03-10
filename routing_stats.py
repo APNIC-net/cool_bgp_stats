@@ -88,6 +88,55 @@ def getASrelInfo(serial, files_path, KEEP):
         
     return ASrels
     
+# Function that computes the Levenshtein distance between two AS paths
+# From https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
+def levenshteinDist(ASpath1, ASpath2):
+    if len(ASpath1) < len(ASpath2):
+        return levenshteinDist(ASpath2, ASpath1)
+
+    # So now we have len(ASpath1) >= len(ASpath2).
+    if len(ASpath2) == 0:
+        return len(ASpath1)
+
+    # We call tuple() to force strings to be used as sequences
+    # ('c', 'a', 't', 's') - numpy uses them as values by default.
+    ASpath1 = np.array(tuple(ASpath1))
+    ASpath2 = np.array(tuple(ASpath2))
+
+    # We use a dynamic programming algorithm, but with the
+    # added optimization that we only need the last two rows
+    # of the matrix.
+    previous_row = np.arange(ASpath2.size + 1)
+    for s in ASpath1:
+        # Insertion (ASpath2 grows longer than ASpath1):
+        current_row = previous_row + 1
+
+        # Substitution or matching:
+        # ASpath2 and ASpath1 items are aligned, and either
+        # are different (cost of 1), or are the same (cost of 0).
+        current_row[1:] = np.minimum(
+                current_row[1:],
+                np.add(previous_row[:-1], ASpath2 != s))
+
+        # Deletion (target grows shorter than source):
+        current_row[1:] = np.minimum(
+                current_row[1:],
+                current_row[0:-1] + 1)
+
+        previous_row = current_row
+
+    return previous_row[-1]
+        
+def computeLevenshteinDistMetrics(blockASpaths, coveringPrefASpaths):
+    levenshteinDistances = set()
+    for blockASpath in blockASpaths:
+        for covPrefASpath in coveringPrefASpaths:
+            levenshteinDistances.add(levenshteinDist(blockASpath, covPrefASpath))
+    
+    levenshteinDistances = np.array(list(levenshteinDistances))
+    return levenshteinDistances.mean(), levenshteinDistances.std(),\
+            levenshteinDistances.min(), levenshteinDistances.max()
+    
 # This function computes statistics for each delegated block
 # and for each aggregated block resulting from summarizing multiple delegations
 # to the same organization.
@@ -419,10 +468,25 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                                 orgs_aggr_networks.ix[i, 'SOSP'] = True
                             else:
                                 orgs_aggr_networks.ix[i, 'SODP2'] = True
+                                
+                                orgs_aggr_networks.ix[i, 'avgLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'stdLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'minLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'maxLevenshteinDist'] =\
+                                    computeLevenshteinDistMetrics(blockASpaths,\
+                                                            coveringPrefASpaths)
+                                                            
                         else: # len(blockASpaths) >= 2
                             if len(coveringPrefASpaths.intersection(blockASpaths)) > 0 and\
                                 len(blockASpaths.difference(coveringPrefASpaths)) > 0:
                                 orgs_aggr_networks.ix[i, 'SODP1'] = True
+                                
+                                orgs_aggr_networks.ix[i, 'avgLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'stdLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'minLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'maxLevenshteinDist'] =\
+                                    computeLevenshteinDistMetrics(blockASpaths,\
+                                                            coveringPrefASpaths)
                                     
                     else:
                         if len(blockASpaths) == 1:
@@ -437,6 +501,14 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                         
                             if not blockASpaths.issubset(coveringPrefASpaths):
                                 orgs_aggr_networks.ix[i, 'DODP1'] = True
+                                
+                                orgs_aggr_networks.ix[i, 'avgLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'stdLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'minLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'maxLevenshteinDist'] =\
+                                    computeLevenshteinDistMetrics(blockASpaths,\
+                                                            coveringPrefASpaths)
+                                                            
                         else: # len(blockASpaths) >= 2
                             blockASpaths_woOrigin = set()
                             for ASpath in blockASpaths:
@@ -445,6 +517,13 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                             if len(coveringPrefASpaths.intersection(blockASpaths_woOrigin)) > 0 and\
                                 len(blockASpaths_woOrigin.difference(coveringPrefASpaths)) > 0:
                                 orgs_aggr_networks.ix[i, 'DODP2'] = True
+                                
+                                orgs_aggr_networks.ix[i, 'avgLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'stdLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'minLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'maxLevenshteinDist'] =\
+                                    computeLevenshteinDistMetrics(blockASpaths,\
+                                                            coveringPrefASpaths)
                           
                             if len(coveringPrefASpaths.intersection(blockASpaths)) == 0:
                                 # TODO Ask Geoff about this
@@ -452,6 +531,13 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                                 # covering prefix have a common customer?
                                 # Origin AS for covered prefix advertises two or more prefixes 
                                 orgs_aggr_networks.ix[i, 'DODP3'] = True
+                                
+                                orgs_aggr_networks.ix[i, 'avgLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'stdLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'minLevenshteinDist'],\
+                                orgs_aggr_networks.ix[i, 'maxLevenshteinDist'] =\
+                                    computeLevenshteinDistMetrics(blockASpaths,\
+                                                            coveringPrefASpaths)
                             
             # If there are no less specific blocks being routed
             else:
