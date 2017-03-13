@@ -10,6 +10,7 @@ import sys
 import pandas as pd
 from get_file import get_file
 import ipaddress
+import numpy as np
 
 
 class DelegatedHandler:
@@ -40,7 +41,7 @@ class DelegatedHandler:
                             'cc',
                             'resource_type',
                             'initial_resource',
-                            'count',
+                            'count/prefLen',
                             'date',
                             'status',
                             'opaque_id'
@@ -52,7 +53,7 @@ class DelegatedHandler:
                             'cc',
                             'resource_type',
                             'initial_resource',
-                            'count',
+                            'count/prefLen',
                             'date',
                             'status'
                         ]
@@ -87,7 +88,7 @@ class DelegatedHandler:
             else:
                 self.summary_records.at[i, 'Type'] = self.res_types[i-1]
                 self.summary_records.at[i, 'count'] =\
-                                    int(delegated_df.loc[i, 'count'])
+                                    int(delegated_df.loc[i, 'count/prefLen'])
     
     
         total_rows = delegated_df.shape[0]
@@ -166,22 +167,23 @@ class DelegatedHandler:
         country_regions['AP'] = 'AP Region'
         country_regions['XX'] = 'NA'
                 
-        delegated_df.ix[pd.isnull(delegated_df.opaque_id), 'opaque_id'] = 'NA'
-        self.orgs = list(set(delegated_df['opaque_id'].values))
+        if EXTENDED:        
+            delegated_df.ix[pd.isnull(delegated_df.opaque_id), 'opaque_id'] = 'NA'
+            self.orgs = list(set(delegated_df['opaque_id'].values))
         
-        for o in self.orgs:
-            if o == 'NA':
-                self.orgs_areas[o] = ['XX']
-            else:
-                org_countries = list(set(delegated_df[delegated_df['opaque_id'] == o]['cc']))
-    
-                org_areas = []
-                for country in org_countries:
-                    if country in country_regions.keys():
-                        org_areas.extend([country_regions[country]])
-                    else:
-                        print 'Unknown CC: %s' % country
-                self.orgs_areas[o] = ['All'] + org_countries + org_areas
+            for o in self.orgs:
+                if o == 'NA':
+                    self.orgs_areas[o] = ['XX']
+                else:
+                    org_countries = list(set(delegated_df[delegated_df['opaque_id'] == o]['cc']))
+        
+                    org_areas = []
+                    for country in org_countries:
+                        if country in country_regions.keys():
+                            org_areas.extend([country_regions[country]])
+                        else:
+                            print 'Unknown CC: %s' % country
+                    self.orgs_areas[o] = ['All'] + org_countries + org_areas
         
         delegated_df['region'] = delegated_df['cc'].apply(lambda c: country_regions[c])
         
@@ -192,23 +194,17 @@ class DelegatedHandler:
         indexes_32bits = alloc_asn_subset.loc[pd.to_numeric(asn_subset['initial_resource']) > 65535,:].index.tolist()
         delegated_df.ix[indexes_32bits, 'status'] = 'alloc-32bits'
         
-        self.delegated_df = delegated_df
-        
-    # This function returns a DataFrame with all the blocks delegated to an organization
-    # and all these delegated blocks summarized as much as possible
-    def getDelAndAggrNetworks(self):
-        
-        delegated_df = self.delegated_df.reset_index()
+        delegated_df['OriginalIndex'] = delegated_df.index
         
         ipv4_cidr_del_df = pd.DataFrame(columns=delegated_df.columns)
         
-        # For IPv4, the 'count' column includes the number of IP addresses delegated
+        # For IPv4, the 'count/prefLen' column includes the number of IP addresses delegated
         # but it not necessarily corresponds to a CIDR block.
         # Therefore we convert each row to the corresponding CIDR block or blocks,
         # now using the 'count' column to save the prefix length instead of the number of IPs.
         for index, row in delegated_df[delegated_df['resource_type'] == 'ipv4'].iterrows():
             initial_ip = ipaddress.ip_address(unicode(row['initial_resource'], "utf-8"))
-            count = int(row['count'])
+            count = int(row['count/prefLen'])
             final_ip = initial_ip + count - 1
             
             cidr_networks = [ipaddr for ipaddr in ipaddress.summarize_address_range(\
@@ -216,44 +212,63 @@ class DelegatedHandler:
                                 ipaddress.IPv4Address(final_ip))]
             
             for net in cidr_networks:
-                ipv4_cidr_del_df.loc[ipv4_cidr_del_df.shape[0]] = [row['index'],\
-                                                                    row['registry'],\
+                ipv4_cidr_del_df.loc[ipv4_cidr_del_df.shape[0]] = [row['registry'],\
                                                                     row['cc'],\
                                                                     row['resource_type'],\
                                                                     str(net.network_address),\
                                                                     int(net.prefixlen),\
                                                                     row['date'],\
-                                                                    '%s_cidr' % row['status'],\
+                                                                    row['status'],\
                                                                     row['opaque_id'],\
-                                                                    row['region']]       
-        # We cahnge the format for floats to avoid the values of the count column
+                                                                    row['region'],
+                                                                    row['OriginalIndex']]
+                                                                    
+        delegated_df = pd.concat([ipv4_cidr_del_df, delegated_df[\
+                                (delegated_df['resource_type'] == 'ipv6') |\
+                                (delegated_df['resource_type'] == 'asn')]])
+        
+        # We change the format for floats to avoid the values of the count column
         # having .0
         pd.options.display.float_format = '{:,.0f}'.format
+        
+        delegated_df['ResourceCount'] = np.nan        
+        delegated_df['SpaceCount'] = np.nan
+        delegated_df.loc[delegated_df['resource_type'] == 'ipv6', 'ResourceCount'] =\
+                                                pow(2, 56 - delegated_df['count/prefLen'])
+        delegated_df.loc[delegated_df['resource_type'] == 'ipv6', 'SpaceCount'] =\
+                                                pow(2, 48 - delegated_df['count/prefLen'])
+        delegated_df.loc[delegated_df['resource_type'] == 'ipv4', 'ResourceCount'] =\
+                                                pow(2, 32 - delegated_df['count/prefLen'])                                                
+        delegated_df.loc[delegated_df['resource_type'] == 'ipv4', 'SpaceCount'] =\
+                                                pow(2, 24 - delegated_df['count/prefLen'])
+        delegated_df.loc[delegated_df['resource_type'] == 'asn', 'ResourceCount'] =\
+                                                            delegated_df['count/prefLen']
+        
+        self.delegated_df = delegated_df
+        
+    # This function returns a DataFrame with all the blocks delegated to an organization
+    # and all these delegated blocks summarized as much as possible
+    def getDelAndAggrNetworks(self):
         
         orgs_aggr_networks = pd.DataFrame(columns= ['opaque_id', 'cc', 'region',\
                                                     'ip_block', 'aggregated'])
                                                     
-        ipv6_subset = delegated_df[delegated_df['resource_type'] == 'ipv6']
-
-        # Now we have both IPv4 and IPv6 delegations in CIDR format
-        # we put them together in a single DataFrame
-        ip_subset = pd.concat([ipv4_cidr_del_df, ipv6_subset])
+        ip_subset = self.delegated_df[\
+                    (self.delegated_df['resource_type'] == 'ipv4') |\
+                    (self.delegated_df['resource_type'] == 'ipv6')]
 
         # We group th DataFrame by organization    
         orgs_groups = ip_subset.groupby(ip_subset['opaque_id'])
         
         # For each organization that received at least one delegation of an IP block
-        for org in list(set(ip_subset['opaque_id'])):
-            # we get all the rows corresponding to that org
-            org_subset = orgs_groups.get_group(org)
-    
+        for org, org_subset in orgs_groups:    
             del_networks_list = []
     
             for index, row in org_subset.iterrows():                
                 # We save the info about each delegated block 
                 # into the DataFrame we will return
                 # with False in the aggregated column
-                ip_block = '%s/%s' % (row['initial_resource'], int(row['count']))              
+                ip_block = '%s/%s' % (row['initial_resource'], int(row['count/prefLen']))              
 
                 orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [row['opaque_id'],\
                                                                     row['cc'],\
@@ -280,7 +295,7 @@ class DelegatedHandler:
                         if aggr_net.supernet_of(del_block):
                             row = ip_subset.ix[ip_subset[(ip_subset['initial_resource'] ==\
                                             str(del_block.network_address)) &\
-                                            (ip_subset['count'] == del_block.prefixlen)].index[0]]
+                                            (ip_subset['count/prefLen'] == del_block.prefixlen)].index[0]]
                             ccs.add(row['cc'])
                             regions.add(row['region'])
                             
@@ -308,12 +323,12 @@ class DelegatedHandler:
         
         # We scan the asn subset row by row
         for index, row in asn_subset.iterrows():
-            # If the value in the 'count' column is > 1
+            # If the value in the 'count/prefLen' column is > 1
             # more than one ASN was allocated
-            # so we have to expand this row into 'count' rows 
-            if row['count'] > 1:
+            # so we have to expand this row into 'count/prefLen' rows 
+            if row['count/prefLen'] > 1:
                 first_asn = int(row['initial_resource'])
-                allocated_asns = range(first_asn, first_asn + int(row['count']))
+                allocated_asns = range(first_asn, first_asn + int(row['count/prefLen']))
                 
                 for asn in allocated_asns:
                     expanded_df.loc[expanded_df.shape[0]] = [row['registry'],\
@@ -326,7 +341,7 @@ class DelegatedHandler:
                                                                 row['opaque_id'],\
                                                                 row['region']]
 
-            # If count is 1 we just add the row to the expanded DataFrame
+            # If count/prefLen is 1 we just add the row to the expanded DataFrame
             else:
                 expanded_df.loc[expanded_df.shape[0]] = row
             
@@ -343,7 +358,7 @@ class DelegatedHandler:
         
         subset = self.delegated_df[\
                 (self.delegated_df['initial_resource'] == str(network.network_address)) &\
-                (self.delegated_df['count'] == count)]
+                (self.delegated_df['count/prefLen'] == count)]
         
         if subset.shape[0] > 0:
             row = self.delegated_df.ix[subset.index[0]]

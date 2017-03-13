@@ -4,7 +4,7 @@
 import sys, getopt
 import numpy as np
 import pandas as pd
-import datetime
+import datetime, time
 import requests
 import json
 import hashlib
@@ -108,19 +108,19 @@ def computation_loop(delegated_subset, a, r, s, o, stats_df, dates_range):
     
     # NumOfResources computation
     if r == 'asn':
-        res_counts = date_groups['count'].agg(np.sum)
+        res_counts = date_groups['count/prefLen'].agg(np.sum)
         res_nonZeroDates = res_counts.index
     else: # r == 'ipv4' or r == 'ipv6'
         res_nonZeroDates = []
 
         if r == 'ipv4':
-            ipv4_counts = date_groups['count'].agg(np.sum)
+            ipv4_counts = date_groups['count/prefLen'].agg(np.sum)
             ipv4_counts_nonZeroDates = ipv4_counts.index
         else: # r == 'ipv6'
-            ipv6_counts = date_groups['count'].agg(compute56s)
+            ipv6_counts = date_groups['count/prefLen'].agg(compute56s)
             ipv6_counts_nonZeroDates = ipv6_counts.index
             
-            ipv6_space = date_groups['count'].agg(compute48s)
+            ipv6_space = date_groups['count/prefLen'].agg(compute48s)
             ipv6_space_nonZeroDates = ipv6_space.index
 
     for date in dates_range:
@@ -364,6 +364,7 @@ def main(argv):
     del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year, month, day)
         
     if not del_handler.delegated_df.empty:
+        start_time = time.time()
         stats_df = initializeStatsDF(del_handler, EXTENDED)
         sys.stderr.write("Stats Data Frame initialized successfully!\n")
         stats_df = computeStatistics(del_handler, stats_df)
@@ -380,8 +381,10 @@ def main(argv):
             stats_df = existing_stats_df
         else:
             sys.exit()
-            
+    
+    end_time = time.time()
     sys.stderr.write("Stats computed successfully!\n")
+    sys.stderr.write("Statistics computation took {} seconds".format(end_time-start_time))
             
     if DEBUG:
         file_name = '%s/delegated_stats_test_%s_%s' % (files_path, year, today)
