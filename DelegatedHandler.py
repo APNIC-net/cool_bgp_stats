@@ -135,6 +135,8 @@ class DelegatedHandler:
         
         if INCREMENTAL:
             delegated_df = delegated_df[delegated_df['date'] > final_existing_date]
+            if delegated_df.empty:
+                return pd.DataFrame()
 
         initial_date = min(delegated_df['date'])
         final_date = max(delegated_df['date'])

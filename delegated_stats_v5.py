@@ -197,7 +197,7 @@ def main(argv):
         yearStr = str(year)
     
     if not DEBUG:
-        file_name = '%s/delegated_stats_%s%s%s_%s' % (files_path, yearStr, month, day, today)
+        file_name = '%s/delegated_stats_%s%s%s' % (files_path, yearStr, month, day)
 
         if EXTENDED:
             del_file = '%s/extended_apnic_%s.txt' % (files_path, today)
@@ -205,7 +205,7 @@ def main(argv):
             del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
             
     else:
-        file_name = '%s/delegated_stats_test_%s%s%s_%s' % (files_path, yearStr, month, day, today)    
+        file_name = '%s/delegated_stats_test_%s%s%s' % (files_path, yearStr, month, day)
 
     if INCREMENTAL:
         if stats_file == '':
@@ -213,7 +213,7 @@ def main(argv):
             sys.exit()
         else:
             existing_stats_df = pd.read_csv(stats_file, sep = ',')
-            final_existing_date = max(existing_stats_df['Date'])
+            final_existing_date = pd.to_datetime(str(max(existing_stats_df['Date'])))
             del existing_stats_df
     else:
         stats_file = '{}.csv'.format(file_name)
@@ -230,20 +230,20 @@ def main(argv):
         end_time = time.time()
         sys.stderr.write("Stats computed successfully!\n")
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
-       
-    stats_df = pd.read_csv(stats_file, sep = ',')
-    json_filename = '{}.json'.format(file_name)
-    stats_df.to_json(json_filename, orient='index')
-    sys.stderr.write("Stats saved to files successfully!\n")
-    sys.stderr.write("({} and {})\n".format(stats_file, json_filename))
 
-    if user != '' and password != '':
-        r = saveDFToElasticSearch(stats_df, user, password)
-        status_code = r.status_code
-        if status_code == 200:
-            sys.stderr.write("Stats saved to ElasticSearch successfully!\n")
-        else:
-            print "Something went wrong when trying to save stats to ElasticSearch.\n"
+        stats_df = pd.read_csv(stats_file, sep = ',')
+        json_filename = '{}.json'.format(file_name)
+        stats_df.to_json(json_filename, orient='index')
+        sys.stderr.write("Stats saved to files successfully!\n")
+        sys.stderr.write("({} and {})\n".format(stats_file, json_filename))
+        
+        if user != '' and password != '':
+            r = saveDFToElasticSearch(stats_df, user, password)
+            status_code = r.status_code
+            if status_code == 200:
+                sys.stderr.write("Stats saved to ElasticSearch successfully!\n")
+            else:
+                print "Something went wrong when trying to save stats to ElasticSearch.\n"
 
         
 if __name__ == "__main__":
