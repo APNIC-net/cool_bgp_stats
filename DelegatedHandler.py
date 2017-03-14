@@ -100,7 +100,7 @@ class DelegatedHandler:
         if not num_rows == int(self.summary_records[self.summary_records['Type'] == 'All']['count']):
             print 'THERE\'S SOMETHING WRONG!'
     
-        for r in self.res_types[1:4]:
+        for r in self.res_types:
             total = len(delegated_df[delegated_df['resource_type'] == r])
             if not total == int(self.summary_records[self.summary_records['Type'] == r]['count']):
                 print 'THERE\'S SOMETHING WRONG WITH THE NUMBER OF %s' % r
@@ -134,12 +134,9 @@ class DelegatedHandler:
             delegated_df = pd.concat([asn_subset.head(n=30),ipv4_subset.head(n=30), ipv6_subset.head(n=30)])
         
         if INCREMENTAL:
-            initial_date = final_existing_date
-            delegated_df = delegated_df[delegated_df['date'] >= self.initial_date]
-    
-        else:
-            initial_date = min(delegated_df['date'])
-    
+            delegated_df = delegated_df[delegated_df['date'] > final_existing_date]
+
+        initial_date = min(delegated_df['date'])
         final_date = max(delegated_df['date'])
         
         self.dates_range = pd.date_range(start=initial_date, end=final_date, freq='D')

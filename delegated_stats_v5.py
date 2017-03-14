@@ -13,15 +13,13 @@ import getpass
 #import os
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from DelegatedHandler import DelegatedHandler
-
-#statistics = ["NumOfDelegations", "NumOfResources", "IPCount", "IPSpace"]
    
-# This function computes all the statistics for all the dates within a dates_range
-# from a DataFrame containing info about delegations (delegated_subset),
+# This function computes all the statistics for all the dates included in a given
+# subset from a DataFrame, which contains info about delegations (delegated_subset),
 # for a given combination of Geographic Area (a), Resource Type (r), Status(s)
 # and Organization (o)
-# The computes statistics are stored in the DataFrame stats_df
-def computation_loop(delegated_subset, a, r, s, o, dates_range, stats_filename):
+# The computed statistics are written to the provided file (stats_filename)
+def computation_loop(delegated_subset, a, r, s, o, stats_filename):
                    
     # If we are working with a specific resource type, we group the info
     # about delegations just by date
@@ -46,7 +44,7 @@ def computation_loop(delegated_subset, a, r, s, o, dates_range, stats_filename):
         
         with open(stats_filename, 'a') as stats_file:
             #Geographic Area,ResourceType,Status,Organization,Date,NumOfDelegations,NumOfResources,IPCount,IPSpace
-            stats_file.write('{}{}{}{}{}{}{}{}{}\n'.format(a, r, s, o, date, numOfDelegations, numOfResources, IPCount, IPSpace))
+            stats_file.write('{},{},{},{},{},{},{},{},{}\n'.format(a, r, s, o, date, numOfDelegations, numOfResources, IPCount, IPSpace))
 
     
     
@@ -58,12 +56,12 @@ def computeStatistics(del_handler, stats_filename):
         for country, area_df in org_df.groupby(org_df['cc']):
             for r, res_df in area_df.groupby(area_df['resource_type']):            
                 for s, status_res_df in res_df.groupby(res_df['status']): 
-                    computation_loop(status_res_df, country, r, s, org, del_handler.dates_range, stats_filename)
+                    computation_loop(status_res_df, country, r, s, org, stats_filename)
         
         for region, area_df in org_df.groupby(org_df['region']):
             for r, res_df in area_df.groupby(area_df['resource_type']):            
                 for s, status_res_df in res_df.groupby(res_df['status']): 
-                    computation_loop(status_res_df, region, r, s, org, del_handler.dates_range, stats_filename)
+                    computation_loop(status_res_df, region, r, s, org, stats_filename)
     
 def hashFromColValue(col_value):
     return hashlib.md5(col_value).hexdigest()
@@ -131,12 +129,6 @@ def main(argv):
     user = ''
     password = ''
     
-    # For DEBUG
-    DEBUG = True
-    EXTENDED = True
-    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170216.txt'
-    files_path = '/Users/sofiasilva/BGP_files'
-    
     try:
         opts, args = getopt.getopt(argv, "hy:m:D:d:ep:i:u:P:", ["year=", "month=", "Day=", "del_file=", "files_path=", "stats_file=", "user=", "password="])
     except getopt.GetoptError:
@@ -195,27 +187,14 @@ def main(argv):
         
     if files_path == '':
         print "You must provide a folder to save files."
-        sys.exit()             
-    
-    # TODO Decide what to do in the INCREMENTAL case 
-    # now that we do not have a stats DataFrame
-    if INCREMENTAL:
-        existing_stats_df = pd.DataFrame()
-
-        if stats_file == '':
-            print "If option -i is used, a statistics file MUST be provided."
-            sys.exit()
-        else:
-            existing_stats_df = pd.read_csv(stats_file, sep = ',')
-            final_existing_date = max(existing_stats_df['Date'])
-            # Remove stats for final existing date in case the stats for that day were incomplete
-            # Stats for that day will be computed again
-            existing_stats_df = existing_stats_df[existing_stats_df['Date'] != final_existing_date]
-
+        sys.exit()                             
+            
     today = datetime.date.today().strftime('%Y%m%d')
     
     if year == '':
         yearStr = 'AllDates'
+    else:
+        yearStr = str(year)
     
     if not DEBUG:
         file_name = '%s/delegated_stats_%s%s%s_%s' % (files_path, yearStr, month, day, today)
@@ -227,42 +206,44 @@ def main(argv):
             
     else:
         file_name = '%s/delegated_stats_test_%s%s%s_%s' % (files_path, yearStr, month, day, today)    
-    
-    with open('%s.csv' % file_name, 'w') as csv_file:
-        csv_file.write('Geographic Area,ResourceType,Status,Organization,Date,NumOfDelegations,NumOfResources,IPCount,IPSpace\n')
+
+    if INCREMENTAL:
+        if stats_file == '':
+            print "If option -i is used, a statistics file MUST be provided."
+            sys.exit()
+        else:
+            existing_stats_df = pd.read_csv(stats_file, sep = ',')
+            final_existing_date = max(existing_stats_df['Date'])
+            del existing_stats_df
+    else:
+        stats_file = '{}.csv'.format(file_name)
+        
+        with open(stats_file, 'w') as csv_file:
+            csv_file.write('Geographic Area,ResourceType,Status,Organization,Date,NumOfDelegations,NumOfResources,IPCount,IPSpace\n')
         
     del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year, month, day)
         
     if not del_handler.delegated_df.empty:
         start_time = time.time()
-        computeStatistics(del_handler, '%s.csv' % file_name)       
-        
-#        if INCREMENTAL:
-#            stats_df = pd.concat([existing_stats_df, stats_df])
-#    else:
-#        if INCREMENTAL:
-#            stats_df = existing_stats_df
-#        else:
-#            sys.exit()
+        computeStatistics(del_handler, stats_file)       
 
-    end_time = time.time()
-    sys.stderr.write("Stats computed successfully!\n")
-    sys.stderr.write("Statistics computation took {} seconds".format(end_time-start_time))   
-   
-        
-    # TODO Add code that reads csv file into DataFrame (plain_df)
-#    plain_df = stats_df.reset_index()
-#    plain_df.to_json('%s.json' % file_name, orient='index')
-#    sys.stderr.write("Stats saved to files successfully!\n")
-#    sys.stderr.write("(%s.csv and %s.json)" % (file_name, file_name))
-#
-#    if user != '' and password != '':
-#        r = saveDFToElasticSearch(plain_df, user, password)
-#        status_code = r.status_code
-#        if status_code == 200:
-#            sys.stderr.write("Stats saved to ElasticSearch successfully!\n")
-#        else:
-#            print "Something went wrong when trying to save stats to ElasticSearch.\n"
+        end_time = time.time()
+        sys.stderr.write("Stats computed successfully!\n")
+        sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
+       
+    stats_df = pd.read_csv(stats_file, sep = ',')
+    json_filename = '{}.json'.format(file_name)
+    stats_df.to_json(json_filename, orient='index')
+    sys.stderr.write("Stats saved to files successfully!\n")
+    sys.stderr.write("({} and {})\n".format(stats_file, json_filename))
+
+    if user != '' and password != '':
+        r = saveDFToElasticSearch(stats_df, user, password)
+        status_code = r.status_code
+        if status_code == 200:
+            sys.stderr.write("Stats saved to ElasticSearch successfully!\n")
+        else:
+            print "Something went wrong when trying to save stats to ElasticSearch.\n"
 
         
 if __name__ == "__main__":
