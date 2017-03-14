@@ -840,7 +840,7 @@ class BGPDataHandler:
         
     # This function returns the origin AS for a specific prefix
     # according to the routing data included in the BGP_data class variable
-    def getOriginASForBlock(self, network):        
+    def getOriginASesForBlock(self, network):        
         if network.version == 4:
             indexes_radix = self.ipv4_prefixes_indexes_radix
         else:
@@ -854,15 +854,7 @@ class BGPDataHandler:
                 originAS = self.bgp_data.ix[index, 'ASpath'].split(' ')[-1]
                 originASes.add(originAS)
             
-            if len(originASes) > 1:
-                print "Found prefix originated by more than one AS (%s)" % str(network)
-                # TODO Analyze these special cases
-                # Geoff says there are a lot of these
-                # I have already asked him what to do in these cases
-            if len(originASes) > 0:
-                return list(originASes)[0]
-            else:
-                return None
+            return originASes
         else:
             return None
     

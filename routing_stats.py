@@ -416,10 +416,13 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
         if routed_node is not None:
             # block is currently being announced, at least partially
         
-            # We get the origin AS for the block
+            # We get the origin ASes for the block
             # If the block is not being routed as-is (net is not in the more
-            # specifics list), blockOriginAS is None
-            blockOriginAS = bgp_handler.getOriginASForBlock(network)
+            # specifics list), blockOriginASes is None
+            blockOriginASes = bgp_handler.getOriginASesForBlock(network)
+            
+            if len(blockOriginASes) > 1:
+                orgs_aggr_networks.ix[i, 'multipleOriginASes'] = True
             
             more_specifics_wo_block = copy.copy(routed_node.data['more_specifics'])
             
@@ -459,10 +462,10 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # list of less specifics
                     coveringPref = routed_node.data['less_specifics'][-1]
                     coveringNet = ipaddress.ip_network(unicode(coveringPref, 'utf-8'))
-                    coveringPrefOriginAS = bgp_handler.getOriginASForBlock(coveringNet)
+                    coveringPrefOriginASes = bgp_handler.getOriginASesForBlock(coveringNet)
                     coveringPrefASpaths = bgp_handler.getASpathsForBlock(coveringNet)       
               
-                    if blockOriginAS == coveringPrefOriginAS:
+                    if len(blockOriginASes.intersection(coveringPrefOriginASes)) > 0:
                         if len(blockASpaths) == 1:
                             if blockASpaths.issubset(coveringPrefASpaths):
                                 orgs_aggr_networks.ix[i, 'SOSP'] = True
@@ -490,14 +493,21 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                                     
                     else:
                         if len(blockASpaths) == 1:
-                       
-                            if blockOriginAS in ASrels and\
-                                coveringPrefOriginAS in ASrels[blockOriginAS] and\
-                                ASrels[blockOriginAS][coveringPrefOriginAS] == 'C2P':
+                            if len(blockOriginASes) == 1:
+                                blockOriginAS = blockOriginASes.pop()
 
-                                blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
-                                if blockASpath_woOrigin in coveringPrefASpaths:
-                                    orgs_aggr_networks.ix[i, 'DOSP'] = True
+                                # We check whether the origin AS of the
+                                # block is a customer of any of the origin ASes
+                                # of the covering prefix                       
+                                for coveringPrefOriginAS in coveringPrefOriginASes:
+                                    if blockOriginAS in ASrels and\
+                                        coveringPrefOriginAS in ASrels[blockOriginAS]\
+                                        and ASrels[blockOriginAS][coveringPrefOriginAS]\
+                                        == 'C2P':
+
+                                            blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
+                                            if blockASpath_woOrigin in coveringPrefASpaths:
+                                                orgs_aggr_networks.ix[i, 'DOSP'] = True
                         
                             if not blockASpaths.issubset(coveringPrefASpaths):
                                 orgs_aggr_networks.ix[i, 'DODP1'] = True
@@ -592,7 +602,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                 if net in routed_node.data['more_specifics']:
                     orgs_aggr_networks.ix[i, 'allocIntact'] = True
                     
-                    # We check if the prefix and its origin AS were delegated
+                    # We check if the prefix and all its origin ASes were delegated
                     # to the same organization
                     # This not necessarily works correctly as delegations made
                     # by a NIR do not appear in the delegated file
@@ -600,21 +610,26 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # resource from WHOIS? NO! I need opaque_id
                     # https://www.apnic.net/about-apnic/whois_search/about/rdap/
                     # Ask George and Byron
-                    originASorg = asn_del[(pd.to_numeric(asn_del['initial_resource']) <= int(blockOriginAS)) &
-                                        (pd.to_numeric(asn_del['initial_resource'])+
-                                        pd.to_numeric(asn_del['count'])>int(blockOriginAS))]['opaque_id'].get_values()
-                    if len(originASorg) == 1:
-                        originASorg = originASorg[0]
-                    else:
-                        originASorg = 'UNKNOWN Org'
-                
+                    
                     prefixOrg = orgs_aggr_networks.ix[i, 'opaque_id']
+
+                    for blockOriginAS in blockOriginASes:
+                        originASorg = asn_del[(pd.to_numeric(asn_del['initial_resource'])\
+                                                <= int(blockOriginAS)) &\
+                                                (pd.to_numeric(asn_del['initial_resource'])+\
+                                                pd.to_numeric(asn_del['count'])>\
+                                                int(blockOriginAS))]['opaque_id'].get_values()
+                        if len(originASorg) == 1:
+                            originASorg = originASorg[0]
+                        else:
+                            originASorg = 'UNKNOWN Org'
+                
     
-                    # If the prefix is being originated by an AS delegated to
-                    # a different organization from the organization that
-                    # received the delegation of the block                 
-                    if originASorg != prefixOrg:
-                        orgs_aggr_networks.ix[i, 'originatedByDiffOrg'] = True
+                        # If the prefix is being originated by an AS delegated to
+                        # a different organization from the organization that
+                        # received the delegation of the block                 
+                        if originASorg != prefixOrg:
+                            orgs_aggr_networks.ix[i, 'originatedByDiffOrg'] = True
                    
                 # If there are no less specific blocks being routed and the list
                 # of more specific blocks being routed only contains the block
