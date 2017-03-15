@@ -599,9 +599,9 @@ class BGPDataHandler:
                                         'prefix',\
                                         'ASpath',\
                                         'origin'])
-
+        
         if bgp_df.shape[0] > 0:
-
+        
             if self.DEBUG:
                 bgp_df = bgp_df[0:10]
                 
@@ -616,47 +616,37 @@ class BGPDataHandler:
              # We add a column to the Data Frame with the corresponding date
             bgp_df['date'] = bgp_df.apply(lambda row: datetime.datetime.fromtimestamp(row['timestamp']).strftime('%Y%m%d'), axis=1)
             
-            for index, value in bgp_df.iterrows():
-                prefix = value['prefix']
-                ASpath = str(value['ASpath']).split(' ')
-                originAS = ASpath[-1]
-                middleASes = ASpath[:-1]
-              
+            ASpath_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
+            bgp_df['middleASes'] = ASpath_parts[0]
+            bgp_df['originAS'] = ASpath_parts[1]
+            
+            for prefix, prefix_subset in bgp_df.groupby('prefix'):
                 network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
                 if network.version == 4:
                     if network.prefixlen > ipv4_longest_prefix:
                         ipv4_longest_prefix = network.prefixlen
+                    prefixes_indexes_radix = ipv4_prefixes_indexes_radix
                     
-                    ipv4_node = ipv4_prefixes_indexes_radix.search_exact(prefix)
-                    if ipv4_node is not None:
-                        ipv4_node.data['indexes'].add(index)
-                    else:
-                        ipv4_node = ipv4_prefixes_indexes_radix.add(prefix)
-                        ipv4_node.data['indexes'] = set([index])
-                        
-                elif network.version == 6:
-                    if network.prefixlen > ipv6_longest_prefix:
-                        ipv6_longest_prefix = network.prefixlen  
-                    
-                    ipv6_node = ipv6_prefixes_indexes_radix.search_exact(prefix)
-                    if ipv6_node is not None:
-                        ipv6_node.data['indexes'].add(index)
-                    else:
-                        ipv6_node = ipv6_prefixes_indexes_radix.add(prefix)
-                        ipv6_node.data['indexes'] = set([index])
-                       
-                if originAS in ASes_originated_prefixes_dic.keys():
-                    if prefix not in ASes_originated_prefixes_dic[originAS]:
-                        ASes_originated_prefixes_dic[originAS].add(prefix)
                 else:
-                    ASes_originated_prefixes_dic[originAS] = set([prefix])
+                    if network.prefixlen > ipv6_longest_prefix:
+                        ipv6_longest_prefix = network.prefixlen 
+                    prefixes_indexes_radix = ipv6_prefixes_indexes_radix
                     
-                for asn in middleASes:
-                    if asn in ASes_propagated_prefixes_dic.keys():
-                        if prefix not in ASes_propagated_prefixes_dic[asn]:
-                            ASes_propagated_prefixes_dic[asn].add(prefix)
-                    else:
-                        ASes_propagated_prefixes_dic[asn] = set([prefix])
+                node = prefixes_indexes_radix.add(prefix)
+                node.data['indexes'] = set(prefix_subset.index)
+                            
+                for middleASes in prefix_subset['middleASes']:
+                    for asn in middleASes.split():
+                        asn = int(asn)
+                        if asn in ASes_propagated_prefixes_dic.keys():
+                            if prefix not in ASes_propagated_prefixes_dic[asn]:
+                                ASes_propagated_prefixes_dic[asn].add(prefix)
+                        else:
+                            ASes_propagated_prefixes_dic[asn] = set([prefix])
+                            
+            for originAS, originAS_subset in bgp_df.groupby('originAS'):
+                originAS = int(originAS)
+                ASes_originated_prefixes_dic[originAS] = set(originAS_subset['prefix'])
             
             if not self.KEEP:
                 try:
@@ -851,9 +841,7 @@ class BGPDataHandler:
         pref_node = indexes_radix.search_exact(str(network))
         if pref_node is not None:
             for index in pref_node.data['indexes']:
-                originAS = self.bgp_data.ix[index, 'ASpath'].split(' ')[-1]
-                originASes.add(originAS)
-            
+                originASes.add(self.bgp_data.ix[index, 'originAS'])            
             return originASes
         else:
             return None
@@ -867,8 +855,10 @@ class BGPDataHandler:
             indexes_radix = self.ipv6_prefixes_indexes_radix
             
         ASpaths = set()
-        for index in indexes_radix.search_exact(str(network)).data['indexes']:
-            ASpaths.add(self.bgp_data.ix[index, 'ASpath'])
+        pref_node = indexes_radix.search_exact(str(network))
+        if pref_node is not None:
+            for index in pref_node.data['indexes']:
+                ASpaths.add(self.bgp_data.ix[index, 'ASpath'])
         
         return ASpaths
 

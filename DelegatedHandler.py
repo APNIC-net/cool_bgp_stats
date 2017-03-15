@@ -250,7 +250,7 @@ class DelegatedHandler:
     def getDelAndAggrNetworks(self):
         
         orgs_aggr_networks = pd.DataFrame(columns= ['opaque_id', 'cc', 'region',\
-                                                    'ip_block', 'aggregated'])
+                                                    'prefix', 'aggregated'])
                                                     
         ip_subset = self.delegated_df[\
                     (self.delegated_df['resource_type'] == 'ipv4') |\

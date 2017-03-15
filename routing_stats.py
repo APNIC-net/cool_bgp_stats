@@ -13,8 +13,6 @@ import pandas as pd
 import numpy as np
 import datetime
 import copy
-import radix
-
 
 # This function downloads information about relationships between ASes inferred
 # by CAIDA and stores it in a dictionary in which all the active ASes appear as keys
@@ -136,7 +134,21 @@ def computeLevenshteinDistMetrics(blockASpaths, coveringPrefASpaths):
     levenshteinDistances = np.array(list(levenshteinDistances))
     return levenshteinDistances.mean(), levenshteinDistances.std(),\
             levenshteinDistances.min(), levenshteinDistances.max()
+
+# Function that returns a dictionary with default values for all the keys that
+# will be used to store the computed variables
+def getDictionaryWithDefaults(booleanKeys, valueKeys):
+
+    def_dict = dict()
     
+    for booleanKey in booleanKeys:
+        def_dict.setdefault(booleanKey, False)
+    
+    for valueKey in valueKeys:
+        def_dict.setdefault(valueKey, float(np.nan))
+    
+    return def_dict
+                    
 # This function computes statistics for each delegated block
 # and for each aggregated block resulting from summarizing multiple delegations
 # to the same organization.
@@ -147,73 +159,39 @@ def computeLevenshteinDistMetrics(blockASpaths, coveringPrefASpaths):
 # being routed (including the block itself if it is being routed as-is)
 # * less_specifics - the value for this key is a list of less specific blocks
 # being routed
-def computePerPrefixStats(bgp_handler, del_handler, ASrels):
+def computePerPrefixStats(bgp_handler, del_handler, ASrels, stats_filename,\
+                            orgs_aggr_columns, booleanKeys, valueKeys):
     # Obtain a DataFrame with all the delegated blocks and all the aggregated
     # block resulting from summarizing multiple delegations
     # to the same organization
     orgs_aggr_networks = del_handler.getDelAndAggrNetworks()
-        
-    # We add columns to store as boolean variables the concepts defined in [1]
-    
-    new_cols1 = ['isCovering', 'allocIntact', 'maxAggrRouted', 'fragmentsRouted',\
-                'isCovered_Level1', 'isCovered_Level2plus',\
-                'SOSP', 'SODP1', 'SODP2', 'DOSP', 'DODP1', 'DODP2', 'DODP3']
-
-    # The concept of 'aggregation over multiple allocations' defined in the paper
-    # cited above is slightly modified to suit our needs.
-    # (Note that we use 'delegation' instead of 'allocation' as it is a more
-    # general term.)
-    # In the paper each announcement is analyzed. While here we analyze each delegated
-    # block or each block resulting from the summarization of multiple delegations.
-    # We don't analyze all the possible summarizations of multiple delegations,
-    # but just the maximum aggregation possible. This is why we use a variable
-    # maxAggrRouted. This variale will be true if there is an announcement for
-    # a block resulting from the maximum aggregation possible of multiple delegations.
-    
-    # We add columns to store as boolean variables some of the concepts defined in [2]
-    # Prefixes classified as Top in this paper are the prefixes classified as Covering
-    # in [1]. Prefixes classified as Deaggregated in [2] are those classified as
-    # SOSP or SODP in [1]. Prefixes classified as Delegated in [2] are those
-    # classified as DOSP or DODP in [1]
-    # We just use the concepts defined in [2] that are not redundant with the
-    # concepts defined in [1]
-
-    new_cols2 = ['isLonely', 'onlyRoot', 'root_MScompl', 'root_MSincompl',\
-                    'noRoot_MScompl', 'noRoot_MSincompl']
-
-    # we also add a column to store info about the prefix being originated by an AS
-    # that was delegated to an organization that is not the same that received
-    # the delegation of the block
-    new_cols = new_cols1 + new_cols2 + ['originatedByDiffOrg']
-    
-    for new_col in new_cols:
-        orgs_aggr_networks.loc[:, new_col] =\
-            pd.Series([False]*orgs_aggr_networks.shape[0],\
-            index=orgs_aggr_networks.index)
     
     # Obtain ASN delegation data
     asn_del = del_handler.delegated_df[del_handler.delegated_df['resource_type'] == 'asn']
-    
-    del_routed = radix.Radix()
+        
+    def_dict = getDictionaryWithDefaults(booleanKeys, valueKeys)
     
     # For each delegated or aggregated block
-    for i in orgs_aggr_networks.index:
-        net = orgs_aggr_networks.ix[i]['ip_block']
+    for index, row in orgs_aggr_networks.iterrows():
+        curr_def_dict = def_dict.copy()
+        
+        net = row['prefix']
+        curr_def_dict['prefix'] = net
+        curr_def_dict['opaque_id'] = row['opaque_id']
+        curr_def_dict['cc'] = row['cc']
+        curr_def_dict['region'] = row['region']
+        curr_def_dict['aggregated'] = row['aggregated']
+        
         network = ipaddress.ip_network(unicode(net, "utf-8"))
         ips_delegated = network.num_addresses
    
         # Find routed blocks related to the delegated or aggregated block 
         net_less_specifics = bgp_handler.getRoutedParentAndGrandparents(network)
         net_more_specifics = bgp_handler.getRoutedChildren(network)
-
-        if len(net_more_specifics) > 0 or len(net_less_specifics) > 0:
-            routed_node = del_routed.add(net)
-            routed_node.data['more_specifics'] = net_more_specifics
-            routed_node.data['less_specifics'] = net_less_specifics
         
-        if not orgs_aggr_networks.ix[i, 'aggregated']: 
-            # For not aggregated blocks (blocks that were delegated as-is)
-            # we compute their Usage Latency and History of Visibility
+        if not curr_def_dict['aggregated']: 
+            # For not aggregated blocks (blocks that correspond to a single
+            # delegation) we compute their Usage Latency and History of Visibility
             
             # Based on [1]
             # We define usage latency of a delegated address block as
@@ -227,19 +205,22 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
             first_seen = bgp_handler.getDateFirstSeen(network)
                         
             if first_seen is not None and del_date is not None:
-                orgs_aggr_networks.ix[i, 'UsageLatency'] = (first_seen-del_date).days
+                curr_def_dict['UsageLatency'] = (first_seen-del_date).days
             else:
-                orgs_aggr_networks.ix[i, 'UsageLatency'] = float('inf')
+                curr_def_dict['UsageLatency'] = float('inf')
       
             # Intact Allocation Usage Latency computation
             # We compute the number of days between the date the block
             # was delegated and the date the block as-is was first seen
-            first_seen_intact = bgp_handler.getDateFirstSeenExact(network)
+            if first_seen is not None:
+                first_seen_intact = bgp_handler.getDateFirstSeenExact(network)
+            else:
+                first_seen_intact = None
                         
             if first_seen_intact is not None and del_date is not None:
-                orgs_aggr_networks.ix[i, 'UsageLatencyAllocIntact'] = (first_seen_intact-del_date).days
+                curr_def_dict['UsageLatencyAllocIntact'] = (first_seen_intact-del_date).days
             else:
-                orgs_aggr_networks.ix[i, 'UsageLatencyAllocIntact'] = float('inf')
+                curr_def_dict['UsageLatencyAllocIntact'] = float('inf')
         
             # History of Visibility (Visibility Evoluntion in Time) computation
             if del_date is not None:
@@ -261,19 +242,19 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # We define the "relative used time" as the percentage of
                     # days the prefix was used from the total number of days
                     # the prefix could have been used (Usable time)
-                    orgs_aggr_networks.ix[i, 'relUsedTime'] = 100*daysUsed/daysUsable
+                    curr_def_dict['relUsedTime'] = 100*daysUsed/daysUsable
                     
                     # We define the "effective usage" as the percentage of days
                     # the prefix was seen from the number of days the prefix
                     # was used
-                    orgs_aggr_networks.ix[i, 'effectiveUsage'] = 100*daysSeen/daysUsed
+                    curr_def_dict['effectiveUsage'] = 100*daysSeen/daysUsed
                     
                     # We define the "time fragmentation" as the average number
                     # of periods in a 60 days (aprox 2 months) time lapse.
                     # We chose to use 60 days to be coherent with the
                     # considered interval of time used to analyze visibility
                     # stability in [1]
-                    orgs_aggr_networks.ix[i, 'timeFragmentation'] = numOfPeriods/(daysUsed/60)
+                    curr_def_dict['timeFragmentation'] = numOfPeriods/(daysUsed/60)
                                     
                     periodsLengths = []
                     for period in periodsIntact:
@@ -282,10 +263,10 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                             datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days)
                     
                     periodsLengths = np.array(periodsLengths)
-                    orgs_aggr_networks.ix[i, 'avgPeriodLength'] = periodsLengths.mean()
-                    orgs_aggr_networks.ix[i, 'stdPeriodLength'] = periodsLengths.std()
-                    orgs_aggr_networks.ix[i, 'minPeriodLength'] = periodsLengths.min()
-                    orgs_aggr_networks.ix[i, 'maxPeriodLength'] = periodsLengths.max()
+                    curr_def_dict['avgPeriodLength'] = periodsLengths.mean()
+                    curr_def_dict['stdPeriodLength'] = periodsLengths.std()
+                    curr_def_dict['minPeriodLength'] = periodsLengths.min()
+                    curr_def_dict['maxPeriodLength'] = periodsLengths.max()
                     
                 # General History of Visibility of Prefix
                 # The General History of Visibility takes into account not only
@@ -324,44 +305,36 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                             
                     numsOfPeriods_gral = np.array(numsOfPeriods_gral)
                     avgNumOfPeriods_gral = numsOfPeriods_gral.mean()
-                    stdNumOfPeriods_gral = numsOfPeriods_gral.std()
-                    minNumOfPeriods_gral = numsOfPeriods_gral.min()
-                    maxNumOfPeriods_gral = numsOfPeriods_gral.max()
-                    
+#                    stdNumOfPeriods_gral = numsOfPeriods_gral.std()
+#                    minNumOfPeriods_gral = numsOfPeriods_gral.min()
+#                    maxNumOfPeriods_gral = numsOfPeriods_gral.max()
+#                    
                     daysUsed_gral = np.array(daysUsed_gral)
                     avgDaysUsed_gral = daysUsed_gral.mean()
-                    stdDaysUsed_gral = daysUsed_gral.std()
-                    minDaysUsed_gral = daysUsed_gral.min()
-                    maxDaysUsed_gral = daysUsed_gral.max()
+#                    stdDaysUsed_gral = daysUsed_gral.std()
+#                    minDaysUsed_gral = daysUsed_gral.min()
+#                    maxDaysUsed_gral = daysUsed_gral.max()
 
-                    orgs_aggr_networks.ix[i, 'avgRelUsedTime_gral'] =\
-                                            100*avgDaysUsed_gral/daysUsable
+                    curr_def_dict['avgRelUsedTime_gral'] =\
+                                                100*avgDaysUsed_gral/daysUsable
 
-                    orgs_aggr_networks.ix[i, 'avgTimeFragmentation_gral'] =\
-                            avgNumOfPeriods_gral/(avgDaysUsed_gral/60)
+                    curr_def_dict['avgTimeFragmentation_gral'] =\
+                                        avgNumOfPeriods_gral/(avgDaysUsed_gral/60)
                     
                     daysSeen_gral = np.array(daysSeen_gral)
                     avgDaysSeen_gral = daysSeen_gral.mean()
-                    stdDaysSeen_gral = daysSeen_gral.std()
-                    minDaysSeen_gral = daysSeen_gral.min()
-                    maxDaysSeen_gral = daysSeen_gral.max()
+#                    stdDaysSeen_gral = daysSeen_gral.std()
+#                    minDaysSeen_gral = daysSeen_gral.min()
+#                    maxDaysSeen_gral = daysSeen_gral.max()
                     
-                    orgs_aggr_networks.ix[i, 'avgEffectiveUsage_gral'] =\
-                                100*avgDaysSeen_gral/avgDaysUsed_gral
+                    curr_def_dict['avgEffectiveUsage_gral'] =\
+                                            100*avgDaysSeen_gral/avgDaysUsed_gral
                     
                     periodsLengths_gral = np.array(periodsLengths_gral)
-                    orgs_aggr_networks.ix[i, 'avgPeriodLength_gral'] =\
-                                                periodsLengths_gral.mean()
-                    orgs_aggr_networks.ix[i, 'stdPeriodLength_gral'] =\
-                                                    periodsLengths_gral.std()
-                    orgs_aggr_networks.ix[i, 'minPeriodLength_gral'] =\
-                                                    periodsLengths_gral.min()
-                    orgs_aggr_networks.ix[i, 'maxPeriodLength_gral'] =\
-                                                    periodsLengths_gral.max()
-
-                # TODO Are we interested in the std, min and max for numOfPeriods,
-                # daysUsed and daysSeen? Do we want to store all these variables?
-                # If yes, store them into orgs_aggr_networks
+                    curr_def_dict['avgPeriodLength_gral'] = periodsLengths_gral.mean()
+                    curr_def_dict['stdPeriodLength_gral'] = periodsLengths_gral.std()
+                    curr_def_dict['minPeriodLength_gral'] = periodsLengths_gral.min()
+                    curr_def_dict['maxPeriodLength_gral'] = periodsLengths_gral.max()
                 
                 # We summarize all the prefixes seen during each period
                 for period in prefixesPerPeriod:
@@ -379,9 +352,8 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
 
                 last_seen = bgp_handler.getDateLastSeen(network)
                 if last_seen < today:
-                    visibilityPerPeriods[\
-                        (int(last_seen.strftime('%Y%m%d')),\
-                        int(today.strftime('%Y%m%d')))] = 0
+                    visibilityPerPeriods[(int(last_seen.strftime('%Y%m%d')),\
+                                        int(today.strftime('%Y%m%d')))] = 0
 
                 for i in range(len(timeBreaks)-1):
                     numOfIPsVisible = 0
@@ -398,22 +370,17 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                 # TODO Do we want to store the visibility per periods? How?
 
                 visibilityPerPeriods = np.array(visibilityPerPeriods.values())
-                orgs_aggr_networks.ix[i, 'avgVisibility'] =\
-                                                    visibilityPerPeriods.mean()
-                orgs_aggr_networks.ix[i, 'stdVisibility'] =\
-                                                        visibilityPerPeriods.std()
-                orgs_aggr_networks.ix[i, 'minVisibility'] =\
-                                                        visibilityPerPeriods.min()
-                orgs_aggr_networks.ix[i, 'maxVisibility'] =\
-                                                        visibilityPerPeriods.max()
+                curr_def_dict['avgVisibility'] = visibilityPerPeriods.mean()
+                curr_def_dict['stdVisibility'] = visibilityPerPeriods.std()
+                curr_def_dict['minVisibility'] = visibilityPerPeriods.min()
+                curr_def_dict['maxVisibility'] = visibilityPerPeriods.max()
                                             
-                orgs_aggr_networks.ix[i, 'isDead'] = ((today-last_seen).days > 365)
-                orgs_aggr_networks.ix[i, 'isDeadIntact'] = ((today-last_seen_intact).days > 365)
+                curr_def_dict['isDead'] = ((today-last_seen).days > 365)
+                curr_def_dict['isDeadIntact'] = ((today-last_seen_intact).days > 365)
 
         visibility = -1
         
-        routed_node = del_routed.search_exact(net)
-        if routed_node is not None:
+        if len(net_more_specifics) > 0 or len(net_less_specifics) > 0:
             # block is currently being announced, at least partially
         
             # We get the origin ASes for the block
@@ -422,12 +389,12 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
             blockOriginASes = bgp_handler.getOriginASesForBlock(network)
             
             if len(blockOriginASes) > 1:
-                orgs_aggr_networks.ix[i, 'multipleOriginASes'] = True
+                curr_def_dict['multipleOriginASes'] = True
             
-            more_specifics_wo_block = copy.copy(routed_node.data['more_specifics'])
+            more_specifics_wo_block = copy.copy(net_more_specifics)
             
             # If the block is being announced as-is            
-            if net in routed_node.data['more_specifics']:
+            if net in net_more_specifics:
                 # we get a list of the more specifics not including the block itself
                 more_specifics_wo_block.remove(net)
             
@@ -441,16 +408,16 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
            
             # If there is at least one less specific block being routed
             # the block is covered and therefore its visibility is 100 %
-            if len(routed_node.data['less_specifics']) > 0:
+            if len(net_less_specifics) > 0:
                 visibility = 100
-                if len(routed_node.data['less_specifics']) == 1:
-                    orgs_aggr_networks.ix[i, 'isCovered_Level1'] = True
+                if len(net_less_specifics) == 1:
+                    curr_def_dict['isCovered_Level1'] = True
                 else:
-                    orgs_aggr_networks.ix[i, 'isCovered_Level2plus'] = True
+                    curr_def_dict['isCovered_Level2plus'] = True
 
                 # If apart from having less specific blocks being routed,
                 # the block itself is being routed
-                if net in routed_node.data['more_specifics']:
+                if net in net_more_specifics:
                     # we classify the prefix based on its advertisement paths
                     # paths relative to that of their corresponding covering
                     # prefix
@@ -460,7 +427,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
 
                     # The corresponding covering prefix is the last prefix in the
                     # list of less specifics
-                    coveringPref = routed_node.data['less_specifics'][-1]
+                    coveringPref = net_less_specifics[-1]
                     coveringNet = ipaddress.ip_network(unicode(coveringPref, 'utf-8'))
                     coveringPrefOriginASes = bgp_handler.getOriginASesForBlock(coveringNet)
                     coveringPrefASpaths = bgp_handler.getASpathsForBlock(coveringNet)       
@@ -468,26 +435,26 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     if len(blockOriginASes.intersection(coveringPrefOriginASes)) > 0:
                         if len(blockASpaths) == 1:
                             if blockASpaths.issubset(coveringPrefASpaths):
-                                orgs_aggr_networks.ix[i, 'SOSP'] = True
+                                curr_def_dict['SOSP'] = True
                             else:
-                                orgs_aggr_networks.ix[i, 'SODP2'] = True
+                                curr_def_dict['SODP2'] = True
                                 
-                                orgs_aggr_networks.ix[i, 'avgLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'stdLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'minLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'maxLevenshteinDist'] =\
+                                curr_def_dict['avgLevenshteinDist'],\
+                                curr_def_dict['stdLevenshteinDist'],\
+                                curr_def_dict['minLevenshteinDist'],\
+                                curr_def_dict['maxLevenshteinDist'] =\
                                     computeLevenshteinDistMetrics(blockASpaths,\
                                                             coveringPrefASpaths)
                                                             
                         else: # len(blockASpaths) >= 2
                             if len(coveringPrefASpaths.intersection(blockASpaths)) > 0 and\
                                 len(blockASpaths.difference(coveringPrefASpaths)) > 0:
-                                orgs_aggr_networks.ix[i, 'SODP1'] = True
+                                curr_def_dict['SODP1'] = True
                                 
-                                orgs_aggr_networks.ix[i, 'avgLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'stdLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'minLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'maxLevenshteinDist'] =\
+                                curr_def_dict['avgLevenshteinDist'],\
+                                curr_def_dict['stdLevenshteinDist'],\
+                                curr_def_dict['minLevenshteinDist'],\
+                                curr_def_dict['maxLevenshteinDist'] =\
                                     computeLevenshteinDistMetrics(blockASpaths,\
                                                             coveringPrefASpaths)
                                     
@@ -507,15 +474,15 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
 
                                             blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
                                             if blockASpath_woOrigin in coveringPrefASpaths:
-                                                orgs_aggr_networks.ix[i, 'DOSP'] = True
+                                                curr_def_dict['DOSP'] = True
                         
                             if not blockASpaths.issubset(coveringPrefASpaths):
-                                orgs_aggr_networks.ix[i, 'DODP1'] = True
+                                curr_def_dict['DODP1'] = True
                                 
-                                orgs_aggr_networks.ix[i, 'avgLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'stdLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'minLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'maxLevenshteinDist'] =\
+                                curr_def_dict['avgLevenshteinDist'],\
+                                curr_def_dict['stdLevenshteinDist'],\
+                                curr_def_dict['minLevenshteinDist'],\
+                                curr_def_dict['maxLevenshteinDist'] =\
                                     computeLevenshteinDistMetrics(blockASpaths,\
                                                             coveringPrefASpaths)
                                                             
@@ -526,12 +493,12 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                             
                             if len(coveringPrefASpaths.intersection(blockASpaths_woOrigin)) > 0 and\
                                 len(blockASpaths_woOrigin.difference(coveringPrefASpaths)) > 0:
-                                orgs_aggr_networks.ix[i, 'DODP2'] = True
+                                curr_def_dict['DODP2'] = True
                                 
-                                orgs_aggr_networks.ix[i, 'avgLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'stdLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'minLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'maxLevenshteinDist'] =\
+                                curr_def_dict['avgLevenshteinDist'],\
+                                curr_def_dict['stdLevenshteinDist'],\
+                                curr_def_dict['minLevenshteinDist'],\
+                                curr_def_dict['maxLevenshteinDist'] =\
                                     computeLevenshteinDistMetrics(blockASpaths,\
                                                             coveringPrefASpaths)
                           
@@ -540,12 +507,12 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                                 # Origin AS for covered prefix and Origin AS for
                                 # covering prefix have a common customer?
                                 # Origin AS for covered prefix advertises two or more prefixes 
-                                orgs_aggr_networks.ix[i, 'DODP3'] = True
+                                curr_def_dict['DODP3'] = True
                                 
-                                orgs_aggr_networks.ix[i, 'avgLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'stdLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'minLevenshteinDist'],\
-                                orgs_aggr_networks.ix[i, 'maxLevenshteinDist'] =\
+                                curr_def_dict['avgLevenshteinDist'],\
+                                curr_def_dict['stdLevenshteinDist'],\
+                                curr_def_dict['minLevenshteinDist'],\
+                                curr_def_dict['maxLevenshteinDist'] =\
                                     computeLevenshteinDistMetrics(blockASpaths,\
                                                             coveringPrefASpaths)
                             
@@ -553,7 +520,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
             else:
                 # If the list of more specific blocks being routed includes
                 # the block itself
-                if net in routed_node.data['more_specifics']:
+                if net in net_more_specifics:
                     # The block is 100 % visible
                     visibility = 100
                     
@@ -561,11 +528,11 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # includes the block itself, taking into account we are 
                     # under the case of the block not having less specific
                     # blocks being routed,
-                    if len(routed_node.data['more_specifics']) == 1:
+                    if len(net_more_specifics) == 1:
                         # the block is a Lonely prefix
                         # • Lonely: a prefix that does not overlap
                         # with any other prefix.
-                        orgs_aggr_networks.ix[i, 'isLonely'] = True
+                        curr_def_dict['isLonely'] = True
                         
                 # If the block itself is not being routed, we have to compute
                 # the visibility based on the more specific block being routed
@@ -586,21 +553,21 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                 # of the block not having less specific blocks being routed,
                 if len(more_specifics_wo_block) > 0:
                     # The block is a Covering prefix  
-                    orgs_aggr_networks.ix[i, 'isCovering'] = True
+                    curr_def_dict['isCovering'] = True
 
             # If there are more specific blocks being routed 
             if len(more_specifics_wo_block) > 0:
-                orgs_aggr_networks.ix[i, 'fragmentsRouted'] =  True
+                curr_def_dict['fragmentsRouted'] =  True
                     
             # If the block is not the result of aggregating multiple delegated blocks
             # (the block was delegated as-is)
-            if not orgs_aggr_networks.ix[i, 'aggregated']: 
+            if not curr_def_dict['aggregated']: 
 
                 # Independently of the block being a covering or a covered prefix,
                 # if the delegated block (not aggregated) is being announced as-is,
                 # allocIntact is True
-                if net in routed_node.data['more_specifics']:
-                    orgs_aggr_networks.ix[i, 'allocIntact'] = True
+                if net in net_more_specifics:
+                    curr_def_dict['allocIntact'] = True
                     
                     # We check if the prefix and all its origin ASes were delegated
                     # to the same organization
@@ -611,7 +578,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                     # https://www.apnic.net/about-apnic/whois_search/about/rdap/
                     # Ask George and Byron
                     
-                    prefixOrg = orgs_aggr_networks.ix[i, 'opaque_id']
+                    prefixOrg = curr_def_dict['opaque_id']
 
                     for blockOriginAS in blockOriginASes:
                         originASorg = asn_del[(pd.to_numeric(asn_del['initial_resource'])\
@@ -629,49 +596,59 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels):
                         # a different organization from the organization that
                         # received the delegation of the block                 
                         if originASorg != prefixOrg:
-                            orgs_aggr_networks.ix[i, 'originatedByDiffOrg'] = True
+                            curr_def_dict['originatedByDiffOrg'] = True
                    
                 # If there are no less specific blocks being routed and the list
                 # of more specific blocks being routed only contains the block
                 # itself
-                if len(routed_node.data['less_specifics']) == 0 and routed_node.data['more_specifics'] == [net]:
-                    orgs_aggr_networks.ix[i, 'onlyRoot'] = True
+                if len(net_less_specifics) == 0 and net_more_specifics == [net]:
+                    curr_def_dict['onlyRoot'] = True
                     # This variable is similar to the variable isLonely but can
                     # only be True for not aggregated blocks 
                 
-                elif net in routed_node.data['more_specifics']:
-                    if len(routed_node.data['more_specifics']) >= 3 and net in [str(ip_net) for ip_net in aggr_less_spec]:
+                elif net in net_more_specifics:
+                    if len(net_more_specifics) >= 3 and net in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • root/MS-complete: The root prefix and at least two subprefixes
                         # are announced. The set of all sub-prefixes spans
                         # the whole root prefix.
-                        orgs_aggr_networks.ix[i, 'root_MScompl'] = True
-                    elif len(routed_node.data['more_specifics']) >= 2 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
+                        curr_def_dict['root_MScompl'] = True
+                    elif len(net_more_specifics) >= 2 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • root/MS-incomplete: The root prefix and at least one subprefix
                         # is announced. Together, the set of announced subprefixes
                         # does not cover the root prefix.
-                        orgs_aggr_networks.ix[i, 'root_MSincompl'] = True
+                        curr_def_dict['root_MSincompl'] = True
                 else:
-                    if len(routed_node.data['more_specifics']) >= 2 and net in [str(ip_net) for ip_net in aggr_less_spec]:
+                    if len(net_more_specifics) >= 2 and net in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • no root/MS-complete: The root prefix is not announced.
                         # However, there are at least two sub-prefixes which together
                         # cover the complete root prefix.
-                        orgs_aggr_networks.ix[i, 'noRoot_MScompl'] = True
-                    elif len(routed_node.data['more_specifics']) >= 1 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
+                        curr_def_dict['noRoot_MScompl'] = True
+                    elif len(net_more_specifics) >= 1 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
                         # • no root/MS-incomplete: The root prefix is not announced.
                         # There is at least one sub-prefix. Taking all sub-prefixes
                         # together, they do not cover the complete root prefix.
-                        orgs_aggr_networks.ix[i, 'noRoot_MSincompl'] = True
+                        curr_def_dict['noRoot_MSincompl'] = True
                         
             # if the block is the result of an aggregation of multiple delegations
             else:
                 # and the block itself is being routed
-                if net in routed_node.data['more_specifics']:
+                if net in net_more_specifics:
                     # the maximum aggregation over multiple delegations is being routed
-                    orgs_aggr_networks.ix[i, 'maxAggrRouted'] = True
+                    curr_def_dict['maxAggrRouted'] = True
         
-        orgs_aggr_networks.ix[i, 'visibility'] = visibility
+        curr_def_dict['visibility'] = visibility
+        
+        allAttr = orgs_aggr_columns + booleanKeys + valueKeys
+        
+        line = curr_def_dict[allAttr[0]]
+        
+        for i in range(len(allAttr)-1):
+            line = '{},{}'.format(line, curr_def_dict[allAttr[i+1]])
+        
+        line = line + '\n'
 
-    return orgs_aggr_networks, del_routed
+        with open(stats_filename, 'a') as stats_file:
+            stats_file.write(line)
 
 # This function determines whether the allocated ASNs are active
 # either as middle AS, origin AS or both
@@ -754,7 +731,8 @@ def computeASesStats(bgp_handler, del_handler):
                 statsForASes[asn]['stdPeriodLength'] = periodsLengths.std()
                 statsForASes[asn]['minPeriodLength'] = periodsLengths.min()
                 statsForASes[asn]['maxPeriodLength'] = periodsLengths.max()
-       
+
+    # TODO Update function i order to write stats to file instead of returning dictionary
     return statsForASes
     
     
@@ -997,10 +975,63 @@ def main(argv):
                         final_existing_date, year, month, day)
 
         ASrels = getASrelInfo(serial=2, files_path=files_path, KEEP=KEEP)
+        
+        # Keys to store the concepts defined in [1]
+        keysList1 = ['isCovering', 'allocIntact', 'maxAggrRouted', 'fragmentsRouted',\
+                    'isCovered_Level1', 'isCovered_Level2plus',\
+                    'SOSP', 'SODP1', 'SODP2', 'DOSP', 'DODP1', 'DODP2', 'DODP3']
+        
+        # The concept of 'aggregation over multiple allocations' defined in the paper
+        # cited above is slightly modified to suit our needs.
+        # (Note that we use 'delegation' instead of 'allocation' as it is a more
+        # general term.)
+        # In the paper each announcement is analyzed. While here we analyze each delegated
+        # block or each block resulting from the summarization of multiple delegations.
+        # We don't analyze all the possible summarizations of multiple delegations,
+        # but just the maximum aggregation possible. This is why we use a variable
+        # maxAggrRouted. This variale will be true if there is an announcement for
+        # a block resulting from the maximum aggregation possible of multiple delegations.
+        
+        # Keys to store some of the concepts defined in [2].
+        # Prefixes classified as Top in this paper are the prefixes classified as Covering
+        # in [1]. Prefixes classified as Deaggregated in [2] are those classified as
+        # SOSP or SODP in [1]. Prefixes classified as Delegated in [2] are those
+        # classified as DOSP or DODP in [1]
+        # We just use the concepts defined in [2] that are not redundant with the
+        # concepts defined in [1]
+        
+        keysList2 = ['isLonely', 'onlyRoot', 'root_MScompl', 'root_MSincompl',\
+                        'noRoot_MScompl', 'noRoot_MSincompl']
+                        
+        # We will also use a key to store info about the prefix being originated by an AS
+        # that was delegated to an organization that is not the same that received
+        # the delegation of the block
+        additionalKeys = ['originatedByDiffOrg', 'isDead', 'isDeadIntact',\
+                            'multipleOriginASes']
+        booleanKeys = keysList1 + keysList2 + additionalKeys
+        
+        valueKeys = ['UsageLatency', 'UsageLatencyAllocIntact', 'relUsedTime',\
+                    'effectiveUsage', 'timeFragmentation', 'avgPeriodLength',\
+                    'stdPeriodLength', 'minPeriodLength', 'maxPeriodLength',\
+                    'avgRelUsedTime_gral', 'avgTimeFragmentation_gral',\
+                    'avgEffectiveUsage_gral', 'avgPeriodLength_gral',\
+                    'stdPeriodLength_gral', 'minPeriodLength_gral',\
+                    'maxPeriodLength_gral', 'avgVisibility', 'stdVisibility',\
+                    'minVisibility', 'maxVisibility', 'avgLevenshteinDist',\
+                    'stdLevenshteinDist', 'minLevenshteinDist', 'maxLevenshteinDist',\
+                    'visibility']
+        
+        orgs_aggr_columns = ['prefix', 'aggregated', 'opaque_id', 'cc', 'region']
+        
+        allAttr = orgs_aggr_columns + booleanKeys + valueKeys
 
-        prefixes_Stats, routed_radix = computePerPrefixStats(bgp_handler, del_handler, ASrels)
+        # TODO Define stats_filename
+        # If not INCREMENTAL write to stats file line with headers (allAttr)
+                
+        computePerPrefixStats(bgp_handler, del_handler, ASrels, stats_filename,\
+                                orgs_aggr_columns, booleanKeys, valueKeys)
         statsForASes = computeASesStats(bgp_handler, del_handler)
-        # TODO Save Stats and routed prefixes to files and ElasticSearch
+        # TODO Save Stats and routed prefixes to JSON file and ElasticSearch
         
     else:
        bgp_handler.saveDataToFiles()
