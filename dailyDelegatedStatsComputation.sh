@@ -1,8 +1,14 @@
 #!/bin/bash
+# This script receives the path to the python script that computes statistics about delegations as first argument
+# and the path to the folder where already computed statistics are stored.
+# This scrips lists the provided folder looking for a csv file with stats about delegations for the current year
+# If there is no file for the current year, all the stats for the current year are computed.
+# If there is a file with statistics for the current year, statistics for the rest of the year (up until today)
+# are computed and appended to the existing file.
 
-pythonScript="/Users/sofiasilva/GitHub/cool_bgp_stats/delegated_stats_v5.py"
+pythonScript=$1
+delStats_folder=$2
 
-delStats_folder="/Users/sofiasilva/BGP_files/DelegatedStats"
 curr_year=$(date +'%Y')
 statsForCurrYear=`ls $delStats_folder | grep "_$curr_year\_" | grep csv`
 numOfStatsFiles=${#statsForCurrYear[@]}
