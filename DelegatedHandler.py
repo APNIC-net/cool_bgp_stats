@@ -30,7 +30,7 @@ class DelegatedHandler:
     orgs = []
     orgs_areas = dict()
 
-    def __init__(self, DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year, month, day):
+    def __init__(self, DEBUG, EXTENDED, del_file, date, INCREMENTAL, UNTIL):
         
         self.res_types = ['asn', 'ipv4', 'ipv6']    
         
@@ -61,10 +61,12 @@ class DelegatedHandler:
         self.status_asn = ['alloc-32bits', 'alloc-16bits']
         self.status_ip = ['allocated', 'assigned']
         
-        self.getAndTidyData(DEBUG, EXTENDED, download_url, del_file, col_names, INCREMENTAL, final_existing_date, year, month, day)
-        sys.stderr.write("DelegatedHandler instantiated successfully!\n")
+        self.getAndTidyData(DEBUG, EXTENDED, download_url, del_file, col_names,\
+                                date, INCREMENTAL, UNTIL)
+        sys.stderr.write("DelegatedHandler instantiated and loaded successfully!\n")
     
-    def getAndTidyData(self, DEBUG, EXTENDED, download_url, del_file, col_names, INCREMENTAL, final_existing_date, year, month, day):
+    def getAndTidyData(self, DEBUG, EXTENDED, download_url, del_file, col_names,\
+                        date, INCREMENTAL, UNTIL):
         if not DEBUG:
             get_file(download_url, del_file)
             
@@ -112,18 +114,39 @@ class DelegatedHandler:
         
         delegated_df['date'] = pd.to_datetime(delegated_df['date'], format='%Y%m%d')
         
-        if year != '':
+        if date != '':  
+            try:
+                year = int(date[0:4])
+            except ValueError:
+                year = ''
+            try:
+                month = int(date[4:6])
+            except ValueError:
+                month = ''
+            try:
+                day = int(date[6:8])
+            except ValueError:
+                day = ''
+        else:
+            year = ''
+            month = ''
+            day = ''
+        
+        if UNTIL:
+            delegated_df = delegated_df[delegated_df['date'] <= pd.to_datetime(date)]
+            
+        elif year != '':
             # We take the subset corresponding to the year of interest
             delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.year) == year]
-        
-        if month != '':
-            # We take the subset corresponding to the month of interest
-            delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.month) == month]
-
-        if day != '':
-            # We take the subset corresponding to the day of interest
-            delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.day) == day]        
-        
+            
+            if month != '':
+                # We take the subset corresponding to the month of interest
+                delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.month) == month]
+    
+            if day != '':
+                # We take the subset corresponding to the day of interest
+                delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.day) == day]        
+            
         if delegated_df.empty:
             return pd.DataFrame()
             
@@ -134,7 +157,7 @@ class DelegatedHandler:
             delegated_df = pd.concat([asn_subset.head(n=30),ipv4_subset.head(n=30), ipv6_subset.head(n=30)])
         
         if INCREMENTAL:
-            delegated_df = delegated_df[delegated_df['date'] > final_existing_date]
+            delegated_df = delegated_df[delegated_df['date'] > pd.to_datetime(date)]
             if delegated_df.empty:
                 return pd.DataFrame()
 
@@ -249,8 +272,8 @@ class DelegatedHandler:
     # and all these delegated blocks summarized as much as possible
     def getDelAndAggrNetworks(self):
         
-        orgs_aggr_networks = pd.DataFrame(columns= ['opaque_id', 'cc', 'region',\
-                                                    'prefix', 'aggregated'])
+        orgs_aggr_networks = pd.DataFrame(columns= ['prefix', 'aggregated', 'del_date',\
+                                                    'opaque_id', 'cc', 'region',])
                                                     
         ip_subset = self.delegated_df[\
                     (self.delegated_df['resource_type'] == 'ipv4') |\
@@ -269,11 +292,11 @@ class DelegatedHandler:
                 # with False in the aggregated column
                 ip_block = '%s/%s' % (row['initial_resource'], int(row['count/prefLen']))              
 
-                orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [row['opaque_id'],\
+                orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [ip_block,\
+                                                                    False, row['date'],\
+                                                                    row['opaque_id'],\
                                                                     row['cc'],\
-                                                                    row['region'],\
-                                                                    ip_block,\
-                                                                    False] 
+                                                                    row['region']] 
                 
                 # We also add the block to a list in order to summarize the delegations                
                 del_networks_list.append(ipaddress.ip_network(unicode(ip_block, 'utf-8')))
@@ -306,11 +329,10 @@ class DelegatedHandler:
                     if len(regions) == 1:
                         regions = regions[0]
                     
-                    orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [org,\
-                                                                    ccs,\
-                                                                    regions,\
-                                                                    str(aggr_net),\
-                                                                    True]
+                    orgs_aggr_networks.loc[orgs_aggr_networks.shape[0]] = [\
+                                                                str(aggr_net),\
+                                                                True, '', org,\
+                                                                ccs, regions,]
         
         return orgs_aggr_networks
         
@@ -334,11 +356,13 @@ class DelegatedHandler:
                                                                 row['cc'],\
                                                                 row['resource_type'],\
                                                                 str(asn),\
-                                                                1.0,\
+                                                                1,\
                                                                 row['date'],\
                                                                 row['status'],\
                                                                 row['opaque_id'],\
-                                                                row['region']]
+                                                                row['region'],\
+                                                                row['OriginalIndex'],\
+                                                                1, float(np.nan)]
 
             # If count/prefLen is 1 we just add the row to the expanded DataFrame
             else:

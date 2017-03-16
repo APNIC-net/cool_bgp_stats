@@ -118,31 +118,28 @@ def saveDFToElasticSearch(plain_df, user, password):
 def main(argv):    
     DEBUG = False
     EXTENDED = False
-    year = ''
-    month = ''
-    day = ''
+    date = ''
+    UNTIL = False
     del_file = ''
     files_path = ''
     INCREMENTAL = False
     stats_file = ''
-    final_existing_date = ''
     user = ''
     password = ''
     
     try:
-        opts, args = getopt.getopt(argv, "hy:m:D:d:ep:i:u:P:", ["year=", "month=", "Day=", "del_file=", "files_path=", "stats_file=", "user=", "password="])
+        opts, args = getopt.getopt(argv, "hp:D:Ud:ei:u:P:", ["files_path=", "Date=", "del_file=", "stats_file=", "user=", "Password="])
     except getopt.GetoptError:
-        print 'Usage: delegatd_stats_v3.py -h | -p <files path [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-u <ElasticSearch user> -P <ElasticSearch password>]'
+        print 'Usage: delegatd_stats_v5.py -h | -p <files path [-D <Date>] [-U] [-d <delegated file>] [-e] [-i <stats file>] [-u <ElasticSearch user> -P <ElasticSearch password>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes daily statistics from one of the delegated files provided by the RIRs"
-            print 'Usage: delegatd_stats_v3.py -h | -p <files path [-y <year> [-m <month> [-D <day>]]] [-d <delegated file>] [-e] [-i <stats file>] [-u <ElasticSearch user> -P <ElasticSearch password>]'
+            print 'Usage: delegatd_stats_v5.py -h | -p <files path [-D <Date>] [-U] [-d <delegated file>] [-e] [-i <stats file>] [-u <ElasticSearch user> -P <ElasticSearch password>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
-            print 'y = Year to compute statistics for. If a year is not provided, statistics will be computed for all the available years.'
-            print 'm = Month of Year to compute statistics for. This option can only be used if a year is also provided.'
-            print 'D = Day of Month to compute statistics for. This option can only be used if a year and a month are also provided.'
+            print 'D = Date in format YYYY or YYYYmm or YYYYmmdd. Date for which or until which to compute stats.'
+            print 'U = Until. If the -U option is used the Date provided will be used to filter all the delegations until this date.'
             print 'd = DEBUG mode. Provide path to delegated file. If not in DEBUG mode the latest delegated file will be downloaded from ftp://ftp.apnic.net/pub/stats/apnic'
             print 'e = Use Extended file'
             print "If option -e is used in DEBUG mode, delegated file must be a extended file."
@@ -152,12 +149,10 @@ def main(argv):
             print "u = User to save stats to ElasticSearch."
             print "P = Password to save to stats to ElasticSearch."
             sys.exit()
-        elif opt == '-y':
-            year = int(arg)
-        elif opt == '-m':
-            month = int(arg)
         elif opt == '-D':
-            day = int(arg)
+            date = arg
+        elif opt == '-U':
+            UNTIL = True
         elif opt == '-d':
             DEBUG = True
             del_file = arg
@@ -175,9 +170,12 @@ def main(argv):
         else:
             assert False, 'Unhandled option'
             
-    if year == '' and (month != '' or (month == '' and day != '')):
-        print 'If you provide a month, you must also provide a year.'
-        print 'If you provide a day, you must also provide a month and a year.'
+    if date != '' and not (len(date) == 4 or len(date) == 6 or len(date) == 8):
+        print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
+        sys.exit()
+    
+    if UNTIL and len(date) != 8:
+        print 'If you use the -U option, you MUST provide a full date in format YYYYmmdd'
         sys.exit()
 
     if DEBUG and del_file == '':
@@ -191,13 +189,13 @@ def main(argv):
             
     today = datetime.date.today().strftime('%Y%m%d')
     
-    if year == '':
-        yearStr = 'AllDates'
-    else:
-        yearStr = str(year)
+    if date == '':
+        dateStr = 'AllDates'
+    elif UNTIL:
+        dateStr = 'UNTIL{}'.format(date)
     
     if not DEBUG:
-        file_name = '%s/delegated_stats_%s%s%s' % (files_path, yearStr, month, day)
+        file_name = '%s/delegated_stats_%s' % (files_path, dateStr)
 
         if EXTENDED:
             del_file = '%s/extended_apnic_%s.txt' % (files_path, today)
@@ -205,23 +203,28 @@ def main(argv):
             del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
             
     else:
-        file_name = '%s/delegated_stats_test_%s%s%s' % (files_path, yearStr, month, day)
+        file_name = '%s/delegated_stats_test_%s' % (files_path, dateStr)
 
     if INCREMENTAL:
         if stats_file == '':
             print "If option -i is used, a statistics file MUST be provided."
             sys.exit()
         else:
-            existing_stats_df = pd.read_csv(stats_file, sep = ',')
-            final_existing_date = pd.to_datetime(str(max(existing_stats_df['Date'])))
-            del existing_stats_df
-    else:
+            try:
+                existing_stats_df = pd.read_csv(stats_file, sep = ',')
+                date = str(max(existing_stats_df['Date']))
+                del existing_stats_df
+            except (ValueError, pd.EmptyDataError, KeyError):
+                date = ''
+                INCREMENTAL = False
+
+    if not INCREMENTAL:
         stats_file = '{}.csv'.format(file_name)
         
         with open(stats_file, 'w') as csv_file:
             csv_file.write('Geographic Area,ResourceType,Status,Organization,Date,NumOfDelegations,NumOfResources,IPCount,IPSpace\n')
         
-    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL, final_existing_date, year, month, day)
+    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, date, INCREMENTAL, UNTIL)
         
     if not del_handler.delegated_df.empty:
         start_time = time.time()
@@ -234,8 +237,8 @@ def main(argv):
         stats_df = pd.read_csv(stats_file, sep = ',')
         json_filename = '{}.json'.format(file_name)
         stats_df.to_json(json_filename, orient='index')
-        sys.stderr.write("Stats saved to files successfully!\n")
-        sys.stderr.write("({} and {})\n".format(stats_file, json_filename))
+        sys.stderr.write("Stats saved to JSON file successfully!\n")
+        sys.stderr.write("Files generated:\n{}\nand\n{})\n".format(stats_file, json_filename))
         
         if user != '' and password != '':
             r = saveDFToElasticSearch(stats_df, user, password)
