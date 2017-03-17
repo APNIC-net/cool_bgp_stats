@@ -193,6 +193,8 @@ def main(argv):
         dateStr = 'AllDates'
     elif UNTIL:
         dateStr = 'UNTIL{}'.format(date)
+    else:
+        dateStr = date
     
     if not DEBUG:
         file_name = '%s/delegated_stats_%s' % (files_path, dateStr)
