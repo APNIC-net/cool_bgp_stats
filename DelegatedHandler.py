@@ -15,25 +15,10 @@ import numpy as np
 
 class DelegatedHandler:
 
-    AP_regions = ['Eastern Asia', 'Oceania', 'Southern Asia', 'South-Eastern Asia']
-
-    res_types = []
-    status_asn = []
-    status_ip = []
- 
-    summary_records = pd.DataFrame()
     delegated_df = pd.DataFrame()    
-    
-    dates_range = ''
-    
-    CCs = []
-    orgs = []
-    orgs_areas = dict()
 
-    def __init__(self, DEBUG, EXTENDED, del_file, date, INCREMENTAL, UNTIL):
-        
-        self.res_types = ['asn', 'ipv4', 'ipv6']    
-        
+    def __init__(self, DEBUG, EXTENDED, del_file, date, UNTIL, INCREMENTAL, final_existing_date):
+         
         if EXTENDED:
             download_url = 'ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-extended-latest'
             col_names = [
@@ -58,15 +43,17 @@ class DelegatedHandler:
                             'status'
                         ]
         
-        self.status_asn = ['alloc-32bits', 'alloc-16bits']
-        self.status_ip = ['allocated', 'assigned']
-        
         self.getAndTidyData(DEBUG, EXTENDED, download_url, del_file, col_names,\
-                                date, INCREMENTAL, UNTIL)
+                                date, UNTIL, INCREMENTAL, final_existing_date)
         sys.stderr.write("DelegatedHandler instantiated and loaded successfully!\n")
     
     def getAndTidyData(self, DEBUG, EXTENDED, download_url, del_file, col_names,\
-                        date, INCREMENTAL, UNTIL):
+                        date, UNTIL, INCREMENTAL, final_existing_date):
+                            
+        summary_records = pd.DataFrame()
+        AP_regions = ['Eastern Asia', 'Oceania', 'Southern Asia', 'South-Eastern Asia']
+        res_types = ['asn', 'ipv4', 'ipv6']
+        
         if not DEBUG:
             get_file(download_url, del_file)
             
@@ -84,27 +71,27 @@ class DelegatedHandler:
     
         for i in range(4):
             if i == 0:
-                self.summary_records.at[i, 'Type'] = 'All'
-                self.summary_records.at[i, 'count'] =\
+                summary_records.at[i, 'Type'] = 'All'
+                summary_records.at[i, 'count'] =\
                                     int(delegated_df.loc[i, 'initial_resource'])
             else:
-                self.summary_records.at[i, 'Type'] = self.res_types[i-1]
-                self.summary_records.at[i, 'count'] =\
+                summary_records.at[i, 'Type'] = res_types[i-1]
+                summary_records.at[i, 'count'] =\
                                     int(delegated_df.loc[i, 'count/prefLen'])
     
     
         total_rows = delegated_df.shape[0]
         delegated_df =\
-            delegated_df[int(total_rows-self.summary_records.loc[0, 'count']):total_rows]
+            delegated_df[int(total_rows-summary_records.loc[0, 'count']):total_rows]
            
         # Just to verify
         num_rows = len(delegated_df)
-        if not num_rows == int(self.summary_records[self.summary_records['Type'] == 'All']['count']):
+        if not num_rows == int(summary_records[summary_records['Type'] == 'All']['count']):
             print 'THERE\'S SOMETHING WRONG!'
     
-        for r in self.res_types:
+        for r in res_types:
             total = len(delegated_df[delegated_df['resource_type'] == r])
-            if not total == int(self.summary_records[self.summary_records['Type'] == r]['count']):
+            if not total == int(summary_records[summary_records['Type'] == r]['count']):
                 print 'THERE\'S SOMETHING WRONG WITH THE NUMBER OF %s' % r
         
         # Rows for available and reserved space are filtered out as we are not
@@ -157,28 +144,22 @@ class DelegatedHandler:
             delegated_df = pd.concat([asn_subset.head(n=30),ipv4_subset.head(n=30), ipv6_subset.head(n=30)])
         
         if INCREMENTAL:
-            delegated_df = delegated_df[delegated_df['date'] > pd.to_datetime(date)]
+            delegated_df = delegated_df[delegated_df['date'] > pd.to_datetime(final_existing_date)]
             if delegated_df.empty:
                 return pd.DataFrame()
-
-        initial_date = min(delegated_df['date'])
-        final_date = max(delegated_df['date'])
-        
-        self.dates_range = pd.date_range(start=initial_date, end=final_date, freq='D')
-        self.dates_range = self.dates_range.strftime('%Y%m%d')
             
         delegated_df.ix[pd.isnull(delegated_df.cc), 'cc'] = 'XX'
-        self.CCs = list(set(delegated_df['cc'].values))    
+        CCs = list(set(delegated_df['cc'].values))    
     
         country_regions = dict()
         
         with open('./Collections.txt', 'r') as coll_file:
             for line in coll_file:
                 cc = line.split(',')[1]
-                if cc in self.CCs:
+                if cc in CCs:
                     try:
                         region = line.split('001 World,')[1].split(',')[0][4:]
-                        if region not in self.AP_regions:
+                        if region not in AP_regions:
                             country_regions[cc] = 'Reg_Out of APNIC region'
                         else:
                             country_regions[cc] = 'Reg_%s' % region
@@ -191,11 +172,12 @@ class DelegatedHandler:
                 
         if EXTENDED:        
             delegated_df.ix[pd.isnull(delegated_df.opaque_id), 'opaque_id'] = 'NA'
-            self.orgs = list(set(delegated_df['opaque_id'].values))
-        
-            for o in self.orgs:
+            orgs = list(set(delegated_df['opaque_id'].values))
+            orgs_areas = dict()
+            
+            for o in orgs:
                 if o == 'NA':
-                    self.orgs_areas[o] = ['XX']
+                    orgs_areas[o] = ['XX']
                 else:
                     org_countries = list(set(delegated_df[delegated_df['opaque_id'] == o]['cc']))
         
@@ -205,7 +187,7 @@ class DelegatedHandler:
                             org_areas.extend([country_regions[country]])
                         else:
                             print 'Unknown CC: %s' % country
-                    self.orgs_areas[o] = ['All'] + org_countries + org_areas
+                    orgs_areas[o] = ['All'] + org_countries + org_areas
         
         delegated_df['region'] = delegated_df['cc'].apply(lambda c: country_regions[c])
         

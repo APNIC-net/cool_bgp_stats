@@ -214,10 +214,10 @@ def main(argv):
         else:
             try:
                 existing_stats_df = pd.read_csv(stats_file, sep = ',')
-                date = str(max(existing_stats_df['Date']))
+                final_existing_date = str(max(existing_stats_df['Date']))
                 del existing_stats_df
             except (ValueError, pd.EmptyDataError, KeyError):
-                date = ''
+                final_existing_date = ''
                 INCREMENTAL = False
 
     if not INCREMENTAL:
@@ -226,7 +226,8 @@ def main(argv):
         with open(stats_file, 'w') as csv_file:
             csv_file.write('Geographic Area,ResourceType,Status,Organization,Date,NumOfDelegations,NumOfResources,IPCount,IPSpace\n')
         
-    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, date, INCREMENTAL, UNTIL)
+    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, date, UNTIL,\
+                                    INCREMENTAL, final_existing_date )
         
     if not del_handler.delegated_df.empty:
         start_time = time.time()
