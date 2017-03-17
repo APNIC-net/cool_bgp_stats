@@ -356,14 +356,9 @@ class DelegatedHandler:
     # If the prefix is not in the delegated_df DataFrame None is returned
     def getDelegationDateIPBlock(self, network):
         
-        if network.version == 4:
-            count = network.num_addresses
-        else:
-            count = network.prefixlen
-        
         subset = self.delegated_df[\
                 (self.delegated_df['initial_resource'] == str(network.network_address)) &\
-                (self.delegated_df['count/prefLen'] == count)]
+                (self.delegated_df['count/prefLen'] == network.prefixlen)]
         
         if subset.shape[0] > 0:
             row = self.delegated_df.ix[subset.index[0]]

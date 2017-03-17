@@ -9,7 +9,7 @@ from get_file import get_file
 import bgp_rib
 import pickle
 import radix
-import datetime, time
+import datetime, calendar
 import pandas as pd
 import hashlib
 import ipaddress
@@ -76,6 +76,8 @@ class BGPDataHandler:
     # which the ASN was active
     originASesDates_dict = dict()
     
+    #TODO Agregar middleASesDates
+    
     # Dictionary indexed by AS containing all the prefixes originated by each AS
     ASes_originated_prefixes_dic = dict()
 
@@ -102,7 +104,7 @@ class BGPDataHandler:
         self.KEEP = KEEP
         self.RIBfiles = RIBfiles
         self.COMPRESSED = COMPRESSED
-        
+
         sys.stderr.write("BGPDataHandler instantiated successfully! Remember to load the data structures.\n")
     
     # This function loads the class variables ipv4_prefixesDates and ipv6_prefixesDates
@@ -222,7 +224,7 @@ class BGPDataHandler:
     # This function processes the routing data contained in the archive folder
     # provided, and loads the data structures of the class with the results
     # from this processing       
-    def loadStructuresFromArchive(self, archive_folder, extension, startDate):
+    def loadStructuresFromArchive(self, archive_folder, extension, startDate, endDate):
         historical_files = self.getPathsToHistoricalData(archive_folder, extension)
         
         if historical_files == '':
@@ -230,7 +232,7 @@ class BGPDataHandler:
             return False
 
         mostRecent_routing_file  =\
-                        self.getMostRecentFromHistoricalList(historical_files)
+                        self.getMostRecentFromHistoricalList(historical_files, endDate)
         
         mostRecent_readable = self.getReadableFile(mostRecent_routing_file,\
                                 False)
@@ -266,14 +268,14 @@ class BGPDataHandler:
         # Finally, we load the prefixesDates Radixes and the originASesDates
         # dictionary with the rest of the routing files from the archive,
         # providing the name of the most recent file in order for it to be skipped.
-        self.loadDatesStructures(historical_files, startDate, mostRecent_routing_file)
+        self.loadDatesStructures(historical_files, startDate, endDate, mostRecent_routing_file)
         sys.stderr.write("Radixes with dates in which prefixes were seen were loaded successfully!\n")
         
         return True
 
     # This function returns a path to the most recent file in the provided list 
     # of historical files
-    def getMostRecentFromHistoricalList(self, historical_files):
+    def getMostRecentFromHistoricalList(self, historical_files, endDate):
         files_list_obj = open(historical_files, 'r')
 
         mostRecentDate = 0
@@ -284,8 +286,12 @@ class BGPDataHandler:
                 date = self.getDateFromFileName(line.strip())
                 
                 if date > mostRecentDate:
-                    mostRecentDate = date
-                    mostRecentFile = line.strip()
+                    # We add 1 to the endDate because the files in the archive
+                    # have routing data for the day before of the date in the
+                    # name of the file
+                    if endDate == '' or (endDate != '' and date <= int(endDate)+1):
+                        mostRecentDate = date
+                        mostRecentFile = line.strip()
         
         return mostRecentFile
         
@@ -309,7 +315,7 @@ class BGPDataHandler:
     # listed in the historical_files file and which have a date more recent
     # than startDate in case startDate is provided. If startDate is not
     # provided, all the files listed in the historical_files file will be processed.
-    def loadDatesStructures(self, historical_files, startDate, mostRecent):
+    def loadDatesStructures(self, historical_files, startDate, endDate, mostRecent):
 
         files_list_obj = open(historical_files, 'r')
         
@@ -318,11 +324,18 @@ class BGPDataHandler:
             line = line.strip()
             if line == mostRecent:
                 continue
-            
-            if startDate != '':
+
+            if startDate != '' or endDate != '':
                 file_date = self.getDateFromFileName(line)
-                if file_date == '' or int(file_date) < int(startDate):
+                
+                if file_date == '' or\
+                    (startDate != '' and int(file_date) < int(startDate)) or\
+                    (endDate != '' and int(file_date) > int(endDate)+1):
+                    # We add 1 to the endDate because the files in the archive
+                    # have routing data for the day before of the date in the
+                    # name of the file
                     continue
+                    
             if not line.startswith('#') and line != '':
                  # If we work with several routing files
                 sys.stderr.write("Starting to work with %s\n" % line)
@@ -402,21 +415,7 @@ class BGPDataHandler:
             readable_file_name = routing_file
         
         if readable_file_name == '':
-            return [], ''
-            
-        dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]',\
-                            readable_file_name)
-                            
-        if len(dates) > 0:
-            date = int(dates[0][0:4]+dates[0][5:7]+dates[0][8:10])
-        # If there is no date in the file name, we use the date of today
-        else:
-            dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]',\
-                            readable_file_name)
-            if len(dates) > 0:
-                date = int(dates[0])
-            else:
-                date =  datetime.date.today().strftime('%Y%m%d')
+            return [], [], ''
 
         bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
                                 index_col=False, usecols=[1,3,5,6,7],\
@@ -428,6 +427,8 @@ class BGPDataHandler:
 
         if self.DEBUG:
             bgp_df = bgp_df[0:10]
+            
+        date = datetime.datetime.utcfromtimestamp(bgp_df['timestamp'].tolist()[0]).strftime('%Y%m%d')
         
         # To get the origin AS we split the ASpath column
         # and keep the last position
@@ -545,7 +546,7 @@ class BGPDataHandler:
             date = bgp_entry[8]
 #           date_part = str(date)[0:8]
 #           time_part = str(date)[8:12]
-            timestamp = time.mktime(datetime.datetime.strptime(date, "%Y%m%d%H%M").timetuple())
+            timestamp = calendar.timegm(datetime.datetime.strptime(date, "%Y%m%d%H%M").timetuple())
             next_hop = bgp_entry[2]
             prefix = bgp_entry[0]
             as_path = bgp_entry[6]
@@ -614,7 +615,7 @@ class BGPDataHandler:
             bgp_df.index = bgp_df['index']
             
              # We add a column to the Data Frame with the corresponding date
-            bgp_df['date'] = bgp_df.apply(lambda row: datetime.datetime.fromtimestamp(row['timestamp']).strftime('%Y%m%d'), axis=1)
+            bgp_df['date'] = bgp_df.apply(lambda row: datetime.datetime.utcfromtimestamp(row['timestamp']).strftime('%Y%m%d'), axis=1)
             
             ASpath_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
             bgp_df['middleASes'] = ASpath_parts[0]
@@ -692,8 +693,7 @@ class BGPDataHandler:
             
         # If the routing file is a RIB file, we process it using BGPdump
         if self.RIBfiles:            
-            today = datetime.date.today().strftime('%Y%m%d')
-            readable_file_name = '%s/%s_%s.readable' % (self.files_path, os.path.splitext(source_filename)[0], today)
+            readable_file_name = '%s/%s.readable' % (self.files_path, os.path.splitext(source_filename)[0])
 
             cmd = shlex.split('%s -m -O %s %s' % (bgpdump, readable_file_name, source))
             #        cmd = shlex.split('bgpdump -m -O %s %s' % (readable_file_name, routing_file))   
@@ -844,7 +844,7 @@ class BGPDataHandler:
                 originASes.add(self.bgp_data.ix[index, 'originAS'])            
             return originASes
         else:
-            return None
+            return originASes
     
     # This function returns a set with all the AS paths for a specific prefix
     # according to the routing data included in the BGP_data class variable
