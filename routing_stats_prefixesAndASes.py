@@ -3,6 +3,7 @@
 
 
 import sys, getopt, os, bz2
+os.chdir(os.path.dirname(os.path.realpath(__file__)))
 #Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from get_file import get_file
@@ -12,8 +13,8 @@ import ipaddress
 import pandas as pd
 import numpy as np
 import datetime, time
-import copy
 import math
+import pickle
 
 
 # This function downloads information about relationships between ASes inferred
@@ -147,6 +148,500 @@ def weighted_avg_and_std(values, weights):
     average = np.average(values, weights=weights)
     variance = np.average((values-average)**2, weights=weights)  # Fast and numerically precise
     return (average, math.sqrt(variance))
+    
+def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
+                                    first_seen_intact, visibilityPerPeriods):
+    # History of Visibility (Visibility Evoluntion in Time) computation
+  
+    today = datetime.date.today()
+    daysUsable = (today-statsForPrefix['del_date']).days + 1
+    
+    # Intact Allocation History of Visibility
+    # The Intact Allocation History of Visibility only takes into
+    # account the exact block that was delegated
+    periodsIntact = bgp_handler.getPeriodsSeenExact(network)
+    numOfPeriods = len(periodsIntact)
+    
+    if numOfPeriods > 0:
+        last_seen_intact = bgp_handler.getDateLastSeenExact(network)
+        statsForPrefix['isDeadIntact'] = ((today-last_seen_intact).days > 365)
+        daysUsed = (last_seen_intact-first_seen_intact).days + 1
+        daysSeen = bgp_handler.getTotalDaysSeenExact(network)
+        
+        # We define the "relative used time" as the percentage of
+        # days the prefix was used from the total number of days
+        # the prefix could have been used (Usable time)
+        statsForPrefix['relUsedTimeIntact'] = 100*float(daysUsed)/daysUsable
+        
+        # We define the "effective usage" as the percentage of days
+        # the prefix was seen from the number of days the prefix
+        # was used
+        statsForPrefix['effectiveUsageIntact'] = 100*float(daysSeen)/daysUsed
+        
+        # We define the "time fragmentation" as the average number
+        # of periods in a 60 days (aprox 2 months) time lapse.
+        # We chose to use 60 days to be coherent with the
+        # considered interval of time used to analyze visibility
+        # stability in [1]
+        statsForPrefix['timeFragmentationIntact'] = numOfPeriods/(float(daysUsed)/60)
+                        
+        periodsLengths = []
+        for period in periodsIntact:
+            periodsLengths.append(\
+                (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
+                datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days + 1)
+        
+        periodsLengths = np.array(periodsLengths)
+        statsForPrefix['avgPeriodLengthIntact'] = periodsLengths.mean()
+        statsForPrefix['stdPeriodLengthIntact'] = periodsLengths.std()
+        statsForPrefix['minPeriodLengthIntact'] = periodsLengths.min()
+        statsForPrefix['maxPeriodLengthIntact'] = periodsLengths.max()
+        
+    # General History of Visibility of Prefix
+    # The General History of Visibility takes into account not only
+    # the block itself being routed but also its fragments
+    periodsGral = bgp_handler.getPeriodsSeenGral(network)
+    
+    if len(periodsGral) > 0:
+        
+        numsOfPeriodsGral = []
+        daysUsedGral = []
+        daysSeenGral = []
+        periodsLengthsGral = []
+        prefixesPerPeriod = dict()
+        timeBreaks = []
+        
+        for fragment in periodsGral:
+            frag_network = ipaddress.ip_network(unicode(fragment, "utf-8"))
+            numsOfPeriodsGral.append(len(periodsGral[fragment]))
+            daysUsedGral.append(\
+                (bgp_handler.getDateLastSeenExact(frag_network) -\
+                bgp_handler.getDateFirstSeenExact(frag_network)).days+1)
+            daysSeenGral.append(bgp_handler.getTotalDaysSeenExact(frag_network))
+            
+            for period in periodsGral[fragment]:
+                timeBreaks.append(period[0])
+                timeBreaks.append(period[1])
+                
+                if period not in prefixesPerPeriod:
+                    prefixesPerPeriod[period] = [fragment]
+                else:
+                    prefixesPerPeriod[period].append(fragment)
+                    
+                periodsLengthsGral.append(\
+                    (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
+                    datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days+1)
+             
+        timeBreaks = np.unique(timeBreaks)
+             
+        numsOfPeriodsGral = np.array(numsOfPeriodsGral)
+        avgNumOfPeriodsGral = numsOfPeriodsGral.mean()
+#       stdNumOfPeriodsGral = numsOfPeriodsGral.std()
+#       minNumOfPeriodsGral = numsOfPeriodsGral.min()
+#       maxNumOfPeriodsGral = numsOfPeriodsGral.max()
+#                    
+        daysUsedGral = np.array(daysUsedGral)
+        avgDaysUsedGral = daysUsedGral.mean()
+#       stdDaysUsedGral = daysUsedGral.std()
+#       minDaysUsedGral = daysUsedGral.min()
+#       maxDaysUsedGral = daysUsedGral.max()
+
+        statsForPrefix['avgRelUsedTimeGral'] =\
+                                    100*float(avgDaysUsedGral)/daysUsable
+
+        statsForPrefix['avgTimeFragmentationGral'] =\
+                            avgNumOfPeriodsGral/(float(avgDaysUsedGral)/60)
+        
+        daysSeenGral = np.array(daysSeenGral)
+        avgDaysSeenGral = daysSeenGral.mean()
+#       stdDaysSeenGral = daysSeenGral.std()
+#       minDaysSeenGral = daysSeenGral.min()
+#       maxDaysSeenGral = daysSeenGral.max()
+        
+        statsForPrefix['avgEffectiveUsageGral'] =\
+                                    100*float(avgDaysSeenGral)/avgDaysUsedGral
+        
+        periodsLengthsGral = np.array(periodsLengthsGral)
+        statsForPrefix['avgPeriodLengthGral'] = periodsLengthsGral.mean()
+        statsForPrefix['stdPeriodLengthGral'] = periodsLengthsGral.std()
+        statsForPrefix['minPeriodLengthGral'] = periodsLengthsGral.min()
+        statsForPrefix['maxPeriodLengthGral'] = periodsLengthsGral.max()
+    
+        # We summarize all the prefixes seen during each period
+        for period in prefixesPerPeriod:
+            aggregated_fragments = [ipaddr for ipaddr in
+                        ipaddress.collapse_addresses(
+                        [ipaddress.ip_network(unicode(ip_net, 'utf-8'))
+                        for ip_net in prefixesPerPeriod[period]])]
+            prefixesPerPeriod[period] = aggregated_fragments
+           
+        if len(timeBreaks) > 0:
+            # Evolution of Visibility (Visibility per period)
+            # Taking into account the block itself being routed and
+            # and its fragments being routed
+            visibilityPerPeriods[str(network)] = dict()
+            visibilities = []
+            periodLengths = []
+            
+            visibilityPerPeriods[str(network)][\
+                (int(statsForPrefix['del_date'].strftime('%Y%m%d')),\
+                                                        int(timeBreaks[0]))] = 0
+            
+            last_seen = bgp_handler.getDateLastSeen(network)
+            if last_seen < today:
+                visibilityPerPeriods[str(network)][(int(last_seen.strftime('%Y%m%d')),
+                                    int(today.strftime('%Y%m%d')))] = 0
+            
+            if len(timeBreaks) == 1:
+                numOfIPsVisible = 0
+                
+                for period in prefixesPerPeriod:
+                    if timeBreaks[0] >= period[0] and timeBreaks[0]\
+                                                        <= period[1]:
+                        for prefix in prefixesPerPeriod[period]:
+                            numOfIPsVisible += prefix.num_addresses
+                
+                visibility = float(numOfIPsVisible)*100/network.num_addresses
+                visibilityPerPeriods[str(network)][(int(timeBreaks[0]),\
+                                    int(timeBreaks[0]))] = visibility
+                visibilities.append(visibility)
+                periodLengths.append(1)
+            
+            for i in range(len(timeBreaks)-1):
+                numOfIPsVisible = 0
+                
+                for period in prefixesPerPeriod:
+                    if timeBreaks[i] >= period[0] and timeBreaks[i+1]\
+                                                        <= period[1]:
+                        for prefix in prefixesPerPeriod[period]:
+                            numOfIPsVisible += prefix.num_addresses
+                
+                visibility = float(numOfIPsVisible)*100/network.num_addresses
+                visibilityPerPeriods[str(network)][(int(timeBreaks[i]),\
+                                int(timeBreaks[i+1]))] = visibility
+                visibilities.append(visibility)
+                periodLengths.append(\
+                    (datetime.datetime.strptime(timeBreaks[i+1], '%Y%m%d').date()\
+                    - datetime.datetime.strptime(timeBreaks[i], '%Y%m%d').date()).days+1)
+            
+            # Computation of the weighted average and weighted
+            # standard deviation of visibilities only considering
+            # the period of time during which the prefix was used
+            # (between the date it was first seen and the date it
+            # was last seen)
+            weightedAvgVisibility, weightedStdVisibility =\
+                    weighted_avg_and_std(visibilities, periodLengths)
+            statsForPrefix['avgVisibility'] = weightedAvgVisibility
+            statsForPrefix['stdVisibility'] = weightedStdVisibility
+            statsForPrefix['minVisibility'] = np.min(visibilities)
+            statsForPrefix['maxVisibility'] = np.max(visibilities)
+                                    
+            statsForPrefix['isDead'] = ((today-last_seen).days > 365)
+
+def computeNetworkUsageLatency(network, statsForPrefix, bgp_handler):
+    # Based on [1]
+    # We define usage latency of a delegated address block as
+    # the time interval between the delegation date and the first
+    # time a part of, or the entire, delegated block shows up in
+    # the BGP routing table baing analyzed
+    
+    # Usage Latency computation
+    first_seen = bgp_handler.getDateFirstSeen(network)
+                
+    if first_seen is not None and statsForPrefix['del_date'] is not None:
+        statsForPrefix['UsageLatency'] =\
+                                (first_seen-statsForPrefix['del_date']).days + 1
+    else:
+        statsForPrefix['UsageLatency'] = float('inf')
+      
+    # Intact Allocation Usage Latency computation
+    # We compute the number of days between the date the block
+    # was delegated and the date the block as-is was first seen
+    if first_seen is not None:
+        first_seen_intact = bgp_handler.getDateFirstSeenExact(network)
+    else:
+        first_seen_intact = None
+                
+    if first_seen_intact is not None:
+        statsForPrefix['UsageLatencyAllocIntact'] =\
+                        (first_seen_intact-statsForPrefix['del_date']).days + 1
+    else:
+        statsForPrefix['UsageLatencyAllocIntact'] = float('inf')
+    
+    return first_seen_intact
+
+    
+def computeCharacteristicsForRoutedPrefix(radixNode, def_dict, bgp_handler,\
+                                            del_handler, ASrels, visibilityPerPeriods):
+    statsForPrefix = def_dict.copy()
+
+    statsForPrefix['prefix'] = radixNode.prefix
+    statsForPrefix['del_date'] = radixNode.data['del_date']
+    statsForPrefix['opaque_id'] = radixNode.data['opaque_id']
+    statsForPrefix['cc'] = radixNode.data['cc']
+    statsForPrefix['region'] = radixNode.data['region']
+    statsForPrefix['aggregated'] = radixNode.data['aggregated']
+    statsForPrefix['mostRecentRoutingData_date'] =\
+                            str(max(pd.to_numeric(bgp_handler.bgp_data['date'])))
+    
+    network = ipaddress.ip_network(unicode(radixNode.prefix, "utf-8"))
+    
+    blockOriginASes = bgp_handler.getOriginASesForBlock(network)
+    
+    statsForPrefix['originASes'] = '{}'.format(', '.join(blockOriginASes))
+    
+    if len(blockOriginASes) > 1:
+        statsForPrefix['multipleOriginASes'] = True
+
+    # We check if the prefix and all its origin ASes were delegated
+    # to the same organization
+    # This not necessarily works correctly as delegations made
+    # by a NIR do not appear in the delegated file
+    # TODO Should we get the organization holding a specific
+    # resource from WHOIS? NO! I need opaque_id
+    # https://www.apnic.net/about-apnic/whois_search/about/rdap/
+    # Ask George and Byron
+
+    # Obtain ASN delegation data
+    asn_del = del_handler.delegated_df[del_handler.delegated_df['resource_type'] == 'asn']
+
+    for blockOriginAS in blockOriginASes:
+        originASorg = asn_del[(pd.to_numeric(asn_del['initial_resource'])\
+                                <= int(blockOriginAS)) &\
+                                (pd.to_numeric(asn_del['initial_resource'])+\
+                                pd.to_numeric(asn_del['count/prefLen'])>\
+                                int(blockOriginAS))]['opaque_id'].get_values()
+        if len(originASorg) == 1:
+            originASorg = originASorg[0]
+        else:
+            originASorg = 'UNKNOWN Org'
+
+        # If the prefix is being originated by an AS delegated to
+        # a different organization from the organization that
+        # received the delegation of the block                 
+        if originASorg != statsForPrefix['opaque_id']:
+            statsForPrefix['originatedByDiffOrg'] = True
+    
+    first_seen_intact = computeNetworkUsageLatency(network, statsForPrefix,\
+                                                                    bgp_handler)
+    computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
+                                        first_seen_intact, visibilityPerPeriods)
+
+    # We get the set of AS paths for the block
+    blockASpaths = bgp_handler.getASpathsForBlock(network)
+    
+    ASpathsLengths = []
+    for path in blockASpaths:
+        ASpathsLengths.append(len(path.split()))
+        
+    ASpathsLengths = np.array(ASpathsLengths)
+    statsForPrefix['avgASPathLength'] = ASpathsLengths.mean()
+    statsForPrefix['stdASPathLength'] = ASpathsLengths.std()
+    statsForPrefix['minASPathLength'] = ASpathsLengths.min()
+    statsForPrefix['maxASPathLength'] = ASpathsLengths.max()
+    
+    # Find routed blocks related to the prefix of interest 
+    net_less_specifics = bgp_handler.getRoutedParentAndGrandparents(network)
+    net_more_specifics = bgp_handler.getRoutedChildren(network)
+   
+    # If there is at least one less specific block being routed,
+    # the block is a covered prefix
+    if len(net_less_specifics) > 0:        
+        if len(net_less_specifics) == 1:
+            statsForPrefix['isCovered_Level1'] = True
+        else:
+            statsForPrefix['isCovered_Level2plus'] = True
+
+        # We classify the covered prefix based on its announcements AS paths
+        # relative to that of their corresponding covering prefix
+
+        # The corresponding covering prefix is the last prefix in the
+        # list of less specifics
+        coveringPref = net_less_specifics[-1]
+        coveringNet = ipaddress.ip_network(unicode(coveringPref, 'utf-8'))
+        coveringPrefOriginASes = bgp_handler.getOriginASesForBlock(coveringNet)
+        coveringPrefASpaths = bgp_handler.getASpathsForBlock(coveringNet)       
+  
+        if len(blockOriginASes.intersection(coveringPrefOriginASes)) > 0:
+            if len(blockASpaths) == 1:
+                if blockASpaths.issubset(coveringPrefASpaths):
+                    statsForPrefix['SOSP'] = True
+                else:
+                    statsForPrefix['SODP2'] = True
+                    
+                    statsForPrefix['avgLevenshteinDist'],
+                    statsForPrefix['stdLevenshteinDist'],
+                    statsForPrefix['minLevenshteinDist'],
+                    statsForPrefix['maxLevenshteinDist'] =\
+                        computeLevenshteinDistMetrics(blockASpaths,
+                                                coveringPrefASpaths)
+                                                
+            else: # len(blockASpaths) >= 2
+                if len(coveringPrefASpaths.intersection(blockASpaths)) > 0 and\
+                    len(blockASpaths.difference(coveringPrefASpaths)) > 0:
+                    statsForPrefix['SODP1'] = True
+                    
+                    statsForPrefix['avgLevenshteinDist'],
+                    statsForPrefix['stdLevenshteinDist'],
+                    statsForPrefix['minLevenshteinDist'],
+                    statsForPrefix['maxLevenshteinDist'] =\
+                        computeLevenshteinDistMetrics(blockASpaths,
+                                                coveringPrefASpaths)
+                        
+        else:
+            if len(blockASpaths) == 1:
+                if len(blockOriginASes) == 1:
+                    blockOriginAS = blockOriginASes.pop()
+
+                    # We check whether the origin AS of the
+                    # block is a customer of any of the origin ASes
+                    # of the covering prefix                       
+                    for coveringPrefOriginAS in coveringPrefOriginASes:
+                        if blockOriginAS in ASrels and\
+                            coveringPrefOriginAS in ASrels[blockOriginAS]\
+                            and ASrels[blockOriginAS][coveringPrefOriginAS]\
+                            == 'C2P':
+
+                                blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
+                                if blockASpath_woOrigin in coveringPrefASpaths:
+                                    statsForPrefix['DOSP'] = True
+            
+                if not blockASpaths.issubset(coveringPrefASpaths):
+                    statsForPrefix['DODP1'] = True
+                    
+                    statsForPrefix['avgLevenshteinDist'],
+                    statsForPrefix['stdLevenshteinDist'],
+                    statsForPrefix['minLevenshteinDist'],
+                    statsForPrefix['maxLevenshteinDist'] =\
+                        computeLevenshteinDistMetrics(blockASpaths,
+                                                coveringPrefASpaths)
+                                                
+            else: # len(blockASpaths) >= 2
+                blockASpaths_woOrigin = set()
+                for ASpath in blockASpaths:
+                    blockASpaths_woOrigin.add(' '.join(ASpath.split(' ')[0:-1]))
+                
+                if len(coveringPrefASpaths.intersection(blockASpaths_woOrigin)) > 0 and\
+                    len(blockASpaths_woOrigin.difference(coveringPrefASpaths)) > 0:
+                    statsForPrefix['DODP2'] = True
+                    
+                    statsForPrefix['avgLevenshteinDist'],
+                    statsForPrefix['stdLevenshteinDist'],
+                    statsForPrefix['minLevenshteinDist'],
+                    statsForPrefix['maxLevenshteinDist'] =\
+                        computeLevenshteinDistMetrics(blockASpaths,
+                                                coveringPrefASpaths)
+              
+                if len(coveringPrefASpaths.intersection(blockASpaths)) == 0:
+                    # TODO Ask Geoff about this
+                    # Origin AS for covered prefix and Origin AS for
+                    # covering prefix have a common customer?
+                    # Origin AS for covered prefix advertises two or more prefixes 
+                    statsForPrefix['DODP3'] = True
+                    
+                    statsForPrefix['avgLevenshteinDist'],
+                    statsForPrefix['stdLevenshteinDist'],
+                    statsForPrefix['minLevenshteinDist'],
+                    statsForPrefix['maxLevenshteinDist'] =\
+                        computeLevenshteinDistMetrics(blockASpaths,
+                                                coveringPrefASpaths)
+                    
+    # If there are no less specific blocks being routed
+    else:      
+        # If the list of more specific blocks being routed only
+        # includes the block itself, taking into account we are 
+        # under the case of the block not having less specific
+        # blocks being routed,
+        if len(net_more_specifics) == 1:
+            # the block is a Lonely prefix
+            # • Lonely: a prefix that does not overlap
+            # with any other prefix.
+            statsForPrefix['isLonely'] = True
+        else:
+        # If there are more specific blocks being routed apart from
+        # the block itself, taking into account we are under the case
+        # of the block not having less specific blocks being routed,
+            # The block is a Covering prefix  
+            statsForPrefix['isCovering'] = True
+
+    if len(net_more_specifics) > 1:    
+        aggr_more_spec = [ipaddr for ipaddr in
+                            ipaddress.collapse_addresses(
+                            [ipaddress.ip_network(unicode(ip_net, 'utf-8'))
+                            for ip_net in net_more_specifics])]
+                                        
+        if len(net_more_specifics) >= 3 and radixNode.prefix in\
+                                    [str(ip_net) for ip_net in aggr_more_spec]:
+            # • root/MS-complete: The root prefix and at least two subprefixes
+            # are announced. The set of all sub-prefixes spans the whole root prefix.
+            statsForPrefix['root_MScompl'] = True
+        elif len(net_more_specifics) >= 2 and radixNode.prefix not in\
+                                    [str(ip_net) for ip_net in aggr_more_spec]:
+            # • root/MS-incomplete: The root prefix and at least one subprefix
+            # is announced. Together, the set of announced subprefixes
+            # does not cover the root prefix.
+            statsForPrefix['root_MSincompl'] = True
+        
+    return statsForPrefix
+
+def writeStatsLineToFile(statsForPrefix, allAttr, stats_filename):
+    line = statsForPrefix[allAttr[0]]
+        
+    for i in range(len(allAttr)-1):
+        line = '{},{}'.format(line, statsForPrefix[allAttr[i+1]])
+    
+    line = line + '\n'
+
+    with open(stats_filename, 'a') as stats_file:
+        stats_file.write(line)
+
+def computeStatsForRoutedPrefix(prefix, delegatedNetworks, def_dict, bgp_handler,\
+                                del_handler, ASrels, visibilityPerPeriods,\
+                                prefixesReady, allAttr, stats_filename):
+    intactDel_node = delegatedNetworks.search_exact(prefix)
+    moreSpecDel = delegatedNetworks.search_covered(prefix)
+    lessSpecDel = delegatedNetworks.search_covering(prefix)
+
+    # If prefix is associated to any delegation being considered
+    if intactDel_node is not None or len(moreSpecDel) > 0 or\
+                                                    len(lessSpecDel) > 0:
+        # If the announced prefix was delegated as-is
+        if intactDel_node is not None:
+            statsForPrefix = computeCharacteristicsForRoutedPrefix(\
+                               intactDel_node, def_dict, bgp_handler,\
+                               del_handler, ASrels, visibilityPerPeriods)
+           
+            statsForPrefix['allocIntact'] = True  
+
+        # If the announced prefix was not delegated as-is, but delegations of
+        # more specific prefixes exist
+        elif len(moreSpecDel) > 0:
+            for moreSpecDel_node in moreSpecDel:
+                statsForPrefix = computeCharacteristicsForRoutedPrefix(\
+                                    moreSpecDel_node, def_dict, bgp_handler,\
+                                    del_handler, ASrels, visibilityPerPeriods)
+                # the announced prefix is an aggregation of multiple delegations
+                statsForPrefix['aggrRouted'] = True
+
+        # If the announced prefix was not delegated as-is, but delegations of
+        # less specific prefixes exist
+        else: # len(lessSpecDel) > 0
+            # As we know that there cannot be overlapping delegations in
+            # delegatedNetworks, we know for sure that if there is a delegation
+            # of more specific prefixes, it will be only one, so we just
+            # take the first element of the list
+            statsForPrefix = computeCharacteristicsForRoutedPrefix(\
+                                lessSpecDel[0], def_dict, bgp_handler,\
+                                del_handler, ASrels, visibilityPerPeriods)
+
+            # the announced prefix is a fragment of a delegation
+            statsForPrefix['fragmentRouted'] =  True
+
+        # As we are analyzing prefixes present in the routing table being
+        # considered, they are 100 % visible
+        statsForPrefix['visibility'] = 100
+        prefixesReady.add(prefix)
+        writeStatsLineToFile(statsForPrefix, allAttr, stats_filename)
                     
 # This function computes statistics for each delegated block
 # and for each aggregated block resulting from summarizing multiple delegations
@@ -160,514 +655,93 @@ def weighted_avg_and_std(values, weights):
 # being routed
 def computePerPrefixStats(bgp_handler, del_handler, ASrels, stats_filename,
                             def_dict, allAttr):
-    # Obtain a DataFrame with all the delegated blocks and all the aggregated
-    # block resulting from summarizing multiple delegations
-    # to the same organization
-    orgs_aggr_networks = del_handler.getDelAndAggrNetworks()
+    # TODO Debug
+    # Obtain a Radix with all the delegated prefixes
+    delegatedNetworks = del_handler.getDelegatedNetworksRadix()
     
-    # Obtain ASN delegation data
-    asn_del = del_handler.delegated_df[del_handler.delegated_df['resource_type'] == 'asn']
-            
-    # For each delegated or aggregated block
-    for index, row in orgs_aggr_networks.iterrows():
-        statsForPrefix = def_dict.copy()
-        
-        net = row['prefix']
-        statsForPrefix['prefix'] = net
-        statsForPrefix['del_date'] = row['del_date']
-        statsForPrefix['opaque_id'] = row['opaque_id']
-        statsForPrefix['cc'] = row['cc']
-        statsForPrefix['region'] = row['region']
-        statsForPrefix['aggregated'] = row['aggregated']
-        statsForPrefix['mostRecentRoutingData_date'] =\
-                                    str(max(pd.to_numeric(bgp_handler.bgp_data['date'])))
-        
-        network = ipaddress.ip_network(unicode(net, "utf-8"))
-        ips_delegated = network.num_addresses
-   
-        # Find routed blocks related to the delegated or aggregated block 
-        net_less_specifics = bgp_handler.getRoutedParentAndGrandparents(network)
-        net_more_specifics = bgp_handler.getRoutedChildren(network)
-        
-        if not statsForPrefix['aggregated']: 
-            # For not aggregated blocks (blocks that correspond to a single
-            # delegation) we compute their Usage Latency and History of Visibility
-            
-            # Based on [1]
-            # We define usage latency of a delegated address block as
-            # the time interval between the delegation date and the first
-            # time a part of, or the entire, delegated block shows up in
-            # the BGP routing table baing analyzed
-            
-            # Usage Latency computation
-            del_date = del_handler.getDelegationDateIPBlock(network)
-            
-            first_seen = bgp_handler.getDateFirstSeen(network)
-                        
-            if first_seen is not None and del_date is not None:
-                statsForPrefix['UsageLatency'] = (first_seen-del_date).days
-            else:
-                statsForPrefix['UsageLatency'] = float('inf')
-      
-            # Intact Allocation Usage Latency computation
-            # We compute the number of days between the date the block
-            # was delegated and the date the block as-is was first seen
-            if first_seen is not None:
-                first_seen_intact = bgp_handler.getDateFirstSeenExact(network)
-            else:
-                first_seen_intact = None
-                        
-            if first_seen_intact is not None and del_date is not None:
-                statsForPrefix['UsageLatencyAllocIntact'] = (first_seen_intact-del_date).days
-            else:
-                statsForPrefix['UsageLatencyAllocIntact'] = float('inf')
-        
-            # History of Visibility (Visibility Evoluntion in Time) computation
-            if del_date is not None:
-                today = datetime.date.today()
-                daysUsable = (today-del_date).days
-                
-                # Intact Allocation History of Visibility
-                # The Intact Allocation History of Visibility only takes into
-                # account the exact block that was delegated
-                periodsIntact = bgp_handler.getPeriodsSeenExact(network)
-                numOfPeriods = len(periodsIntact)
-                
-                if numOfPeriods > 0:
-                    
-                    last_seen_intact = bgp_handler.getDateLastSeenExact(network)
-                    statsForPrefix['isDeadIntact'] = ((today-last_seen_intact).days > 365)
-                    daysUsed= (last_seen_intact-first_seen_intact).days+1
-                    daysSeen = bgp_handler.getTotalDaysSeenExact(network)
-                    
-                    # We define the "relative used time" as the percentage of
-                    # days the prefix was used from the total number of days
-                    # the prefix could have been used (Usable time)
-                    statsForPrefix['relUsedTimeIntact'] = 100*float(daysUsed)/daysUsable
-                    
-                    # We define the "effective usage" as the percentage of days
-                    # the prefix was seen from the number of days the prefix
-                    # was used
-                    statsForPrefix['effectiveUsageIntact'] = 100*float(daysSeen)/daysUsed
-                    
-                    # We define the "time fragmentation" as the average number
-                    # of periods in a 60 days (aprox 2 months) time lapse.
-                    # We chose to use 60 days to be coherent with the
-                    # considered interval of time used to analyze visibility
-                    # stability in [1]
-                    statsForPrefix['timeFragmentationIntact'] = numOfPeriods/(float(daysUsed)/60)
-                                    
-                    periodsLengths = []
-                    for period in periodsIntact:
-                        periodsLengths.append(\
-                            (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
-                            datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days+1)
-                    
-                    periodsLengths = np.array(periodsLengths)
-                    statsForPrefix['avgPeriodLengthIntact'] = periodsLengths.mean()
-                    statsForPrefix['stdPeriodLengthIntact'] = periodsLengths.std()
-                    statsForPrefix['minPeriodLengthIntact'] = periodsLengths.min()
-                    statsForPrefix['maxPeriodLengthIntact'] = periodsLengths.max()
-                    
-                # General History of Visibility of Prefix
-                # The General History of Visibility takes into account not only
-                # the block itself being routed but also its fragments
-                periodsGral = bgp_handler.getPeriodsSeenGral(network)
-                
-                if len(periodsGral) > 0:
-                    
-                    numsOfPeriods_gral = []
-                    daysUsed_gral = []
-                    daysSeen_gral = []
-                    periodsLengths_gral = []
-                    prefixesPerPeriod = dict()
-                    timeBreaks = []
-                    
-                    for fragment in periodsGral:
-                        frag_network = ipaddress.ip_network(unicode(fragment, "utf-8"))
-                        numsOfPeriods_gral.append(len(periodsGral[fragment]))
-                        daysUsed_gral.append(\
-                            (bgp_handler.getDateLastSeenExact(frag_network) -\
-                            bgp_handler.getDateFirstSeenExact(frag_network)).days+1)
-                        daysSeen_gral.append(bgp_handler.getTotalDaysSeenExact(frag_network))
-                        
-                        for period in periodsGral[fragment]:
-                            timeBreaks.append(period[0])
-                            timeBreaks.append(period[1])
-                            
-                            if period not in prefixesPerPeriod:
-                                prefixesPerPeriod[period] = [fragment]
-                            else:
-                                prefixesPerPeriod[period].append(fragment)
-                                
-                            periodsLengths_gral.append(\
-                                (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
-                                datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days+1)
-                         
-                    timeBreaks = np.unique(timeBreaks)
-                         
-                    numsOfPeriods_gral = np.array(numsOfPeriods_gral)
-                    avgNumOfPeriods_gral = numsOfPeriods_gral.mean()
-#                    stdNumOfPeriods_gral = numsOfPeriods_gral.std()
-#                    minNumOfPeriods_gral = numsOfPeriods_gral.min()
-#                    maxNumOfPeriods_gral = numsOfPeriods_gral.max()
-#                    
-                    daysUsed_gral = np.array(daysUsed_gral)
-                    avgDaysUsed_gral = daysUsed_gral.mean()
-#                    stdDaysUsed_gral = daysUsed_gral.std()
-#                    minDaysUsed_gral = daysUsed_gral.min()
-#                    maxDaysUsed_gral = daysUsed_gral.max()
+    visibilityPerPeriods = dict()
 
-                    statsForPrefix['avgRelUsedTime_gral'] =\
-                                                100*float(avgDaysUsed_gral)/daysUsable
+    prefixesReady = set()
+    
+    # For each currently announced IPv4 prefix
+    for prefix in bgp_handler.ipv4_prefixes_indexes_radix:
+        computeStatsForRoutedPrefix(prefix, delegatedNetworks, def_dict, bgp_handler,\
+                                del_handler, ASrels, visibilityPerPeriods,\
+                                prefixesReady, allAttr, stats_filename)
 
-                    statsForPrefix['avgTimeFragmentation_gral'] =\
-                                        avgNumOfPeriods_gral/(float(avgDaysUsed_gral)/60)
-                    
-                    daysSeen_gral = np.array(daysSeen_gral)
-                    avgDaysSeen_gral = daysSeen_gral.mean()
-#                    stdDaysSeen_gral = daysSeen_gral.std()
-#                    minDaysSeen_gral = daysSeen_gral.min()
-#                    maxDaysSeen_gral = daysSeen_gral.max()
-                    
-                    statsForPrefix['avgEffectiveUsage_gral'] =\
-                                            100*float(avgDaysSeen_gral)/avgDaysUsed_gral
-                    
-                    periodsLengths_gral = np.array(periodsLengths_gral)
-                    statsForPrefix['avgPeriodLength_gral'] = periodsLengths_gral.mean()
-                    statsForPrefix['stdPeriodLength_gral'] = periodsLengths_gral.std()
-                    statsForPrefix['minPeriodLength_gral'] = periodsLengths_gral.min()
-                    statsForPrefix['maxPeriodLength_gral'] = periodsLengths_gral.max()
-                
-                    # We summarize all the prefixes seen during each period
-                    for period in prefixesPerPeriod:
-                        aggregated_fragments = [ipaddr for ipaddr in
-                                    ipaddress.collapse_addresses(
-                                    [ipaddress.ip_network(unicode(ip_net, 'utf-8'))
-                                    for ip_net in prefixesPerPeriod[period]])]
-                        prefixesPerPeriod[period] = aggregated_fragments
-                       
-                    if len(timeBreaks) > 0:
-                        # Evolution of Visibility (Visibility per period)
-                        # Taking into account the block itself being routed and
-                        # and its fragments being routed
-                        visibilityPerPeriods = dict()
-                        visibilities = []
-                        periodLengths = []
-                        
-                        visibilityPerPeriods[(int(del_date.strftime('%Y%m%d')), int(timeBreaks[0]))] = 0
-                        
-                        last_seen = bgp_handler.getDateLastSeen(network)
-                        if last_seen < today:
-                            visibilityPerPeriods[(int(last_seen.strftime('%Y%m%d')),
-                                                int(today.strftime('%Y%m%d')))] = 0
-                        
-                        if len(timeBreaks) == 1:
-                            numOfIPsVisible = 0
-                            
-                            for period in prefixesPerPeriod:
-                                if timeBreaks[0] >= period[0] and timeBreaks[0] <= period[1]:
-                                    for prefix in prefixesPerPeriod[period]:
-                                        numOfIPsVisible += prefix.num_addresses
-                            
-                            visibility = float(numOfIPsVisible)*100/network.num_addresses
-                            visibilityPerPeriods[(int(timeBreaks[0]), int(timeBreaks[0]))] = visibility
-                            visibilities.append(visibility)
-                            periodLengths.append(1)
-                        
-                        for i in range(len(timeBreaks)-1):
-                            numOfIPsVisible = 0
-                            
-                            for period in prefixesPerPeriod:
-                                if timeBreaks[i] >= period[0] and timeBreaks[i+1] <= period[1]:
-                                    for prefix in prefixesPerPeriod[period]:
-                                        numOfIPsVisible += prefix.num_addresses
-                            
-                            visibility = float(numOfIPsVisible)*100/network.num_addresses
-                            visibilityPerPeriods[(int(timeBreaks[i]), int(timeBreaks[i+1]))] = visibility
-                            visibilities.append(visibility)
-                            periodLengths.append((datetime.datetime.strptime(timeBreaks[i+1], '%Y%m%d').date()-datetime.datetime.strptime(timeBreaks[i], '%Y%m%d').date()).days+1)
-                        # TODO Do we want to store the visibility per periods? How?
-                        
-                        # Computation of the weighted average and weighted
-                        # standard deviation of visibilities only considering
-                        # the period of time during which the prefix was used
-                        # (between the date it was first seen and the date it
-                        # was last seen)
-                        weightedAvgVisibility, weightedStdVisibility =\
-                                weighted_avg_and_std(visibilities, periodLengths)
-                        statsForPrefix['avgVisibility'] = weightedAvgVisibility
-                        statsForPrefix['stdVisibility'] = weightedStdVisibility
-                        statsForPrefix['minVisibility'] = np.min(visibilities)
-                        statsForPrefix['maxVisibility'] = np.max(visibilities)
-                                                
-                    statsForPrefix['isDead'] = ((today-last_seen).days > 365)
-        
-        if len(net_more_specifics) > 0 or len(net_less_specifics) > 0:
-            # block is currently being announced, at least partially
-        
-            # We get the origin ASes for the block
-            # If the block is not being routed as-is (net is not in the more
-            # specifics list), blockOriginASes is an empty set
-            blockOriginASes = bgp_handler.getOriginASesForBlock(network)
+    # For each currently announced IPv6 prefix
+    for prefix in bgp_handler.ipv6_prefixes_indexes_radix:
+        computeStatsForRoutedPrefix(prefix, delegatedNetworks, def_dict, bgp_handler,\
+                                del_handler, ASrels, visibilityPerPeriods,\
+                                prefixesReady, allAttr, stats_filename)
+
+    # Now we compute statistics for prefixes that are not announced as-is but
+    # that can have less specific or more specific prefixes being announced
+    for pref_node in delegatedNetworks:
+        prefix = pref_node.prefix
+        if prefix not in prefixesReady:
+            statsForPrefix = def_dict.copy()
+
+            statsForPrefix['prefix'] = prefix
+            statsForPrefix['del_date'] = pref_node.data['del_date']
+            statsForPrefix['opaque_id'] = pref_node.data['opaque_id']
+            statsForPrefix['cc'] = pref_node.data['cc']
+            statsForPrefix['region'] = pref_node.data['region']
+            statsForPrefix['aggregated'] = pref_node.data['aggregated']
+            statsForPrefix['mostRecentRoutingData_date'] =\
+                            str(max(pd.to_numeric(bgp_handler.bgp_data['date'])))
+
+            network = ipaddress.ip_network(unicode(prefix, "utf-8"))
             
-            if len(blockOriginASes) > 1:
-                statsForPrefix['multipleOriginASes'] = True
+            first_seen_intact = computeNetworkUsageLatency(network, statsForPrefix,\
+                                                                    bgp_handler)
+            computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
+                                        first_seen_intact, visibilityPerPeriods)
+
+            ips_delegated = network.num_addresses 
+    
+            # Find routed blocks related to the prefix of interest 
+            net_less_specifics = bgp_handler.getRoutedParentAndGrandparents(network)
+            net_more_specifics = bgp_handler.getRoutedChildren(network)
             
-            more_specifics_wo_block = copy.copy(net_more_specifics)
-            
-            # If the block is being announced as-is            
-            if net in net_more_specifics:
-                # we get a list of the more specifics not including the block itself
-                more_specifics_wo_block.remove(net)
-            
-            if len(more_specifics_wo_block) > 0:     
-                # We summarize the more specific routed blocks without the block itself
-                # to get the maximum aggregation possible of the more specifics
-                aggr_less_spec = [ipaddr for ipaddr in
-                                    ipaddress.collapse_addresses(
-                                    [ipaddress.ip_network(unicode(ip_net, 'utf-8'))
-                                    for ip_net in more_specifics_wo_block])]
-           
-            # If there is at least one less specific block being routed
-            # the block is covered and therefore its visibility is 100 %
             if len(net_less_specifics) > 0:
                 statsForPrefix['visibility'] = 100
-                if len(net_less_specifics) == 1:
-                    statsForPrefix['isCovered_Level1'] = True
-                else:
-                    statsForPrefix['isCovered_Level2plus'] = True
+                
+            elif len(net_more_specifics) > 0:     
+                # We summarize the more specific routed blocks without the block itself
+                # to get the maximum aggregation possible of the more specifics
+                aggr_more_spec = [ipaddr for ipaddr in
+                                    ipaddress.collapse_addresses(
+                                    [ipaddress.ip_network(unicode(ip_net, 'utf-8'))
+                                    for ip_net in net_more_specifics])]
 
-                # If apart from having less specific blocks being routed,
-                # the block itself is being routed
-                if net in net_more_specifics:
-                    # we classify the prefix based on its advertisement paths
-                    # paths relative to that of their corresponding covering
-                    # prefix
-                    
-                    # We get the set of AS paths for the block
-                    blockASpaths = bgp_handler.getASpathsForBlock(network)
-
-                    # The corresponding covering prefix is the last prefix in the
-                    # list of less specifics
-                    coveringPref = net_less_specifics[-1]
-                    coveringNet = ipaddress.ip_network(unicode(coveringPref, 'utf-8'))
-                    coveringPrefOriginASes = bgp_handler.getOriginASesForBlock(coveringNet)
-                    coveringPrefASpaths = bgp_handler.getASpathsForBlock(coveringNet)       
-              
-                    if len(blockOriginASes.intersection(coveringPrefOriginASes)) > 0:
-                        if len(blockASpaths) == 1:
-                            if blockASpaths.issubset(coveringPrefASpaths):
-                                statsForPrefix['SOSP'] = True
-                            else:
-                                statsForPrefix['SODP2'] = True
-                                
-                                statsForPrefix['avgLevenshteinDist'],
-                                statsForPrefix['stdLevenshteinDist'],
-                                statsForPrefix['minLevenshteinDist'],
-                                statsForPrefix['maxLevenshteinDist'] =\
-                                    computeLevenshteinDistMetrics(blockASpaths,
-                                                            coveringPrefASpaths)
-                                                            
-                        else: # len(blockASpaths) >= 2
-                            if len(coveringPrefASpaths.intersection(blockASpaths)) > 0 and\
-                                len(blockASpaths.difference(coveringPrefASpaths)) > 0:
-                                statsForPrefix['SODP1'] = True
-                                
-                                statsForPrefix['avgLevenshteinDist'],
-                                statsForPrefix['stdLevenshteinDist'],
-                                statsForPrefix['minLevenshteinDist'],
-                                statsForPrefix['maxLevenshteinDist'] =\
-                                    computeLevenshteinDistMetrics(blockASpaths,
-                                                            coveringPrefASpaths)
+                # ips_routed is obtained from the summarized routed blocks
+                # so that IPs contained in overlapping announcements are not
+                # counted more than once
+                ips_routed = 0            
+                for aggr_r in aggr_more_spec:
+                    ips_routed += aggr_r.num_addresses
                                     
-                    else:
-                        if len(blockASpaths) == 1:
-                            if len(blockOriginASes) == 1:
-                                blockOriginAS = blockOriginASes.pop()
-
-                                # We check whether the origin AS of the
-                                # block is a customer of any of the origin ASes
-                                # of the covering prefix                       
-                                for coveringPrefOriginAS in coveringPrefOriginASes:
-                                    if blockOriginAS in ASrels and\
-                                        coveringPrefOriginAS in ASrels[blockOriginAS]\
-                                        and ASrels[blockOriginAS][coveringPrefOriginAS]\
-                                        == 'C2P':
-
-                                            blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
-                                            if blockASpath_woOrigin in coveringPrefASpaths:
-                                                statsForPrefix['DOSP'] = True
-                        
-                            if not blockASpaths.issubset(coveringPrefASpaths):
-                                statsForPrefix['DODP1'] = True
-                                
-                                statsForPrefix['avgLevenshteinDist'],
-                                statsForPrefix['stdLevenshteinDist'],
-                                statsForPrefix['minLevenshteinDist'],
-                                statsForPrefix['maxLevenshteinDist'] =\
-                                    computeLevenshteinDistMetrics(blockASpaths,
-                                                            coveringPrefASpaths)
-                                                            
-                        else: # len(blockASpaths) >= 2
-                            blockASpaths_woOrigin = set()
-                            for ASpath in blockASpaths:
-                                blockASpaths_woOrigin.add(' '.join(ASpath.split(' ')[0:-1]))
-                            
-                            if len(coveringPrefASpaths.intersection(blockASpaths_woOrigin)) > 0 and\
-                                len(blockASpaths_woOrigin.difference(coveringPrefASpaths)) > 0:
-                                statsForPrefix['DODP2'] = True
-                                
-                                statsForPrefix['avgLevenshteinDist'],
-                                statsForPrefix['stdLevenshteinDist'],
-                                statsForPrefix['minLevenshteinDist'],
-                                statsForPrefix['maxLevenshteinDist'] =\
-                                    computeLevenshteinDistMetrics(blockASpaths,
-                                                            coveringPrefASpaths)
-                          
-                            if len(coveringPrefASpaths.intersection(blockASpaths)) == 0:
-                                # TODO Ask Geoff about this
-                                # Origin AS for covered prefix and Origin AS for
-                                # covering prefix have a common customer?
-                                # Origin AS for covered prefix advertises two or more prefixes 
-                                statsForPrefix['DODP3'] = True
-                                
-                                statsForPrefix['avgLevenshteinDist'],
-                                statsForPrefix['stdLevenshteinDist'],
-                                statsForPrefix['minLevenshteinDist'],
-                                statsForPrefix['maxLevenshteinDist'] =\
-                                    computeLevenshteinDistMetrics(blockASpaths,
-                                                            coveringPrefASpaths)
-                            
-            # If there are no less specific blocks being routed
-            else:
-                # If the list of more specific blocks being routed includes
-                # the block itself
-                if net in net_more_specifics:
-                    # The block is 100 % visible
-                    statsForPrefix['visibility'] = 100
-                    
-                    # If the list of more specific blocks being routed only
-                    # includes the block itself, taking into account we are 
-                    # under the case of the block not having less specific
-                    # blocks being routed,
-                    if len(net_more_specifics) == 1:
-                        # the block is a Lonely prefix
-                        # • Lonely: a prefix that does not overlap
-                        # with any other prefix.
-                        statsForPrefix['isLonely'] = True
-                        
-                # If the block itself is not being routed, we have to compute
-                # the visibility based on the more specific block being routed
-                else:
-                    # ips_routed is obtained from the summarized routed blocks
-                    # so that IPs contained in overlapping announcements are not
-                    # counted more than once
-                    ips_routed = 0            
-                    for aggr_r in aggr_less_spec:
-                        ips_routed += aggr_r.num_addresses
-                                            
-                    # The visibility of the block is the percentaje of IPs
-                    # that are visible
-                    statsForPrefix['visibility'] = float(ips_routed*100)/ips_delegated
-                    
-                # If there are more specific blocks being routed apart from
-                # the block itself, taking into account we are under the case
-                # of the block not having less specific blocks being routed,
-                if len(more_specifics_wo_block) > 0 and net in net_more_specifics:
-                    # The block is a Covering prefix  
-                    statsForPrefix['isCovering'] = True
-
-            # If there are more specific blocks being routed 
-            if len(more_specifics_wo_block) > 0:
-                statsForPrefix['fragmentsRouted'] =  True
-                    
-            # If the block is not the result of aggregating multiple delegated blocks
-            # (the block was delegated as-is)
-            if not statsForPrefix['aggregated']: 
-
-                # Independently of the block being a covering or a covered prefix,
-                # if the delegated block (not aggregated) is being announced as-is,
-                # allocIntact is True
-                if net in net_more_specifics:
-                    statsForPrefix['allocIntact'] = True
-                    
-                    # We check if the prefix and all its origin ASes were delegated
-                    # to the same organization
-                    # This not necessarily works correctly as delegations made
-                    # by a NIR do not appear in the delegated file
-                    # TODO Should we get the organization holding a specific
-                    # resource from WHOIS? NO! I need opaque_id
-                    # https://www.apnic.net/about-apnic/whois_search/about/rdap/
-                    # Ask George and Byron
-                    
-                    prefixOrg = statsForPrefix['opaque_id']
-
-                    for blockOriginAS in blockOriginASes:
-                        originASorg = asn_del[(pd.to_numeric(asn_del['initial_resource'])\
-                                                <= int(blockOriginAS)) &\
-                                                (pd.to_numeric(asn_del['initial_resource'])+\
-                                                pd.to_numeric(asn_del['count/prefLen'])>\
-                                                int(blockOriginAS))]['opaque_id'].get_values()
-                        if len(originASorg) == 1:
-                            originASorg = originASorg[0]
-                        else:
-                            originASorg = 'UNKNOWN Org'
-                
-    
-                        # If the prefix is being originated by an AS delegated to
-                        # a different organization from the organization that
-                        # received the delegation of the block                 
-                        if originASorg != prefixOrg:
-                            statsForPrefix['originatedByDiffOrg'] = True
-                   
-                # If there are no less specific blocks being routed and the list
-                # of more specific blocks being routed only contains the block
-                # itself
-                if len(net_less_specifics) == 0 and net_more_specifics == [net]:
-                    statsForPrefix['onlyRoot'] = True
-                    # This variable is similar to the variable isLonely but can
-                    # only be True for not aggregated blocks 
-                
-                elif net in net_more_specifics:
-                    if len(net_more_specifics) >= 3 and net in [str(ip_net) for ip_net in aggr_less_spec]:
-                        # • root/MS-complete: The root prefix and at least two subprefixes
-                        # are announced. The set of all sub-prefixes spans
-                        # the whole root prefix.
-                        statsForPrefix['root_MScompl'] = True
-                    elif len(net_more_specifics) >= 2 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
-                        # • root/MS-incomplete: The root prefix and at least one subprefix
-                        # is announced. Together, the set of announced subprefixes
-                        # does not cover the root prefix.
-                        statsForPrefix['root_MSincompl'] = True
-                else:
-                    if len(net_more_specifics) >= 2 and net in [str(ip_net) for ip_net in aggr_less_spec]:
-                        # • no root/MS-complete: The root prefix is not announced.
-                        # However, there are at least two sub-prefixes which together
-                        # cover the complete root prefix.
-                        statsForPrefix['noRoot_MScompl'] = True
-                    elif len(net_more_specifics) >= 1 and net not in [str(ip_net) for ip_net in aggr_less_spec]:
-                        # • no root/MS-incomplete: The root prefix is not announced.
-                        # There is at least one sub-prefix. Taking all sub-prefixes
-                        # together, they do not cover the complete root prefix.
-                        statsForPrefix['noRoot_MSincompl'] = True
-                        
-            # if the block is the result of an aggregation of multiple delegations
-            else:
-                # and the block itself is being routed
-                if net in net_more_specifics:
-                    # the maximum aggregation over multiple delegations is being routed
-                    statsForPrefix['maxAggrRouted'] = True
-
-        line = statsForPrefix[allAttr[0]]
+                # The visibility of the block is the percentaje of IPs
+                # that are visible
+                statsForPrefix['visibility'] = float(ips_routed*100)/ips_delegated
         
-        for i in range(len(allAttr)-1):
-            line = '{},{}'.format(line, statsForPrefix[allAttr[i+1]])
-        
-        line = line + '\n'
+                if len(net_more_specifics) >= 2 and prefix in\
+                                    [str(ip_net) for ip_net in aggr_more_spec]:
+                    # • no root/MS-complete: The root prefix is not announced.
+                    # However, there are at least two sub-prefixes which together
+                    # cover the complete root prefix.
+                    statsForPrefix['noRoot_MScompl'] = True
+                elif len(net_more_specifics) >= 1 and prefix not in\
+                                    [str(ip_net) for ip_net in aggr_more_spec]:
+                    # • no root/MS-incomplete: The root prefix is not announced.
+                    # There is at least one sub-prefix. Taking all sub-prefixes
+                    # together, they do not cover the complete root prefix.
+                    statsForPrefix['noRoot_MSincompl'] = True
 
-        with open(stats_filename, 'a') as stats_file:
-            stats_file.write(line)
+            writeStatsLineToFile(statsForPrefix, allAttr, stats_filename)
+            
+    return visibilityPerPeriods
 
 # This function determines whether the allocated ASNs are active
 # either as middle AS, origin AS or both
@@ -675,7 +749,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels, stats_filename,
 # * a numeric variable (numOfPrefixesPropagated) specifying the number of prefixes propagated by the AS
 # (BGP announcements for which the AS appears in the middle of the AS path)
 # * a numeric variable (numOfPrefixesOriginated) specifying the number of prefixes originated by the AS
-def computeASesStats(bgp_handler, del_handler, stats_filename, def_dict, allAttr):
+def computeASesStats(bgp_handler, del_handler, ASrels, stats_filename, def_dict, allAttr):
     today = datetime.date.today()
     expanded_del_asns_df = del_handler.getExpandedASNsDF() 
         
@@ -690,6 +764,8 @@ def computeASesStats(bgp_handler, del_handler, stats_filename, def_dict, allAttr
         statsForAS['region'] = expanded_del_asns_df.ix[i]['region']
         del_date = expanded_del_asns_df.ix[i]['date'].to_pydatetime().date()
         statsForAS['del_date'] = del_date
+        statsForAS['numOfUpstreams'] = len(ASrels[(ASrels['rel_type'] == 'P2C')\
+                                            & (ASrels['AS2'] == asn)])
 
         try:
             statsForAS['numOfPrefixesOriginated_curr'] =\
@@ -702,34 +778,41 @@ def computeASesStats(bgp_handler, del_handler, stats_filename, def_dict, allAttr
                                 len(bgp_handler.ASes_propagated_prefixes_dic[asn])
         except KeyError:
             statsForAS['numOfPrefixesPropagated_curr'] = 0
+                
+        asn_dates_dict = None
         
-        # TODO agregar middleASesDates
-        
-        # TODO Debug
         if asn in bgp_handler.originASesDates_dict:
-            daysUsable = (today-del_date).days
+            asn_dates_dict = bgp_handler.originASesDates_dict[asn]
+            
+        if asn in bgp_handler.middleASesDates_dict:
+            asn_dates_dict = bgp_handler.middleASesDates_dict[asn]
+
+        if asn_dates_dict is not None:
+            daysUsable = (today-del_date).days + 1
 
             # Usage Latency
             # We define usage latency of an ASN as the time interval between
             # the delegation date and the first the ASN is seen as an origin AS
-            # in the BGP routing table being analyzed
-            first_seen = bgp_handler.originASesDates_dict[asn]['firstSeen']
+            # or as a middle AS in the BGP routing table being analyzed
+            first_seen = datetime.datetime.strptime(asn_dates_dict['firstSeen'],\
+                                                    '%Y%m%d').date()
                         
             if first_seen is not None:
-                statsForAS['UsageLatency'] = (first_seen-del_date).days
+                statsForAS['UsageLatency'] = (first_seen-del_date).days + 1
             else:
                 statsForAS['UsageLatency'] = float('inf')               
                 
             # History of Activity
-            periodsActive = bgp_handler.originASesDates_dict[asn]['periodsSeen']
+            periodsActive = asn_dates_dict['periodsSeen']
             numOfPeriods = len(periodsActive)
                 
             if numOfPeriods > 0:
-                last_seen = bgp_handler.originASesDates_dict[asn]['lastSeen']
+                last_seen = datetime.datetime.strptime(asn_dates_dict['lastSeen'],\
+                                                        '%Y%m%d').date()
                 statsForAS['isDead'] = ((today-last_seen).days > 365)
                 
-                daysUsed= (last_seen-first_seen).days
-                daysSeen = bgp_handler.originASesDates_dict[asn]['totalDays']
+                daysUsed = (last_seen-first_seen).days + 1
+                daysSeen = asn_dates_dict['totalDays']
                     
                 # We define the "relative used time" as the percentage of
                 # days the ASN was used from the total number of days
@@ -751,7 +834,7 @@ def computeASesStats(bgp_handler, del_handler, stats_filename, def_dict, allAttr
                 for period in periodsActive:
                     periodsLengths.append(\
                         (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
-                        datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days)
+                        datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days + 1)
                 
                 periodsLengths = np.array(periodsLengths)
                 statsForAS['avgPeriodLength'] = periodsLengths.mean()
@@ -795,6 +878,7 @@ def main(argv):
     ipv4_prefixesDates_file = ''
     ipv6_prefixesDates_file = ''
     originASesDates_file = ''
+    middleASesDates_file = ''
     archive_folder = '' 
     ext = ''
     COMPRESSED = False
@@ -818,14 +902,14 @@ def main(argv):
 #    COMPUTE = False    
     
     try:
-        opts, args = getopt.getopt(argv, "hf:u:r:H:E:I:ocknD:Ud:ep:a:b:4:6:O:P:F:S:A:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "Extension=", "InitialDate=", "Date=", "delegated_file=", "prefixes_stats_file=", "ases_stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_Originated_prefixes_file=", "ASes_Propagated_prefixes_file=", "ipv4_prefixesDates_file=", "ipv6_prefixesDates_file=", "originASesDates_file="])
+        opts, args = getopt.getopt(argv, "hf:u:r:H:E:I:ocknD:Ud:ep:a:b:4:6:O:P:F:S:A:M:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "Extension=", "InitialDate=", "Date=", "delegated_file=", "prefixes_stats_file=", "ases_stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_Originated_prefixes_file=", "ASes_Propagated_prefixes_file=", "ipv4_prefixesDates_file=", "ipv6_prefixesDates_file=", "originASesDates_file=", "middleASesDates_file="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>] [-A <originASesDates_file>]'
+        print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>] [-A <originASesDates_file>] [-M <middleASesDates_file>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file>] [-a <ases stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>] [-A <originASesDates_file>]'
+            print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>] [-A <originASesDates_file>] [-M <middleASesDates_file>]'
             print 'h = Help'
             print "f = Path to folder in which Files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -862,7 +946,8 @@ def main(argv):
             print "If not, none of these five options should be used."
             print "F = IPv4 (Four) prefixesDates file. Path to pickle file containing prefixesDates Radix with the dates in which each IPv4 prefix was seen."
             print "S = IPv6 (Six) prefixesDates file. Path to pickle file containing prefixesDates Radix with the dates in which each IPv6 prefix was seen."
-            print "A = Origin ASes Dates file. Path to pickle file containing originASesDates dictionary with the date in which each ASN was active."
+            print "A = Origin ASes Dates file. Path to pickle file containing originASesDates dictionary with the date in which each ASN originated prefixes."
+            print "M = Middle ASes Dates file. Path to pickle file containing middleASesDates dictionary with the date in which each ASN propagated prefixes."
             sys.exit()
         elif opt == '-u':
             if arg != '':
@@ -983,7 +1068,13 @@ def main(argv):
             if arg != '':
                 originASesDates_file = os.path.abspath(arg)
             else:
-                print "If option -A is used, the path to a pickle file containing originASesDates dictionary with the date in which each ASN was active MUST be provided."
+                print "If option -A is used, the path to a pickle file containing originASesDates dictionary with the date in which each ASN originated prefixes MUST be provided."
+                sys.exit()
+        elif opt == '-M':
+            if arg != '':
+                middleASesDates_file = os.path.abspath(arg)
+            else:
+                print "If option -M is used, the path to a pickle file containing middleASesDates dictionary with the date in which each ASN propagated prefixes MUST be provided."
                 sys.exit()
         else:
             assert False, 'Unhandled option'
@@ -1065,6 +1156,9 @@ def main(argv):
     
     if originASesDates_file != '':
         bgp_handler.loadOriginASesDatesFromFile(originASesDates_file)
+
+    if middleASesDates_file != '':
+        bgp_handler.loadMiddleASesDatesFromFile(middleASesDates_file)
         
     if fromFiles:
         loaded = bgp_handler.loadStructuresFromFiles(bgp_data_file, ipv4_prefixes_indexes_file,
@@ -1090,30 +1184,21 @@ def main(argv):
         ASrels = getASrelInfo(serial=2, files_path=files_path, KEEP=KEEP)
         
         # Keys to store the concepts defined in [1]
-        keysList1_pref = ['isCovering', 'allocIntact', 'maxAggrRouted', 'fragmentsRouted',
+        keysList1_pref = ['isCovering', 'allocIntact', 'aggrRouted', 'fragmentRouted',
                     'isCovered_Level1', 'isCovered_Level2plus',
                     'SOSP', 'SODP1', 'SODP2', 'DOSP', 'DODP1', 'DODP2', 'DODP3']
-        
-        # The concept of 'aggregation over multiple allocations' defined in the paper
-        # cited above is slightly modified to suit our needs.
-        # (Note that we use 'delegation' instead of 'allocation' as it is a more
-        # general term.)
-        # In the paper each announcement is analyzed. While here we analyze each delegated
-        # block or each block resulting from the summarization of multiple delegations.
-        # We don't analyze all the possible summarizations of multiple delegations,
-        # but just the maximum aggregation possible. This is why we use a variable
-        # maxAggrRouted. This variale will be true if there is an announcement for
-        # a block resulting from the maximum aggregation possible of multiple delegations.
         
         # Keys to store some of the concepts defined in [2].
         # Prefixes classified as Top in this paper are the prefixes classified as Covering
         # in [1]. Prefixes classified as Deaggregated in [2] are those classified as
         # SOSP or SODP in [1]. Prefixes classified as Delegated in [2] are those
-        # classified as DOSP or DODP in [1]
+        # classified as DOSP or DODP in [1].
+        # onlyRoot is represented by announced prefixes with both allocIntact
+        # and isLonely variables with a True value
         # We just use the concepts defined in [2] that are not redundant with the
         # concepts defined in [1]
         
-        keysList2_pref = ['isLonely', 'onlyRoot', 'root_MScompl', 'root_MSincompl',
+        keysList2_pref = ['isLonely', 'root_MScompl', 'root_MSincompl',
                         'noRoot_MScompl', 'noRoot_MSincompl']
                         
         # We will also use a key to store info about the prefix being originated by an AS
@@ -1127,10 +1212,10 @@ def main(argv):
                           'relUsedTimeIntact', 'effectiveUsageIntact',
                           'timeFragmentationIntact', 'avgPeriodLengthIntact',
                           'stdPeriodLengthIntact', 'minPeriodLengthIntact',
-                          'maxPeriodLengthIntact', 'avgRelUsedTime_gral',
-                          'avgTimeFragmentation_gral', 'avgEffectiveUsage_gral',
-                          'avgPeriodLength_gral', 'stdPeriodLength_gral',
-                          'minPeriodLength_gral', 'maxPeriodLength_gral',
+                          'maxPeriodLengthIntact', 'avgRelUsedTimeGral',
+                          'avgTimeFragmentationGral', 'avgEffectiveUsageGral',
+                          'avgPeriodLengthGral', 'stdPeriodLengthGral',
+                          'minPeriodLengthGral', 'maxPeriodLengthGral',
                           'avgVisibility', 'stdVisibility', 'minVisibility',
                           'maxVisibility', 'avgLevenshteinDist', 'stdLevenshteinDist',
                           'minLevenshteinDist', 'maxLevenshteinDist', 'visibility']
@@ -1159,8 +1244,9 @@ def main(argv):
         def_dict_pref = getDictionaryWithDefaults(booleanKeys_pref, valueKeys_pref)
 
         start_time = time.time()
-        computePerPrefixStats(bgp_handler, del_handler, ASrels, prefixes_stats_file,
-                                def_dict_pref, allAttr_pref)
+        visibilityPerPeriods = computePerPrefixStats(bgp_handler, del_handler,\
+                                                    ASrels, prefixes_stats_file,\
+                                                    def_dict_pref, allAttr_pref)
         end_time = time.time()
         sys.stderr.write("Stats for prefixes computed successfully!\n")
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
@@ -1171,6 +1257,11 @@ def main(argv):
         sys.stderr.write("Prefixes stats saved to JSON file successfully!\n")
         sys.stderr.write("Files generated:\n{}\nand\n{})\n".format(prefixes_stats_file,
                                                         prefixes_json_filename))
+
+        visibility_file_name = '{}/visibilityPerPeriods_{}.pkl'.format(files_path, today)
+        with open(visibility_file_name, 'wb') as visibility_file:
+            pickle.dump(visibilityPerPeriods, visibility_file, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing dictionary of the visibiity of each prefix during each period of time.\n" % visibility_file_name)
 
         valueKeys_ases = ['numOfPrefixesOriginated_curr', 'numOfPrefixesPropagated_curr',
                             'UsageLatency', 'relUsedTime', 'effectiveUsage',
@@ -1200,8 +1291,8 @@ def main(argv):
         def_dict_ases = getDictionaryWithDefaults(booleanKeys_ases, valueKeys_ases)
         
         start_time = time.time()
-        computeASesStats(bgp_handler, del_handler, ases_stats_file, def_dict_ases,
-                            allAttr_ases)
+        computeASesStats(bgp_handler, del_handler, ASrels, ases_stats_file,\
+                            def_dict_ases, allAttr_ases)
         end_time = time.time()
         sys.stderr.write("Stats for ASes computed successfully!\n")
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   

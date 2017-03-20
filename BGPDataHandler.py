@@ -63,21 +63,32 @@ class BGPDataHandler:
     # which the IPv6 prefix was seen
     ipv6_prefixesDates_radix = radix.Radix()
 
-    # Dictionary indexed by ASN containing as values dictionaries
-    # with the following keys:
+    # Dictionary indexed by origin ASN (ASN that originates at least one prefix)
+    # It contains as values dictionaries with the following keys:
     # * periodsSeen - the value for this key is a list of tuples representing
-    # periods of time during which the corresponding ASN was active
+    # periods of time during which the corresponding ASN originated prefixes
     # Each tuple has the format (startDate, endDate)
     # * firstSeen - the value for this key is the first date in which the
-    # ASN was active
+    # ASN originated prefixes
     # * lastSeen - the value for this key is the last date in which the
-    # ASN was active
+    # ASN originated prefixes
     # * totalDays - the value for this key is the number of days during
-    # which the ASN was active
+    # which the ASN originated prefixes
     originASesDates_dict = dict()
     
-    #TODO Agregar middleASesDates
-    
+    # Dictionary indexed by middle ASN (ASN that propagates at least one prefix)
+    # It contains as values dictionaries with the following keys:
+    # * periodsSeen - the value for this key is a list of tuples representing
+    # periods of time during which the corresponding ASN prpagated prefixes
+    # Each tuple has the format (startDate, endDate)
+    # * firstSeen - the value for this key is the first date in which the
+    # ASN propagated prefixes
+    # * lastSeen - the value for this key is the last date in which the
+    # ASN propagated prefixes
+    # * totalDays - the value for this key is the number of days during
+    # which the ASN propagated prefixes
+    middleASesDates_dict = dict()
+        
     # Dictionary indexed by AS containing all the prefixes originated by each AS
     ASes_originated_prefixes_dic = dict()
 
@@ -128,22 +139,19 @@ class BGPDataHandler:
             self.ipv6_prefixesDates_radix = pickle.load(open(ipv6_prefixesDates_file, 'rb'))
             sys.stderr.write("Radix with dates in which IPv6 prefixes were seen was loaded successfully!\n")
 
-    # This function loads the class variable originASesDates
-    # from a previously generated pickle file containing a dictionary indexed by
-    # ASN containing as values dictionaries with the following keys:
-    # * periodsSeen - the value for this key is a list of tuples representing
-    # periods of time during which the corresponding ASN was active
-    # Each tuple has the format (startDate, endDate)
-    # * firstSeen - the value for this key is the first date in which the
-    # ASN was active
-    # * lastSeen - the value for this key is the last date in which the
-    # ASN was active
-    # * totalDays - the value for this key is the number of days during
-    # which the ASN was active
+    # This function loads the class variable originASesDates from a previously
+    # generated pickle file containing a originASesDates dictionary 
     def loadOriginASesDatesFromFile(self, originASesDates_file):
         if originASesDates_file != '':        
-            self.originASesDates_radix = pickle.load(open(originASesDates_file, 'rb'))
-            sys.stderr.write("Dictionary with dates in which ASNs were active was loaded successfully!\n")
+            self.originASesDates_dict = pickle.load(open(originASesDates_file, 'rb'))
+            sys.stderr.write("Dictionary with dates in which ASNs originated prefixes was loaded successfully!\n")
+    
+    # This function loads the class variable middleASesDates from a previously
+    # generated pickle file containing a middleASesDates dictionary 
+    def loadMiddleASesDatesFromFile(self, middleASesDates_file):
+        if middleASesDates_file != '':        
+            self.middleASesDates_dict = pickle.load(open(middleASesDates_file, 'rb'))
+            sys.stderr.write("Dictionary with dates in which ASNs propagated prefixes was loaded successfully!\n")
     
     # This function loads the data structures of the class from previously
     # generated pickle files containing the result of already processed routing data
@@ -371,7 +379,7 @@ class BGPDataHandler:
     # This function loads the prefixesDates Radixes and the originASesDates
     # dictionary with the routing data from the routing_file provided
     def loadHistoricalDataFromFile(self, routing_file, isReadable):
-        prefixes, originASes, date =\
+        prefixes, originASes, middleASes, date =\
                         self.getPrefixesASesAndDate(routing_file, isReadable)
 
         for pref in prefixes:
@@ -392,7 +400,8 @@ class BGPDataHandler:
                 pref_node.data['lastSeen'] = date
                 pref_node.data['totalDays'] = 1
         
-        for asn in originASes:            
+        for asn in originASes: 
+            asn = int(asn)
             if asn in self.originASesDates_dict:
                 self.updateDatesDict(self.originASesDates_dict[asn], date)
             else:
@@ -401,13 +410,25 @@ class BGPDataHandler:
                 self.originASesDates_dict[asn]['firstSeen'] = date
                 self.originASesDates_dict[asn]['lastSeen'] = date
                 self.originASesDates_dict[asn]['totalDays'] = 1
+        
+        for asn in middleASes: 
+            asn = int(asn)
+            if asn in self.middleASesDates_dict:
+                self.updateDatesDict(self.middleASesDates_dict[asn], date)
+            else:
+                self.middleASesDates_dict[asn] = dict()
+                self.middleASesDates_dict[asn]['periodsSeen'] = [(date, date)]
+                self.middleASesDates_dict[asn]['firstSeen'] = date
+                self.middleASesDates_dict[asn]['lastSeen'] = date
+                self.middleASesDates_dict[asn]['totalDays'] = 1
     
     # This function returns a list of prefixes for which the routing_file has
-    # announcements, a list of the origin ASes included in the routing_file
+    # announcements, a list of the origin ASes included in the routing_file,
+    # a list of the middle ASes included in the routing file
     # and the date of the routing file.
-    # The function searches the routing file name looking for a date in the
-    # formats YYYY-MM-DD or YYYYMMDD. If a date is not found in the file name,
-    # the date is assumed to be the date of today.
+    # The routing file is assumed to include routing data for a single day,
+    # therefore the date is taken from the timestamp of the first row in the
+    # bgp_df DataFrame.
     def getPrefixesASesAndDate(self, routing_file, isReadable):
         if not isReadable:
             readable_file_name = self.getReadableFile(routing_file, False)
@@ -430,11 +451,13 @@ class BGPDataHandler:
             
         date = datetime.datetime.utcfromtimestamp(bgp_df['timestamp'].tolist()[0]).strftime('%Y%m%d')
         
-        # To get the origin AS we split the ASpath column
-        # and keep the last position
+        # To get the origin ASes and middle ASes we split the ASpath column
+        paths_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
+
         return set(bgp_df['prefix'].tolist()),\
-                set(bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)[1].tolist()),\
-                date
+                set(paths_parts[1].tolist()),\
+                set([item for sublist in paths_parts[0].tolist() for item in\
+                        sublist.split()]), date
                                         
         
     # This function downloads and processes all the files in the provided list.

@@ -11,6 +11,7 @@ import pandas as pd
 from get_file import get_file
 import ipaddress
 import numpy as np
+import radix
 
 
 class DelegatedHandler:
@@ -250,8 +251,8 @@ class DelegatedHandler:
         
         self.delegated_df = delegated_df
         
-    # This function returns a DataFrame with all the blocks delegated to an organization
-    # and all these delegated blocks summarized as much as possible
+    # This function returns a DataFrame with all the blocks delegated and all
+    # the blocks delegated to an organization summarized as much as possible
     def getDelAndAggrNetworks(self):
         
         orgs_aggr_networks = pd.DataFrame(columns= ['prefix', 'aggregated', 'del_date',\
@@ -317,6 +318,32 @@ class DelegatedHandler:
                                                                 ccs, regions,]
         
         return orgs_aggr_networks
+        
+    # This function returns a Radix with all the blocks delegated.
+    # The data dictionary for each delegated prefix contains all the info about
+    # the delegation (delegation date, opaque_id, cc, region, status and
+    # resource_type (IPv4 or IPv6))
+    def getDelegatedNetworksRadix(self):
+                                                            
+        ip_subset = self.delegated_df[\
+                    (self.delegated_df['resource_type'] == 'ipv4') |\
+                    (self.delegated_df['resource_type'] == 'ipv6')]
+
+        delegationsRadix = radix.Radix()
+        
+        for i in ip_subset.index:
+            del_row = ip_subset.ix[i]
+            pref_node = delegationsRadix.add(network=del_row['initial_resource'],\
+                                                masklen=int(del_row['count/prefLen']))
+
+            pref_node.data['del_date'] = del_row['date']
+            pref_node.data['opaque_id'] = del_row['opaque_id']
+            pref_node.data['cc'] = del_row['cc']
+            pref_node.data['region'] = del_row['region']
+            pref_node.data['resource_type'] = del_row['resource_type']
+            pref_node.data['status'] = del_row['status']
+    
+        return delegationsRadix
         
     # This function takes a subset of delegated_df for asns
     # and expands it in order to have one ASN per line
