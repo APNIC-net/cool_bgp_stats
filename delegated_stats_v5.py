@@ -1,6 +1,9 @@
 #! /usr/bin/python2.7 
 # -*- coding: utf8 -*-
 
+import os
+os.chdir(os.path.dirname(os.path.realpath(__file__)))
+from DelegatedHandler import DelegatedHandler
 import sys, getopt
 import numpy as np
 import pandas as pd
@@ -9,10 +12,6 @@ import requests
 import json
 import hashlib
 import getpass
-# Just for DEBUG
-#import os
-#os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
-from DelegatedHandler import DelegatedHandler
    
 # This function computes all the statistics for all the dates included in a given
 # subset from a DataFrame, which contains info about delegations (delegated_subset),
