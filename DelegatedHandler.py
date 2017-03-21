@@ -16,7 +16,8 @@ import radix
 
 class DelegatedHandler:
 
-    delegated_df = pd.DataFrame()    
+    delegated_df = pd.DataFrame()
+    fullASN_df = pd.DataFrame()    
 
     def __init__(self, DEBUG, EXTENDED, del_file, date, UNTIL, INCREMENTAL, final_existing_date):
          
@@ -101,6 +102,8 @@ class DelegatedHandler:
         delegated_df = delegated_df[delegated_df['status'] != 'reserved']
         
         delegated_df['date'] = pd.to_datetime(delegated_df['date'], format='%Y%m%d')
+        
+        self.fullASN_df = delegated_df[delegated_df['resource_type'] == 'asn']
         
         if date != '':  
             try:
@@ -336,7 +339,7 @@ class DelegatedHandler:
             pref_node = delegationsRadix.add(network=del_row['initial_resource'],\
                                                 masklen=int(del_row['count/prefLen']))
 
-            pref_node.data['del_date'] = del_row['date']
+            pref_node.data['del_date'] = del_row['date'].date()
             pref_node.data['opaque_id'] = del_row['opaque_id']
             pref_node.data['cc'] = del_row['cc']
             pref_node.data['region'] = del_row['region']
