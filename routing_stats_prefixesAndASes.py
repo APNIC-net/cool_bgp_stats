@@ -349,10 +349,10 @@ def computeNetworkUsageLatency(network, statsForPrefix, bgp_handler):
     first_seen = bgp_handler.getDateFirstSeen(network)
                 
     if first_seen is not None and statsForPrefix['del_date'] is not None:
-        statsForPrefix['UsageLatency'] =\
+        statsForPrefix['UsageLatencyGral'] =\
                                 (first_seen-statsForPrefix['del_date']).days + 1
     else:
-        statsForPrefix['UsageLatency'] = float('inf')
+        statsForPrefix['UsageLatencyGral'] = float('inf')
       
     # Intact Allocation Usage Latency computation
     # We compute the number of days between the date the block
@@ -363,48 +363,37 @@ def computeNetworkUsageLatency(network, statsForPrefix, bgp_handler):
         first_seen_intact = None
                 
     if first_seen_intact is not None:
-        statsForPrefix['UsageLatencyAllocIntact'] =\
+        statsForPrefix['UsageLatencyIntact'] =\
                         (first_seen_intact-statsForPrefix['del_date']).days + 1
     else:
-        statsForPrefix['UsageLatencyAllocIntact'] = float('inf')
+        statsForPrefix['UsageLatencyIntact'] = float('inf')
     
     return first_seen_intact
 
     
-def computeCharacteristicsForRoutedPrefix(radixNode, def_dict, bgp_handler,\
-                                            del_handler, ASrels, visibilityPerPeriods):
-    statsForPrefix = def_dict.copy()
+def computeCharacteristicsForPrefix(delNode, routedPrefix, statsForPrefix, bgp_handler,\
+                                            del_handler, ASrels):
 
-    statsForPrefix['prefix'] = radixNode.prefix
-    statsForPrefix['del_date'] = radixNode.data['del_date']
-    statsForPrefix['opaque_id'] = radixNode.data['opaque_id']
-    statsForPrefix['cc'] = radixNode.data['cc']
-    statsForPrefix['region'] = radixNode.data['region']
-    statsForPrefix['aggregated'] = radixNode.data['aggregated']
-    statsForPrefix['mostRecentRoutingData_date'] =\
-                            str(max(pd.to_numeric(bgp_handler.bgp_data['date'])))
+    statsForPrefix['routed_prefix'] = routedPrefix
     
-    network = ipaddress.ip_network(unicode(radixNode.prefix, "utf-8"))
+    routedNetwork = ipaddress.ip_network(unicode(routedPrefix, "utf-8"))
+    delNetwork = ipaddress.ip_network(unicode(delNode.prefix, "utf-8"))
     
-    blockOriginASes = bgp_handler.getOriginASesForBlock(network)
+    blockOriginASes = bgp_handler.getOriginASesForBlock(routedNetwork)
     
-    statsForPrefix['originASes'] = '{}'.format(', '.join(blockOriginASes))
+    statsForPrefix['routed_originASes'] = '{}'.format(', '.join(blockOriginASes))
     
     if len(blockOriginASes) > 1:
-        statsForPrefix['multipleOriginASes'] = True
+        statsForPrefix['routed_multipleOriginASes'] = True
 
     # We check if the prefix and all its origin ASes were delegated
     # to the same organization
-    # This not necessarily works correctly as delegations made
-    # by a NIR do not appear in the delegated file
-    # TODO Should we get the organization holding a specific
-    # resource from WHOIS? NO! I need opaque_id
-    # https://www.apnic.net/about-apnic/whois_search/about/rdap/
-    # Ask George and Byron
-
+    
     # Obtain ASN delegation data
-    asn_del = del_handler.delegated_df[del_handler.delegated_df['resource_type'] == 'asn']
+    asn_del = del_handler.fullASN_df
 
+    originASesOrgs = set()
+    
     for blockOriginAS in blockOriginASes:
         originASorg = asn_del[(pd.to_numeric(asn_del['initial_resource'])\
                                 <= int(blockOriginAS)) &\
@@ -412,45 +401,59 @@ def computeCharacteristicsForRoutedPrefix(radixNode, def_dict, bgp_handler,\
                                 pd.to_numeric(asn_del['count/prefLen'])>\
                                 int(blockOriginAS))]['opaque_id'].get_values()
         if len(originASorg) == 1:
-            originASorg = originASorg[0]
+            originASesOrgs.add(originASorg[0])
+        # There can not be more than one result in the ASN DataFrame,
+        # therefore, if the len is not 1, it's 0 and it means the origin AS was
+        # not delegated by APNIC
         else:
             originASorg = 'UNKNOWN Org'
-
+            
+    sameOrgs = True
+        
+    for org in originASesOrgs:
+        if org != statsForPrefix['opaque_id']:
+            sameOrgs = False
+            break
+            
+    if not sameOrgs:
+        print 'TODO'
+        # TODO check with WHOIS/RDAP
+        # Get Org ID for prefix and for origin ASes and compare
+        # https://www.apnic.net/about-apnic/whois_search/about/rdap/
+        # Check with bootstrap right registry to query
+        
+        # If even after checking with WHOIS/RDAP we have different orgs:
         # If the prefix is being originated by an AS delegated to
         # a different organization from the organization that
         # received the delegation of the block                 
-        if originASorg != statsForPrefix['opaque_id']:
-            statsForPrefix['originatedByDiffOrg'] = True
+#            statsForPrefix['routed_originatedByDiffOrg'] = True
     
-    first_seen_intact = computeNetworkUsageLatency(network, statsForPrefix,\
-                                                                    bgp_handler)
-    computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
-                                        first_seen_intact, visibilityPerPeriods)
+    
 
     # We get the set of AS paths for the block
-    blockASpaths = bgp_handler.getASpathsForBlock(network)
+    blockASpaths = bgp_handler.getASpathsForBlock(routedNetwork)
     
     ASpathsLengths = []
     for path in blockASpaths:
         ASpathsLengths.append(len(path.split()))
         
     ASpathsLengths = np.array(ASpathsLengths)
-    statsForPrefix['avgASPathLength'] = ASpathsLengths.mean()
-    statsForPrefix['stdASPathLength'] = ASpathsLengths.std()
-    statsForPrefix['minASPathLength'] = ASpathsLengths.min()
-    statsForPrefix['maxASPathLength'] = ASpathsLengths.max()
+    statsForPrefix['routed_avgASPathLength'] = ASpathsLengths.mean()
+    statsForPrefix['routed_stdASPathLength'] = ASpathsLengths.std()
+    statsForPrefix['routed_minASPathLength'] = ASpathsLengths.min()
+    statsForPrefix['routed_maxASPathLength'] = ASpathsLengths.max()
     
     # Find routed blocks related to the prefix of interest 
-    net_less_specifics = bgp_handler.getRoutedParentAndGrandparents(network)
-    net_more_specifics = bgp_handler.getRoutedChildren(network)
+    net_less_specifics = bgp_handler.getRoutedParentAndGrandparents(routedNetwork)
+    net_more_specifics = bgp_handler.getRoutedChildren(routedNetwork)
    
     # If there is at least one less specific block being routed,
     # the block is a covered prefix
     if len(net_less_specifics) > 0:        
         if len(net_less_specifics) == 1:
-            statsForPrefix['isCovered_Level1'] = True
+            statsForPrefix['routed_isCovered_Level1'] = True
         else:
-            statsForPrefix['isCovered_Level2plus'] = True
+            statsForPrefix['routed_isCovered_Level2plus'] = True
 
         # We classify the covered prefix based on its announcements AS paths
         # relative to that of their corresponding covering prefix
@@ -465,26 +468,26 @@ def computeCharacteristicsForRoutedPrefix(radixNode, def_dict, bgp_handler,\
         if len(blockOriginASes.intersection(coveringPrefOriginASes)) > 0:
             if len(blockASpaths) == 1:
                 if blockASpaths.issubset(coveringPrefASpaths):
-                    statsForPrefix['SOSP'] = True
+                    statsForPrefix['routed_SOSP'] = True
                 else:
-                    statsForPrefix['SODP2'] = True
+                    statsForPrefix['routed_SODP2'] = True
                     
-                    statsForPrefix['avgLevenshteinDist'],
-                    statsForPrefix['stdLevenshteinDist'],
-                    statsForPrefix['minLevenshteinDist'],
-                    statsForPrefix['maxLevenshteinDist'] =\
+                    statsForPrefix['routed_avgLevenshteinDist'],
+                    statsForPrefix['routed_stdLevenshteinDist'],
+                    statsForPrefix['routed_minLevenshteinDist'],
+                    statsForPrefix['routed_maxLevenshteinDist'] =\
                         computeLevenshteinDistMetrics(blockASpaths,
                                                 coveringPrefASpaths)
                                                 
             else: # len(blockASpaths) >= 2
                 if len(coveringPrefASpaths.intersection(blockASpaths)) > 0 and\
                     len(blockASpaths.difference(coveringPrefASpaths)) > 0:
-                    statsForPrefix['SODP1'] = True
+                    statsForPrefix['routed_SODP1'] = True
                     
-                    statsForPrefix['avgLevenshteinDist'],
-                    statsForPrefix['stdLevenshteinDist'],
-                    statsForPrefix['minLevenshteinDist'],
-                    statsForPrefix['maxLevenshteinDist'] =\
+                    statsForPrefix['routed_avgLevenshteinDist'],
+                    statsForPrefix['routed_stdLevenshteinDist'],
+                    statsForPrefix['routed_minLevenshteinDist'],
+                    statsForPrefix['routed_maxLevenshteinDist'] =\
                         computeLevenshteinDistMetrics(blockASpaths,
                                                 coveringPrefASpaths)
                         
@@ -504,15 +507,15 @@ def computeCharacteristicsForRoutedPrefix(radixNode, def_dict, bgp_handler,\
 
                                 blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
                                 if blockASpath_woOrigin in coveringPrefASpaths:
-                                    statsForPrefix['DOSP'] = True
+                                    statsForPrefix['routed_DOSP'] = True
             
                 if not blockASpaths.issubset(coveringPrefASpaths):
-                    statsForPrefix['DODP1'] = True
+                    statsForPrefix['routed_DODP1'] = True
                     
-                    statsForPrefix['avgLevenshteinDist'],
-                    statsForPrefix['stdLevenshteinDist'],
-                    statsForPrefix['minLevenshteinDist'],
-                    statsForPrefix['maxLevenshteinDist'] =\
+                    statsForPrefix['routed_avgLevenshteinDist'],
+                    statsForPrefix['routed_stdLevenshteinDist'],
+                    statsForPrefix['routed_minLevenshteinDist'],
+                    statsForPrefix['routed_maxLevenshteinDist'] =\
                         computeLevenshteinDistMetrics(blockASpaths,
                                                 coveringPrefASpaths)
                                                 
@@ -523,12 +526,12 @@ def computeCharacteristicsForRoutedPrefix(radixNode, def_dict, bgp_handler,\
                 
                 if len(coveringPrefASpaths.intersection(blockASpaths_woOrigin)) > 0 and\
                     len(blockASpaths_woOrigin.difference(coveringPrefASpaths)) > 0:
-                    statsForPrefix['DODP2'] = True
+                    statsForPrefix['routed_DODP2'] = True
                     
-                    statsForPrefix['avgLevenshteinDist'],
-                    statsForPrefix['stdLevenshteinDist'],
-                    statsForPrefix['minLevenshteinDist'],
-                    statsForPrefix['maxLevenshteinDist'] =\
+                    statsForPrefix['routed_avgLevenshteinDist'],
+                    statsForPrefix['routed_stdLevenshteinDist'],
+                    statsForPrefix['routed_minLevenshteinDist'],
+                    statsForPrefix['routed_maxLevenshteinDist'] =\
                         computeLevenshteinDistMetrics(blockASpaths,
                                                 coveringPrefASpaths)
               
@@ -537,12 +540,12 @@ def computeCharacteristicsForRoutedPrefix(radixNode, def_dict, bgp_handler,\
                     # Origin AS for covered prefix and Origin AS for
                     # covering prefix have a common customer?
                     # Origin AS for covered prefix advertises two or more prefixes 
-                    statsForPrefix['DODP3'] = True
+                    statsForPrefix['routed_DODP3'] = True
                     
-                    statsForPrefix['avgLevenshteinDist'],
-                    statsForPrefix['stdLevenshteinDist'],
-                    statsForPrefix['minLevenshteinDist'],
-                    statsForPrefix['maxLevenshteinDist'] =\
+                    statsForPrefix['routed_avgLevenshteinDist'],
+                    statsForPrefix['routed_stdLevenshteinDist'],
+                    statsForPrefix['routed_minLevenshteinDist'],
+                    statsForPrefix['routed_maxLevenshteinDist'] =\
                         computeLevenshteinDistMetrics(blockASpaths,
                                                 coveringPrefASpaths)
                     
@@ -556,13 +559,13 @@ def computeCharacteristicsForRoutedPrefix(radixNode, def_dict, bgp_handler,\
             # the block is a Lonely prefix
             # • Lonely: a prefix that does not overlap
             # with any other prefix.
-            statsForPrefix['isLonely'] = True
+            statsForPrefix['routed_isLonely'] = True
         else:
         # If there are more specific blocks being routed apart from
         # the block itself, taking into account we are under the case
         # of the block not having less specific blocks being routed,
             # The block is a Covering prefix  
-            statsForPrefix['isCovering'] = True
+            statsForPrefix['routed_isCovering'] = True
 
     if len(net_more_specifics) > 1:    
         aggr_more_spec = [ipaddr for ipaddr in
@@ -570,17 +573,17 @@ def computeCharacteristicsForRoutedPrefix(radixNode, def_dict, bgp_handler,\
                             [ipaddress.ip_network(unicode(ip_net, 'utf-8'))
                             for ip_net in net_more_specifics])]
                                         
-        if len(net_more_specifics) >= 3 and radixNode.prefix in\
+        if len(net_more_specifics) >= 3 and delNode.prefix in\
                                     [str(ip_net) for ip_net in aggr_more_spec]:
             # • root/MS-complete: The root prefix and at least two subprefixes
             # are announced. The set of all sub-prefixes spans the whole root prefix.
-            statsForPrefix['root_MScompl'] = True
-        elif len(net_more_specifics) >= 2 and radixNode.prefix not in\
+            statsForPrefix['routed_root_MScompl'] = True
+        elif len(net_more_specifics) >= 2 and delNode.prefix not in\
                                     [str(ip_net) for ip_net in aggr_more_spec]:
             # • root/MS-incomplete: The root prefix and at least one subprefix
             # is announced. Together, the set of announced subprefixes
             # does not cover the root prefix.
-            statsForPrefix['root_MSincompl'] = True
+            statsForPrefix['routed_root_MSincompl'] = True
         
     return statsForPrefix
 
@@ -596,8 +599,8 @@ def writeStatsLineToFile(statsForPrefix, allAttr, stats_filename):
         stats_file.write(line)
 
 def computeStatsForRoutedPrefix(prefix, delegatedNetworks, def_dict, bgp_handler,\
-                                del_handler, ASrels, visibilityPerPeriods,\
-                                prefixesReady, allAttr, stats_filename):
+                                del_handler, ASrels, prefixesReady, allAttr,\
+                                stats_filename):
     intactDel_node = delegatedNetworks.search_exact(prefix)
     moreSpecDel = delegatedNetworks.search_covered(prefix)
     lessSpecDel = delegatedNetworks.search_covering(prefix)
@@ -607,21 +610,31 @@ def computeStatsForRoutedPrefix(prefix, delegatedNetworks, def_dict, bgp_handler
                                                     len(lessSpecDel) > 0:
         # If the announced prefix was delegated as-is
         if intactDel_node is not None:
-            statsForPrefix = computeCharacteristicsForRoutedPrefix(\
-                               intactDel_node, def_dict, bgp_handler,\
+            statsForPrefix = computeCharacteristicsForPrefix(intactDel_node,\
+                               prefix, def_dict, bgp_handler,\
                                del_handler, ASrels, visibilityPerPeriods)
            
             statsForPrefix['allocIntact'] = True  
+            # As we are analyzing prefixes present in the routing table being
+            # considered, they are 100 % visible
+            statsForPrefix['visibility'] = 100
+            prefixesReady.add(intactDel_node.prefix)
+            writeStatsLineToFile(statsForPrefix, allAttr, stats_filename)
 
         # If the announced prefix was not delegated as-is, but delegations of
         # more specific prefixes exist
         elif len(moreSpecDel) > 0:
             for moreSpecDel_node in moreSpecDel:
-                statsForPrefix = computeCharacteristicsForRoutedPrefix(\
-                                    moreSpecDel_node, def_dict, bgp_handler,\
+                statsForPrefix = computeCharacteristicsForPrefix(moreSpecDel_node,\
+                                    prefix, def_dict, bgp_handler,\
                                     del_handler, ASrels, visibilityPerPeriods)
                 # the announced prefix is an aggregation of multiple delegations
                 statsForPrefix['aggrRouted'] = True
+                # As we are analyzing prefixes present in the routing table being
+                # considered, they are 100 % visible
+                statsForPrefix['visibility'] = 100
+                prefixesReady.add(moreSpecDel_node.prefix)
+                writeStatsLineToFile(statsForPrefix, allAttr, stats_filename)
 
         # If the announced prefix was not delegated as-is, but delegations of
         # less specific prefixes exist
@@ -630,18 +643,22 @@ def computeStatsForRoutedPrefix(prefix, delegatedNetworks, def_dict, bgp_handler
             # delegatedNetworks, we know for sure that if there is a delegation
             # of more specific prefixes, it will be only one, so we just
             # take the first element of the list
-            statsForPrefix = computeCharacteristicsForRoutedPrefix(\
-                                lessSpecDel[0], def_dict, bgp_handler,\
+            statsForPrefix = computeCharacteristicsForPrefix(lessSpecDel[0],\
+                                prefix, def_dict, bgp_handler,\
                                 del_handler, ASrels, visibilityPerPeriods)
+
+            # TODO Buscar todos los anuncios más específicos correspondientes
+            # a esta delegación para no computar las estadísticas de la delegación
+            # más de una vez y luego poder marcar la delegación como ready
 
             # the announced prefix is a fragment of a delegation
             statsForPrefix['fragmentRouted'] =  True
+            # As we are analyzing prefixes present in the routing table being
+            # considered, they are 100 % visible
+            statsForPrefix['visibility'] = 100
+            writeStatsLineToFile(statsForPrefix, allAttr, stats_filename)
 
-        # As we are analyzing prefixes present in the routing table being
-        # considered, they are 100 % visible
-        statsForPrefix['visibility'] = 100
-        prefixesReady.add(prefix)
-        writeStatsLineToFile(statsForPrefix, allAttr, stats_filename)
+
                     
 # This function computes statistics for each delegated block
 # and for each aggregated block resulting from summarizing multiple delegations
@@ -661,83 +678,107 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels, stats_filename,
     
     visibilityPerPeriods = dict()
 
-    prefixesReady = set()
-    
-    # For each currently announced IPv4 prefix
-    for prefix in bgp_handler.ipv4_prefixes_indexes_radix:
-        computeStatsForRoutedPrefix(prefix, delegatedNetworks, def_dict, bgp_handler,\
-                                del_handler, ASrels, visibilityPerPeriods,\
-                                prefixesReady, allAttr, stats_filename)
-
-    # For each currently announced IPv6 prefix
-    for prefix in bgp_handler.ipv6_prefixes_indexes_radix:
-        computeStatsForRoutedPrefix(prefix, delegatedNetworks, def_dict, bgp_handler,\
-                                del_handler, ASrels, visibilityPerPeriods,\
-                                prefixesReady, allAttr, stats_filename)
-
-    # Now we compute statistics for prefixes that are not announced as-is but
-    # that can have less specific or more specific prefixes being announced
     for pref_node in delegatedNetworks:
         prefix = pref_node.prefix
-        if prefix not in prefixesReady:
-            statsForPrefix = def_dict.copy()
+        statsForPrefix = def_dict.copy()
 
-            statsForPrefix['prefix'] = prefix
-            statsForPrefix['del_date'] = pref_node.data['del_date']
-            statsForPrefix['opaque_id'] = pref_node.data['opaque_id']
-            statsForPrefix['cc'] = pref_node.data['cc']
-            statsForPrefix['region'] = pref_node.data['region']
-            statsForPrefix['aggregated'] = pref_node.data['aggregated']
-            statsForPrefix['mostRecentRoutingData_date'] =\
-                            str(max(pd.to_numeric(bgp_handler.bgp_data['date'])))
+        statsForPrefix['delegated_prefix'] = prefix
+        statsForPrefix['del_date'] = pref_node.data['del_date']
+        statsForPrefix['opaque_id'] = pref_node.data['opaque_id']
+        statsForPrefix['cc'] = pref_node.data['cc']
+        statsForPrefix['region'] = pref_node.data['region']
+        statsForPrefix['mostRecentRoutingData_date'] =\
+                        str(max(pd.to_numeric(bgp_handler.bgp_data['date'])))
 
-            network = ipaddress.ip_network(unicode(prefix, "utf-8"))
-            
-            first_seen_intact = computeNetworkUsageLatency(network, statsForPrefix,\
-                                                                    bgp_handler)
-            computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
-                                        first_seen_intact, visibilityPerPeriods)
-
-            ips_delegated = network.num_addresses 
-    
-            # Find routed blocks related to the prefix of interest 
-            net_less_specifics = bgp_handler.getRoutedParentAndGrandparents(network)
-            net_more_specifics = bgp_handler.getRoutedChildren(network)
-            
-            if len(net_less_specifics) > 0:
-                statsForPrefix['visibility'] = 100
-                
-            elif len(net_more_specifics) > 0:     
-                # We summarize the more specific routed blocks without the block itself
-                # to get the maximum aggregation possible of the more specifics
-                aggr_more_spec = [ipaddr for ipaddr in
-                                    ipaddress.collapse_addresses(
-                                    [ipaddress.ip_network(unicode(ip_net, 'utf-8'))
-                                    for ip_net in net_more_specifics])]
-
-                # ips_routed is obtained from the summarized routed blocks
-                # so that IPs contained in overlapping announcements are not
-                # counted more than once
-                ips_routed = 0            
-                for aggr_r in aggr_more_spec:
-                    ips_routed += aggr_r.num_addresses
-                                    
-                # The visibility of the block is the percentaje of IPs
-                # that are visible
-                statsForPrefix['visibility'] = float(ips_routed*100)/ips_delegated
+        delNetwork = ipaddress.ip_network(unicode(prefix, "utf-8"))
         
-                if len(net_more_specifics) >= 2 and prefix in\
-                                    [str(ip_net) for ip_net in aggr_more_spec]:
-                    # • no root/MS-complete: The root prefix is not announced.
-                    # However, there are at least two sub-prefixes which together
-                    # cover the complete root prefix.
-                    statsForPrefix['noRoot_MScompl'] = True
-                elif len(net_more_specifics) >= 1 and prefix not in\
-                                    [str(ip_net) for ip_net in aggr_more_spec]:
-                    # • no root/MS-incomplete: The root prefix is not announced.
-                    # There is at least one sub-prefix. Taking all sub-prefixes
-                    # together, they do not cover the complete root prefix.
-                    statsForPrefix['noRoot_MSincompl'] = True
+        first_seen_intact = computeNetworkUsageLatency(delNetwork, statsForPrefix,\
+                                                                bgp_handler)
+        computeNetworkHistoryOfVisibility(delNetwork, statsForPrefix, bgp_handler,\
+                                    first_seen_intact, visibilityPerPeriods)
+
+        ips_delegated = delNetwork.num_addresses 
+
+        # Find routed blocks related to the prefix of interest 
+        net_less_specifics = bgp_handler.getRoutedParentAndGrandparents(delNetwork)
+        net_more_specifics = bgp_handler.getRoutedChildren(delNetwork)
+        
+        if len(net_less_specifics) > 0:
+            statsForPrefix['currentVisibility'] = 100
+            statsForPrefix['numOfLessSpecificsRouted'] = len(net_less_specifics)
+
+            # Qué hacer? Los less specifics pueden estar asociados a otras delegaciones.
+            
+        elif len(net_more_specifics) > 0:    
+            statsForPrefix['numOfMoreSpecificsRouted'] = len(net_more_specifics)
+
+            # If prefix in net_more_specifics: isRoutedIntact = True
+            # net_more_specifics_wo_block = net_more_specifics.copy()
+            # net_more_specifics_wo_block.remove(prefix)
+            # Obtener originASes y AS paths y guardar:
+            # 'numOfOriginASes', 'numOfASPaths',
+#                          'avgASPathLength', 'stdASPathLength', 'maxASPathLength',
+#                          'minASPathLength'
+            # ver si setear 'originatedByDiffOrg' en True
+
+            # We summarize the more specific routed blocks without the block itself
+            # to get the maximum aggregation possible of the more specifics
+            aggr_more_spec = [ipaddr for ipaddr in
+                                ipaddress.collapse_addresses(
+                                [ipaddress.ip_network(unicode(ip_net, 'utf-8'))
+                                for ip_net in net_more_specifics_wo_block])]
+
+            # ips_routed is obtained from the summarized routed blocks
+            # so that IPs contained in overlapping announcements are not
+            # counted more than once
+            ips_routed = 0            
+            for aggr_r in aggr_more_spec:
+                ips_routed += aggr_r.num_addresses
+                                
+            # The visibility of the block is the percentaje of IPs
+            # that are visible
+            statsForPrefix['currentVisibility'] = float(ips_routed*100)/ips_delegated
+    
+            # for moreSpec in net_more_specifics:
+            # classify into:
+            # 'isCovering', 'isCoveredLevel1', 'isCoveredLevel2plus', 'SOSP', 'SODP1', 'SODP2', 'DOSP', 'DODP1', 'DODP2', 'DODP3', 'rootMScompl', 'rootMSincompl', 'noRootMScompl', 'noRoot_MSincompl'
+            # sumar cantidad en cada categoría par obtener:
+            # 'numOfCoveringMoreSpec', 'numOfCoveredLevel1MoreSpec',
+#                          'numOfCoveredLevel2MoreSpec', 'numOfSOSPMoreSpec',
+#                          'numOfSODP1MoreSpec', 'numOfSODP2MoreSpec',
+#                          'numOfDOSPMoreSpec', 'numOfDODP1MoreSpec',
+#                          'numOfDODP2MoreSpec', 'numOfDODP3MoreSpec',
+#                          'numOfRootMSComplMoreSpec', 'numOfRootMSIncomplMoreSpec',
+#                          'numOfNoRootMSComplMoreSpec', 'numOfNoRootMSIncomplMoreSpec'
+    
+            # En las categorías con different AS path calcular:
+            # 'avgLevenshteinDist',
+#                          'stdLevenshteinDist', 'minLevenshteinDist',
+#                          'maxLevenshteinDist'
+                          
+    # Some of the concepts defined in [1] and some of the concepts defined in [2].
+        # Prefixes classified as Top in this paper are the prefixes classified as Covering
+        # in [1]. Prefixes classified as Deaggregated in [2] are those classified as
+        # SOSP or SODP in [1]. Prefixes classified as Delegated in [2] are those
+        # classified as DOSP or DODP in [1].
+        # onlyRoot is represented by announced prefixes with both allocIntact
+        # and isLonely variables with a True value
+        # We just use the concepts defined in [2] that are not redundant with the
+        # concepts defined in [1]
+
+
+#            if len(net_more_specifics) >= 2 and prefix in\
+#                                [str(ip_net) for ip_net in aggr_more_spec]:
+#                # • no root/MS-complete: The root prefix is not announced.
+#                # However, there are at least two sub-prefixes which together
+#                # cover the complete root prefix.
+#                statsForPrefix['noRootMScompl'] = True
+#            elif len(net_more_specifics) >= 1 and prefix not in\
+#                                [str(ip_net) for ip_net in aggr_more_spec]:
+#                # • no root/MS-incomplete: The root prefix is not announced.
+#                # There is at least one sub-prefix. Taking all sub-prefixes
+#                # together, they do not cover the complete root prefix.
+#                statsForPrefix['routed_noRoot_MSincompl'] = True
 
             writeStatsLineToFile(statsForPrefix, allAttr, stats_filename)
             
@@ -1182,51 +1223,46 @@ def main(argv):
                                         INCREMENTAL, final_existing_date)
 
         ASrels = getASrelInfo(serial=2, files_path=files_path, KEEP=KEEP)
-        
-        # Keys to store the concepts defined in [1]
-        keysList1_pref = ['isCovering', 'allocIntact', 'aggrRouted', 'fragmentRouted',
-                    'isCovered_Level1', 'isCovered_Level2plus',
-                    'SOSP', 'SODP1', 'SODP2', 'DOSP', 'DODP1', 'DODP2', 'DODP3']
-        
-        # Keys to store some of the concepts defined in [2].
-        # Prefixes classified as Top in this paper are the prefixes classified as Covering
-        # in [1]. Prefixes classified as Deaggregated in [2] are those classified as
-        # SOSP or SODP in [1]. Prefixes classified as Delegated in [2] are those
-        # classified as DOSP or DODP in [1].
-        # onlyRoot is represented by announced prefixes with both allocIntact
-        # and isLonely variables with a True value
-        # We just use the concepts defined in [2] that are not redundant with the
-        # concepts defined in [1]
-        
-        keysList2_pref = ['isLonely', 'root_MScompl', 'root_MSincompl',
-                        'noRoot_MScompl', 'noRoot_MSincompl']
                         
-        # We will also use a key to store info about the prefix being originated by an AS
-        # that was delegated to an organization that is not the same that received
-        # the delegation of the block
-        additionalKeys_pref = ['originatedByDiffOrg', 'isDead', 'isDeadIntact',
-                            'multipleOriginASes']
-        booleanKeys_pref = keysList1_pref + keysList2_pref + additionalKeys_pref
-        
-        valueKeys_pref = ['UsageLatency', 'UsageLatencyAllocIntact',
-                          'relUsedTimeIntact', 'effectiveUsageIntact',
-                          'timeFragmentationIntact', 'avgPeriodLengthIntact',
-                          'stdPeriodLengthIntact', 'minPeriodLengthIntact',
-                          'maxPeriodLengthIntact', 'avgRelUsedTimeGral',
-                          'avgTimeFragmentationGral', 'avgEffectiveUsageGral',
+        # isRoutedIntact: Boolean variable that will be True is the prefix that
+        # was delegated appears as-is in the routing table
+        # isDead: Boolean variable that will be True is the prefix or any part
+        # of it haven't been visible in the routing table for more than a year
+        # isDeadIntact: Boolean variable that will be True if the prefix as-is
+        # hasn't been visible in the routing table for more than a year
+        # OriginatedByDiffOrg: Boolean key to store info about the prefix being
+        # originated by an AS that was delegated to an organization that is not
+        # the same that received the delegation of the block
+        booleanKeys_pref = ['isRoutedIntact', 'isDead', 'isDeadIntact',
+                            'originatedByDiffOrg']
+                                       
+        valueKeys_pref = ['UsageLatencyGral', 'UsageLatencyIntact',
+                          'relUsedTimeIntact', 'avgRelUsedTimeGral',
+                          'effectiveUsageIntact', 'avgEffectiveUsageGral',
+                          'timeFragmentationIntact', 'avgTimeFragmentationGral',
+                          'avgPeriodLengthIntact', 'stdPeriodLengthIntact',
+                          'maxPeriodLengthIntact', 'minPeriodLengthIntact',
                           'avgPeriodLengthGral', 'stdPeriodLengthGral',
-                          'minPeriodLengthGral', 'maxPeriodLengthGral',
-                          'avgVisibility', 'stdVisibility', 'minVisibility',
-                          'maxVisibility', 'avgLevenshteinDist', 'stdLevenshteinDist',
-                          'minLevenshteinDist', 'maxLevenshteinDist', 'visibility']
-        
-        orgs_aggr_columns = ['prefix', 'aggregated', 'del_date', 'opaque_id',
-                            'cc', 'region']
-        curr_routingData_date = ['mostRecentRoutingData_date']
-        
-        allAttr_pref = orgs_aggr_columns + curr_routingData_date + booleanKeys_pref + valueKeys_pref
-        
+                          'maxPeriodLengthGral', 'minPeriodLengthGral',
+                          'avgVisibility', 'stdVisibility', 'maxVisibility',
+                          'minVisibility', 'numOfOriginASes', 'numOfASPaths',
+                          'avgASPathLength', 'stdASPathLength', 'maxASPathLength',
+                          'minASPathLength', 'avgLevenshteinDist',
+                          'stdLevenshteinDist', 'minLevenshteinDist',
+                          'maxLevenshteinDist', 'currentVisibility', 
+                          'numOfLessSpecificsRouted', 'numOfMoreSpecificsRouted',
+                          'numOfCoveringMoreSpec', 'numOfCoveredLevel1MoreSpec',
+                          'numOfCoveredLevel2MoreSpec', 'numOfSOSPMoreSpec',
+                          'numOfSODP1MoreSpec', 'numOfSODP2MoreSpec',
+                          'numOfDOSPMoreSpec', 'numOfDODP1MoreSpec',
+                          'numOfDODP2MoreSpec', 'numOfDODP3MoreSpec',
+                          'numOfRootMSComplMoreSpec', 'numOfRootMSIncomplMoreSpec',
+                          'numOfNoRootMSComplMoreSpec', 'numOfNoRootMSIncomplMoreSpec']
 
+        other_data_columns = ['delegated_prefix', 'del_date', 'opaque_id', 'cc',
+                              'region', 'mostRecentRoutingData_date']
+        
+        allAttr_pref = other_data_columns + booleanKeys_pref + valueKeys_pref
 
         if not INCREMENTAL:
             line = allAttr_pref[0]
