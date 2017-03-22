@@ -400,16 +400,31 @@ class BGPDataHandler:
                 pref_node.data['lastSeen'] = date
                 pref_node.data['totalDays'] = 1
         
-        for asn in originASes: 
-            asn = int(asn)
-            if asn in self.originASesDates_dict:
-                self.updateDatesDict(self.originASesDates_dict[asn], date)
-            else:
-                self.originASesDates_dict[asn] = dict()
-                self.originASesDates_dict[asn]['periodsSeen'] = [(date, date)]
-                self.originASesDates_dict[asn]['firstSeen'] = date
-                self.originASesDates_dict[asn]['lastSeen'] = date
-                self.originASesDates_dict[asn]['totalDays'] = 1
+        for asn in originASes:
+            try:
+                asn = int(asn)
+                if asn in self.originASesDates_dict:
+                    self.updateDatesDict(self.originASesDates_dict[asn], date)
+                else:
+                    self.originASesDates_dict[asn] = dict()
+                    self.originASesDates_dict[asn]['periodsSeen'] = [(date, date)]
+                    self.originASesDates_dict[asn]['firstSeen'] = date
+                    self.originASesDates_dict[asn]['lastSeen'] = date
+                    self.originASesDates_dict[asn]['totalDays'] = 1
+            except ValueError:
+                # If we get a value error, there is an as-set in first place
+                # in the AS path, therefore, we split it (leaving the brackets
+                # out) and consider each AS separately.
+                asnList = asn[1:-1] .split(',')
+                for asn in asnList:
+                    if asn in self.originASesDates_dict:
+                        self.updateDatesDict(self.originASesDates_dict[asn], date)
+                    else:
+                        self.originASesDates_dict[asn] = dict()
+                        self.originASesDates_dict[asn]['periodsSeen'] = [(date, date)]
+                        self.originASesDates_dict[asn]['firstSeen'] = date
+                        self.originASesDates_dict[asn]['lastSeen'] = date
+                        self.originASesDates_dict[asn]['totalDays'] = 1
         
         for asn in middleASes: 
             asn = int(asn)
@@ -797,10 +812,21 @@ class BGPDataHandler:
         with open(ipv6_prefDates_file_name, 'wb') as f:
             pickle.dump(self.ipv6_prefixesDates_radix, f, pickle.HIGHEST_PROTOCOL)
             sys.stderr.write("Saved to disk %s pickle file containing Radix with the dates in which each IPv6 prefix was seen.\n" % ipv6_prefDates_file_name)
-            
+        
+        originASesDates_file_name = '%s/originASesDates_%s.pkl' % (self.files_path, today)
+        with open(originASesDates_file_name, 'wb') as f:
+            pickle.dump(self.originASesDates_dict, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing a dictionary indexed by origin AS with info about the periods of time during which the AS originated prefixes.\n" % originASesDates_file_name)
+
+        middleASesDates_file_name = '%s/middleASesDates_%s.pkl' % (self.files_path, today)
+        with open(middleASesDates_file_name, 'wb') as f:
+            pickle.dump(self.middleASesDates_dict, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing a dictionary indexed by AS with info about the periods of time during which the AS propagated prefixes.\n" % middleASesDates_file_name)
+
         return bgp_file_name, ipv4_radix_file_name, ipv6_radix_file_name,\
                 o_ases_dic_file_name, p_ases_dic_file_name,\
-                ipv4_prefDates_file_name, ipv6_prefDates_file_name
+                ipv4_prefDates_file_name, ipv6_prefDates_file_name,\
+                originASesDates_file_name, middleASesDates_file_name
 
     # This function sets the ipv4_longest_pref and ipv6_longest_pref class variables
     # with the corresponding maximum prefix lengths in the ipv4_prefixes_indexes
@@ -1019,3 +1045,5 @@ class BGPDataHandler:
             return datetime.datetime.strptime(str(last_seen), '%Y%m%d').date()
         else:
             return None
+    
+    def truncateStructures(self, date):
