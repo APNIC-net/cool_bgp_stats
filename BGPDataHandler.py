@@ -457,7 +457,7 @@ class BGPDataHandler:
         return set(bgp_df['prefix'].tolist()),\
                 set(paths_parts[1].tolist()),\
                 set([item for sublist in paths_parts[0].tolist() for item in\
-                        sublist.split()]), date
+                        str(sublist).split()]), date
                                         
         
     # This function downloads and processes all the files in the provided list.

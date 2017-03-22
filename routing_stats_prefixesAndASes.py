@@ -363,6 +363,7 @@ def computeNetworkUsageLatency(network, statsForPrefix, bgp_handler):
 # to keep track of the number of prefixes in each class.
 def classifyPrefixAndUpdateCounters(routedPrefix, statsForPrefix, levenshteinDists,\
                                     bgp_handler, ASrels):
+    # TODO Debug
     routedNetwork = ipaddress.ip_network(unicode(routedPrefix, "utf-8"))
         
     # Find routed blocks related to the prefix of interest 
@@ -411,21 +412,27 @@ def classifyPrefixAndUpdateCounters(routedPrefix, statsForPrefix, levenshteinDis
         else:
             if len(blockASpaths) == 1:
                 if len(blockOriginASes) == 1:
-                    blockOriginAS = blockOriginASes.pop()
+                    blockOriginAS = int(blockOriginASes.pop())
 
                     # We check whether the origin AS of the
                     # block is a customer of any of the origin ASes
                     # of the covering prefix                       
                     for coveringPrefOriginAS in coveringPrefOriginASes:
-                        if blockOriginAS in ASrels and\
-                            coveringPrefOriginAS in ASrels[blockOriginAS]\
-                            and ASrels[blockOriginAS][coveringPrefOriginAS]\
-                            == 'C2P':
+                        if len(ASrels[(ASrels['AS1'] == coveringPrefOriginAS) &\
+                                (ASrels['AS2'] == blockOriginAS) &\
+                                (ASrels['rel_type'] == 'P2C')]):
 
-                                blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
-                                if blockASpath_woOrigin in coveringPrefASpaths:
-                                    statsForPrefix['numOfDOSPMoreSpec'] += 1
-            
+                                for coveringPrefASpath in coveringPrefASpaths:
+                                    if coveringPrefASpath.split(' ')[-1] == coveringPrefOriginAS:
+                                        blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
+                                        
+                                        if blockASpath_woOrigin == coveringPrefASpath:
+                                            statsForPrefix['numOfDOSPMoreSpec'] += 1
+                                            break
+                                else:
+                                    continue
+                                break
+                                
                 if not blockASpaths.issubset(coveringPrefASpaths):
                     statsForPrefix['numOfDODP1MoreSpec'] += 1
                     
@@ -444,15 +451,36 @@ def classifyPrefixAndUpdateCounters(routedPrefix, statsForPrefix, levenshteinDis
                     levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
                                                                     coveringPrefASpaths))
               
-                if len(coveringPrefASpaths.intersection(blockASpaths)) == 0:
-                    # TODO Ask Geoff about this
-                    # Origin AS for covered prefix and Origin AS for
-                    # covering prefix have a common customer?
-                    # Origin AS for covered prefix advertises two or more prefixes 
-                    statsForPrefix['numOfDODP3MoreSpec'] += 1
-                    
-                    levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
-                                                                    coveringPrefASpaths))
+            if len(coveringPrefASpaths.intersection(blockASpaths)) == 0:
+                blockOriginASesCustomers = set()
+                for blockOriginAS in blockOriginASes:
+                    blockOriginASesCustomers.\
+                        union(ASrels[(ASrels['AS1'] == blockOriginAS) &\
+                                (ASrels['rel_type'] == 'P2C')]['AS2'].tolist())
+                
+                coveringPrefOriginASesCustomers = set()
+                for coveringPrefOriginAS in coveringPrefOriginASes:
+                    coveringPrefOriginASesCustomers.\
+                        union(ASrels[(ASrels['AS1'] == coveringPrefOriginAS) &\
+                                (ASrels['rel_type'] == 'P2C')]['AS2'].tolist())
+                
+                commonCustomers = blockOriginASesCustomers.\
+                                    intersection(coveringPrefOriginASesCustomers)
+                if len(commonCustomers) > 0:
+                    for commonCustomer in commonCustomers:
+                        correspondingOriginASes =\
+                            set(ASrels[(ASrels['AS2'] == commonCustomer) &\
+                                (ASrels['rel_type'] == 'P2C')]['AS1'].tolist()).\
+                                intersection(blockOriginASes)
+                        for correspondingOriginAS in correspondingOriginASes:
+                            if len(bgp_handler.ASes_originated_prefixes_dic[correspondingOriginAS]) >= 2:
+                                statsForPrefix['numOfDODP3MoreSpec'] += 1
+                                levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
+                                                                coveringPrefASpaths))
+                                break
+                        else:
+                            continue
+                        break
                     
     # If there are no less specific blocks being routed
     else:      
@@ -577,8 +605,9 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels, stats_filename,
                         break
                         
                 if not sameOrgs:
-                    print 'TODO'
-                    # TODO escribir a archivo para poder analizar estos casos
+                    with open('/Users/sofiasilva/BGP_files/DiffOrgs.txt', 'w') as orgs_file:
+                        orgs_file.write('Prefix: {}, Org for Prefix: {}, Origin ASes: {}, Orgs for Origin ASes: {}\n'.format(prefix, statsForPrefix['opaque_id'], blockOriginASes, originASesOrgs))
+                        
                     # TODO check with WHOIS/RDAP
                     # Get Org ID for prefix and for origin ASes and compare
                     # https://www.apnic.net/about-apnic/whois_search/about/rdap/

@@ -142,10 +142,11 @@ class DelegatedHandler:
             return pd.DataFrame()
             
         if DEBUG:
+            specific_subset = delegated_df[(delegated_df['initial_resource'] == '2001:df2:ce00::') | (delegated_df['initial_resource'] == '2001:df2:ca00::') | (delegated_df['initial_resource'] == '2001:df3:5c00::')]
             asn_subset = delegated_df[delegated_df['resource_type']=='asn']
             ipv4_subset = delegated_df[delegated_df['resource_type']=='ipv4']
             ipv6_subset = delegated_df[delegated_df['resource_type']=='ipv6']
-            delegated_df = pd.concat([asn_subset.head(n=30),ipv4_subset.head(n=30), ipv6_subset.head(n=30)])
+            delegated_df = pd.concat([asn_subset.head(n=30),ipv4_subset.head(n=30), ipv6_subset.head(n=30), specific_subset])
         
         if INCREMENTAL:
             delegated_df = delegated_df[delegated_df['date'] > pd.to_datetime(final_existing_date)]
