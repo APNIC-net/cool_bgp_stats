@@ -7,6 +7,7 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 #Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from get_file import get_file
+from VisibilityDBHandler import VisibilityDBHandler
 from DelegatedHandler import DelegatedHandler
 from BGPDataHandler import BGPDataHandler
 import ipaddress
@@ -151,23 +152,25 @@ def weighted_avg_and_std(values, weights):
     return (average, math.sqrt(variance))
     
 def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
-                                    first_seen_intact, visibilityPerPeriods):
+                                    db_handler, first_seen_intact,\
+                                    visibilityPerPeriods):
+    # TODO Debug
+
     # History of Visibility (Visibility Evoluntion in Time) computation
-  
     today = datetime.date.today()
     daysUsable = (today-statsForPrefix['del_date']).days + 1
     
     # Intact Allocation History of Visibility
     # The Intact Allocation History of Visibility only takes into
     # account the exact block that was delegated
-    periodsIntact = bgp_handler.getPeriodsSeenExact(network)
+    periodsIntact = db_handler.getPeriodsSeenExact(network)
     numOfPeriods = len(periodsIntact)
     
     if numOfPeriods > 0:
-        last_seen_intact = bgp_handler.getDateLastSeenExact(network)
+        last_seen_intact = db_handler.getDateLastSeenExact(network)
         statsForPrefix['isDeadIntact'] = ((today-last_seen_intact).days > 365)
         daysUsed = (last_seen_intact-first_seen_intact).days + 1
-        daysSeen = bgp_handler.getTotalDaysSeenExact(network)
+        daysSeen = db_handler.getTotalDaysSeenExact(network)
         
         statsForPrefix['relUsedTimeIntact'] = 100*float(daysUsed)/daysUsable
         statsForPrefix['effectiveUsageIntact'] = 100*float(daysSeen)/daysUsed
@@ -175,9 +178,7 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
                         
         periodsLengths = []
         for period in periodsIntact:
-            periodsLengths.append(\
-                (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
-                datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days + 1)
+            periodsLengths.append((period[1] - period[0]).days + 1)
         
         periodsLengths = np.array(periodsLengths)
         statsForPrefix['avgPeriodLengthIntact'] = periodsLengths.mean()
@@ -188,7 +189,7 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
     # General History of Visibility of Prefix
     # The General History of Visibility takes into account not only
     # the block itself being routed but also its fragments
-    periodsGral = bgp_handler.getPeriodsSeenGral(network)
+    periodsGral = db_handler.getPeriodsSeenGral(network)
     
     if len(periodsGral) > 0:
         
@@ -203,9 +204,9 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
             frag_network = ipaddress.ip_network(unicode(fragment, "utf-8"))
             numsOfPeriodsGral.append(len(periodsGral[fragment]))
             daysUsedGral.append(\
-                (bgp_handler.getDateLastSeenExact(frag_network) -\
-                bgp_handler.getDateFirstSeenExact(frag_network)).days+1)
-            daysSeenGral.append(bgp_handler.getTotalDaysSeenExact(frag_network))
+                (db_handler.getDateLastSeenExact(frag_network) -\
+                db_handler.getDateFirstSeenExact(frag_network)).days+1)
+            daysSeenGral.append(db_handler.getTotalDaysSeenExact(frag_network))
             
             for period in periodsGral[fragment]:
                 timeBreaks.append(period[0])
@@ -216,9 +217,7 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
                 else:
                     prefixesPerPeriod[period].append(fragment)
                     
-                periodsLengthsGral.append(\
-                    (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
-                    datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days+1)
+                periodsLengthsGral.append((period[1] - period[0]).days+1)
              
         timeBreaks = np.unique(timeBreaks)
              
@@ -272,13 +271,11 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
             periodLengths = []
             
             visibilityPerPeriods[str(network)][\
-                (int(statsForPrefix['del_date'].strftime('%Y%m%d')),\
-                                                        int(timeBreaks[0]))] = 0
+                                (statsForPrefix['del_date'], timeBreaks[0])] = 0
             
-            last_seen = bgp_handler.getDateLastSeen(network)
+            last_seen = db_handler.getDateLastSeen(network)
             if last_seen < today:
-                visibilityPerPeriods[str(network)][(int(last_seen.strftime('%Y%m%d')),
-                                    int(today.strftime('%Y%m%d')))] = 0
+                visibilityPerPeriods[str(network)][(last_seen, today)] = 0
             
             if len(timeBreaks) == 1:
                 numOfIPsVisible = 0
@@ -290,8 +287,8 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
                             numOfIPsVisible += prefix.num_addresses
                 
                 visibility = float(numOfIPsVisible)*100/network.num_addresses
-                visibilityPerPeriods[str(network)][(int(timeBreaks[0]),\
-                                    int(timeBreaks[0]))] = visibility
+                visibilityPerPeriods[str(network)][(timeBreaks[0],\
+                                                    timeBreaks[0])] = visibility
                 visibilities.append(visibility)
                 periodLengths.append(1)
             
@@ -305,12 +302,10 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
                             numOfIPsVisible += prefix.num_addresses
                 
                 visibility = float(numOfIPsVisible)*100/network.num_addresses
-                visibilityPerPeriods[str(network)][(int(timeBreaks[i]),\
-                                int(timeBreaks[i+1]))] = visibility
+                visibilityPerPeriods[str(network)][(timeBreaks[i],\
+                                                    timeBreaks[i+1])] = visibility
                 visibilities.append(visibility)
-                periodLengths.append(\
-                    (datetime.datetime.strptime(timeBreaks[i+1], '%Y%m%d').date()\
-                    - datetime.datetime.strptime(timeBreaks[i], '%Y%m%d').date()).days+1)
+                periodLengths.append((timeBreaks[i+1] - timeBreaks[i]).days+1)
             
             # Computation of the weighted average and weighted
             # standard deviation of visibilities only considering
@@ -326,9 +321,9 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
                                     
             statsForPrefix['isDead'] = ((today-last_seen).days > 365)
 
-def computeNetworkUsageLatency(network, statsForPrefix, bgp_handler): 
+def computeNetworkUsageLatency(network, statsForPrefix, bgp_handler, db_handler): 
     # Usage Latency computation
-    first_seen = bgp_handler.getDateFirstSeen(network)
+    first_seen = db_handler.getDateFirstSeen(network)
                 
     if first_seen is not None and statsForPrefix['del_date'] is not None:
         statsForPrefix['UsageLatencyGral'] =\
@@ -340,7 +335,7 @@ def computeNetworkUsageLatency(network, statsForPrefix, bgp_handler):
     # We compute the number of days between the date the block
     # was delegated and the date the block as-is was first seen
     if first_seen is not None:
-        first_seen_intact = bgp_handler.getDateFirstSeenExact(network)
+        first_seen_intact = db_handler.getDateFirstSeenExact(network)
     else:
         first_seen_intact = None
                 
@@ -516,8 +511,8 @@ def writeStatsLineToFile(statsForPrefix, allAttr, stats_filename):
         stats_file.write(line)
 
 
-def computePerPrefixStats(bgp_handler, del_handler, ASrels, stats_filename,
-                            def_dict, allAttr):
+def computePerPrefixStats(bgp_handler, del_handler, db_handler, ASrels,
+                            stats_filename, def_dict, allAttr):
     # Obtain a subset of all the delegated prefixes
     delegatedNetworks = del_handler.delegated_df[\
                             (del_handler.delegated_df['resource_type'] == 'ipv4') |\
@@ -534,20 +529,22 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels, stats_filename,
                                 int(prefix_row['count/prefLen']))
         statsForPrefix = def_dict.copy()
 
-        statsForPrefix['delegated_prefix'] = prefix
+        statsForPrefix['prefix'] = prefix
         statsForPrefix['del_date'] = prefix_row['date'].date()
+        statsForPrefix['resource_type'] = prefix_row['resource_type']
+        statsForPrefix['status'] = prefix_row['status']
         statsForPrefix['opaque_id'] = prefix_row['opaque_id']
         statsForPrefix['cc'] = prefix_row['cc']
         statsForPrefix['region'] = prefix_row['region']
-        statsForPrefix['mostRecentRoutingData_date'] =\
-                        str(max(pd.to_numeric(bgp_handler.bgp_data['date'])))
+        statsForPrefix['mostRecentRoutingData_date'] = str(bgp_handler.mostRecentDate)
 
         delNetwork = ipaddress.ip_network(unicode(prefix, "utf-8"))
         
         first_seen_intact = computeNetworkUsageLatency(delNetwork, statsForPrefix,\
-                                                                bgp_handler)
+                                                        bgp_handler, db_handler)
         computeNetworkHistoryOfVisibility(delNetwork, statsForPrefix, bgp_handler,\
-                                    first_seen_intact, visibilityPerPeriods)
+                                            db_handler, first_seen_intact,\
+                                            visibilityPerPeriods)
 
         ips_delegated = delNetwork.num_addresses 
 
@@ -705,7 +702,7 @@ def computePerPrefixStats(bgp_handler, del_handler, ASrels, stats_filename,
 # * a numeric variable (numOfPrefixesPropagated) specifying the number of prefixes propagated by the AS
 # (BGP announcements for which the AS appears in the middle of the AS path)
 # * a numeric variable (numOfPrefixesOriginated) specifying the number of prefixes originated by the AS
-def computeASesStats(bgp_handler, del_handler, ASrels, stats_filename, def_dict, allAttr):
+def computeASesStats(bgp_handler, del_handler, db_handler, ASrels, stats_filename, def_dict, allAttr):
     today = datetime.date.today()
     expanded_del_asns_df = del_handler.getExpandedASNsDF() 
         
@@ -735,68 +732,58 @@ def computeASesStats(bgp_handler, del_handler, ASrels, stats_filename, def_dict,
         except KeyError:
             statsForAS['numOfPrefixesPropagated_curr'] = 0
                 
-        asn_dates_dict = None
         
-        if asn in bgp_handler.originASesDates_dict:
-            asn_dates_dict = bgp_handler.originASesDates_dict[asn]
-            
-        if asn in bgp_handler.middleASesDates_dict:
-            asn_dates_dict = bgp_handler.middleASesDates_dict[asn]
+        daysUsable = (today-del_date).days + 1
 
-        if asn_dates_dict is not None:
-            daysUsable = (today-del_date).days + 1
-
-            # Usage Latency
-            # We define usage latency of an ASN as the time interval between
-            # the delegation date and the first the ASN is seen as an origin AS
-            # or as a middle AS in the BGP routing table being analyzed
-            first_seen = datetime.datetime.strptime(asn_dates_dict['firstSeen'],\
-                                                    '%Y%m%d').date()
-                        
-            if first_seen is not None:
-                statsForAS['UsageLatency'] = (first_seen-del_date).days + 1
-            else:
-                statsForAS['UsageLatency'] = float('inf')               
-                
-            # History of Activity
-            periodsActive = asn_dates_dict['periodsSeen']
-            numOfPeriods = len(periodsActive)
-                
-            if numOfPeriods > 0:
-                last_seen = datetime.datetime.strptime(asn_dates_dict['lastSeen'],\
-                                                        '%Y%m%d').date()
-                statsForAS['isDead'] = ((today-last_seen).days > 365)
-                
-                daysUsed = (last_seen-first_seen).days + 1
-                daysSeen = asn_dates_dict['totalDays']
+        # Usage Latency
+        # We define usage latency of an ASN as the time interval between
+        # the delegation date and the first date the ASN is seen as an origin AS
+        # or as a middle AS in the BGP routing table being analyzed
+        first_seen = db_handler.getDateASNFirstSeen(asn)
                     
-                # We define the "relative used time" as the percentage of
-                # days the ASN was used from the total number of days
-                # the ASN could have been used (Usable time)
-                statsForAS['relUsedTime'] = 100*float(daysUsed)/daysUsable
+        if first_seen is not None:
+            statsForAS['UsageLatency'] = (first_seen-del_date).days + 1
+        else:
+            statsForAS['UsageLatency'] = float('inf')               
+            
+        # History of Activity
+        periodsActive = db_handler.getPeriodsASNSeen(asn)
+        numOfPeriods = len(periodsActive)
+            
+        if numOfPeriods > 0:
+            last_seen = db_handler.getDateASNLastSeen(asn)
+            statsForAS['isDead'] = ((today-last_seen).days > 365)
+            
+            daysUsed = (last_seen-first_seen).days + 1
+            daysSeen = db_handler.getTotalDaysASNSeen(asn)
                 
-                # We define the "effective usage" as the percentage of days
-                # the ASN was seen from the number of days the ASN was used
-                statsForAS['effectiveUsage'] = 100*float(daysSeen)/daysUsed
-                
-                # We define the "time fragmentation" as the average number
-                # of periods in a 60 days (aprox 2 months) time lapse.
-                # We chose to use 60 days to be coherent with the
-                # considered interval of time used to analyze visibility
-                # stability in [1]
-                statsForAS['timeFragmentation'] = numOfPeriods/(float(daysUsed)/60)
-                                                
-                periodsLengths = []
-                for period in periodsActive:
-                    periodsLengths.append(\
-                        (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
-                        datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days + 1)
-                
-                periodsLengths = np.array(periodsLengths)
-                statsForAS['avgPeriodLength'] = periodsLengths.mean()
-                statsForAS['stdPeriodLength'] = periodsLengths.std()
-                statsForAS['minPeriodLength'] = periodsLengths.min()
-                statsForAS['maxPeriodLength'] = periodsLengths.max()
+            # We define the "relative used time" as the percentage of
+            # days the ASN was used from the total number of days
+            # the ASN could have been used (Usable time)
+            statsForAS['relUsedTime'] = 100*float(daysUsed)/daysUsable
+            
+            # We define the "effective usage" as the percentage of days
+            # the ASN was seen from the number of days the ASN was used
+            statsForAS['effectiveUsage'] = 100*float(daysSeen)/daysUsed
+            
+            # We define the "time fragmentation" as the average number
+            # of periods in a 60 days (aprox 2 months) time lapse.
+            # We chose to use 60 days to be coherent with the
+            # considered interval of time used to analyze visibility
+            # stability in [1]
+            statsForAS['timeFragmentation'] = numOfPeriods/(float(daysUsed)/60)
+                                            
+            periodsLengths = []
+            for period in periodsActive:
+                periodsLengths.append(\
+                    (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
+                    datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days + 1)
+            
+            periodsLengths = np.array(periodsLengths)
+            statsForAS['avgPeriodLength'] = periodsLengths.mean()
+            statsForAS['stdPeriodLength'] = periodsLengths.std()
+            statsForAS['minPeriodLength'] = periodsLengths.min()
+            statsForAS['maxPeriodLength'] = periodsLengths.max()
 
         line = statsForAS[allAttr[0]]
         
@@ -826,7 +813,6 @@ def main(argv):
     prefixes_stats_file = ''
     ases_stats_file = ''
     fromFiles = False
-    bgp_data_file = ''
     ipv4_prefixes_indexes_file = ''
     ipv6_prefixes_indexes_file = ''
     ASes_originated_prefixes_file = ''
@@ -850,22 +836,29 @@ def main(argv):
     DEBUG = True
     EXTENDED = True
     del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170315.txt'
-    archive_folder = '/Users/sofiasilva/BGP_files'
-    ext = 'bgprib.mrt'
+#    archive_folder = '/Users/sofiasilva/BGP_files'
+#    ext = 'bgprib.mrt'
     UNTIL = True
     date = '20170115'
 #    COMPRESSED = True
-#    COMPUTE = False    
+#    COMPUTE = False  
+    ASes_originated_prefixes_file = '{}/ASes_originated_prefixes_20170322.pkl'.format(files_path)
+    ASes_propagated_prefixes_file = '{}/ASes_propagated_prefixes_20170322.pkl'.format(files_path)
+    ipv4_prefixesDates_file = '{}/ipv4_prefixesDates_20170322.pkl'.format(files_path)
+    ipv4_prefixes_indexes_file = '{}/ipv4_prefixes_indexes_20170322.pkl'.format(files_path)
+    ipv6_prefixesDates_file = '{}/ipv6_prefixesDates_20170322.pkl'.format(files_path)
+    ipv6_prefixes_indexes_file = '{}/ipv6_prefixes_indexes_20170322.pkl'.format(files_path)
+
     
     try:
-        opts, args = getopt.getopt(argv, "hf:u:r:H:E:I:ocknD:Ud:ep:a:b:4:6:O:P:F:S:A:M:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "Extension=", "InitialDate=", "Date=", "delegated_file=", "prefixes_stats_file=", "ases_stats_file=", "bgp_data_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_Originated_prefixes_file=", "ASes_Propagated_prefixes_file=", "ipv4_prefixesDates_file=", "ipv6_prefixesDates_file=", "originASesDates_file=", "middleASesDates_file="])
+        opts, args = getopt.getopt(argv, "hf:u:r:H:E:I:ocknD:Ud:ep:a:4:6:O:P:F:S:A:M:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "Extension=", "InitialDate=", "Date=", "delegated_file=", "prefixes_stats_file=", "ases_stats_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_Originated_prefixes_file=", "ASes_Propagated_prefixes_file=", "ipv4_prefixesDates_file=", "ipv6_prefixesDates_file=", "originASesDates_file=", "middleASesDates_file="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>] [-A <originASesDates_file>] [-M <middleASesDates_file>]'
+        print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>] [-A <originASesDates_file>] [-M <middleASesDates_file>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-b <bgp_data file> -4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>] [-A <originASesDates_file>] [-M <middleASesDates_file>]'
+            print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>] [-A <originASesDates_file>] [-M <middleASesDates_file>]'
             print 'h = Help'
             print "f = Path to folder in which Files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -884,7 +877,6 @@ def main(argv):
             print 'n = No computation. If this option is used, statistics will not be computed, just the dictionaries with prefixes/origin ASes will be created and saved to disk.'
             print 'D = Date in format YYYY or YYYYmm or YYYYmmdd. Delegation date of the resources for which you want the stats to be computed or or until which (if you use the -U option) you want to consider delegations.'
             print 'U = Until. If you use the -U option the resources for which you want the statistics to be computed will be filtered so that they have a delegation date before the provided date and the routing data considered corresponds to dates before the provided date.'
-            print 'If you use the -U option, you MUST also use the -H option and provide the path to the archive folder.'
             print 'd = DEBUG mode. Provide path to delegated file. If not in DEBUG mode the latest delegated file will be downloaded from ftp://ftp.apnic.net/pub/stats/apnic'
             print 'e = Use Extended file'
             print "If option -e is used in DEBUG mode, delegated file must be a extended file."
@@ -893,7 +885,6 @@ def main(argv):
             print "a = Compute incremental statistics from existing ASes stats file (CSV)."
             print "Both the -p and the -a options should be used or none of them should be used."
             print "If options -p and -a are used, the corresponding paths to files with existing statistics for prefixes and ASes respectively MUST be provided."
-            print "b = BGP_data file. Path to pickle file containing bgp_data DataFrame."
             print "4 = IPv4 prefixes_indexes file. Path to pickle file containing IPv4 prefixes_indexes Radix."
             print "6 = IPv6 prefixes_indexes file. Path to pickle file containing IPv6 prefixes_indexes Radix."
             print "O = ASes_Originated_prefixes file. Path to pickle file containing ASes_Originated_prefixes dictionary."
@@ -962,13 +953,6 @@ def main(argv):
                 INCREMENTAL = True
             else:
                 print "If option -p is used, the path to a file with statistics for prefixes MUST be provided."
-                sys.exit()
-        elif opt == '-b':
-            if arg != '':
-                bgp_data_file = os.path.abspath(arg)
-                fromFiles = True
-            else:
-                print "If option -b is used, the path to a file with BGP data MUST be provided."
                 sys.exit()
         elif opt == '-4':
             if arg != '':
@@ -1050,9 +1034,9 @@ def main(argv):
         print 'If you use the -U option, you MUST provide a full date in format YYYYmmdd'
         sys.exit()
         
-    if UNTIL and archive_folder == '':
-        print 'If you use the -U option, you MUST also use the -H option and provide the path to the archive folder.'
-        sys.exit()
+#    if UNTIL and archive_folder == '':
+#        print 'If you use the -U option, you MUST also use the -H option and provide the path to the archive folder.'
+#        sys.exit()
         
     # If files_path does not exist, we create it
     if not os.path.exists(files_path):
@@ -1076,11 +1060,13 @@ def main(argv):
             final_existing_date = ''
             INCREMENTAL = False
     
-    if fromFiles and (bgp_data_file == '' or ipv4_prefixes_indexes_file == '' or\
+    # TODO Cambiar para que solo reciba el folder y que se usen los archivos
+    # correspondientes. Si de alguno hay más de uno, usar el más reciente.
+    if fromFiles and (ipv4_prefixes_indexes_file == '' or\
         ipv6_prefixes_indexes_file == '' or ASes_originated_prefixes_file == '' or\
         ASes_propagated_prefixes_file == ''):
-        print "If you want to work with BGP data from files, the three options -b, -x, -a and -s must be used."
-        print "If not, none of these three options should be used."
+        print "If you want to work with BGP data from files, the five options -b, -4, -6, -O and -P must be used."
+        print "If not, none of these five options should be used."
         sys.exit()
         
     today = datetime.date.today().strftime('%Y%m%d')
@@ -1117,9 +1103,11 @@ def main(argv):
         bgp_handler.loadMiddleASesDatesFromFile(middleASesDates_file)
         
     if fromFiles:
-        loaded = bgp_handler.loadStructuresFromFiles(bgp_data_file, ipv4_prefixes_indexes_file,
+        loaded = bgp_handler.loadStructuresFromFiles(routing_date, ipv4_prefixes_indexes_file,
                                 ipv6_prefixes_indexes_file, ASes_originated_prefixes_file,
                                 ASes_propagated_prefixes_file)
+        if UNTIL:
+            # TODO 
     else:
         if routing_file == '' and archive_folder == '':
             loaded = bgp_handler.loadStructuresFromURLSfile(urls_file)
@@ -1127,7 +1115,7 @@ def main(argv):
             loaded = bgp_handler.loadStructuresFromRoutingFile(routing_file)
         else: # archive_folder not null
             loaded = bgp_handler.loadStructuresFromArchive(archive_folder, ext,
-                                                           startDate, date)
+                                                           date)
     
     if not loaded:
         print "Data structures not loaded!\n"
@@ -1137,6 +1125,8 @@ def main(argv):
         del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, date, UNTIL,
                                         INCREMENTAL, final_existing_date)
 
+        db_handler = VisibilityDBHandler()
+        
         ASrels = getASrelInfo(serial=2, files_path=files_path, KEEP=KEEP)
                         
         # isRoutedIntact: Boolean variable that will be True is the prefix that
@@ -1242,8 +1232,8 @@ def main(argv):
                             'numOfDODP2MoreSpec', 'numOfDODP3MoreSpec',
                             'numOfLonelyMoreSpec']
 
-        other_data_columns = ['delegated_prefix', 'del_date', 'opaque_id', 'cc',
-                              'region', 'mostRecentRoutingData_date']
+        other_data_columns = ['prefix', 'del_date', 'resource_type', 'status',
+                              'opaque_id', 'cc', 'region', 'mostRecentRoutingData_date']
         
         allAttr_pref = other_data_columns + booleanKeys_pref +\
                         valueKeys_pref + counterKeys_pref
@@ -1264,8 +1254,9 @@ def main(argv):
         def_dict_pref = getDictionaryWithDefaults(booleanKeys_pref, valueKeys_pref, counterKeys_pref)
 
         start_time = time.time()
-        visibilityPerPeriods = computePerPrefixStats(bgp_handler, del_handler,\
-                                                    ASrels, prefixes_stats_file,\
+        visibilityPerPeriods = computePerPrefixStats(bgp_handler, del_handler,
+                                                    db_handler, ASrels,
+                                                    prefixes_stats_file,
                                                     def_dict_pref, allAttr_pref)
         end_time = time.time()
         sys.stderr.write("Stats for prefixes computed successfully!\n")
@@ -1278,6 +1269,7 @@ def main(argv):
         sys.stderr.write("Files generated:\n{}\nand\n{})\n".format(prefixes_stats_file,
                                                         prefixes_json_filename))
 
+        # TODO Ask George and Byron whether we are interested in saving this data
         visibility_file_name = '{}/visibilityPerPeriods_{}.pkl'.format(files_path, today)
         with open(visibility_file_name, 'wb') as visibility_file:
             pickle.dump(visibilityPerPeriods, visibility_file, pickle.HIGHEST_PROTOCOL)
@@ -1314,8 +1306,8 @@ def main(argv):
                                                   valueKeys_ases, counterKeys_ases)
         
         start_time = time.time()
-        computeASesStats(bgp_handler, del_handler, ASrels, ases_stats_file,\
-                            def_dict_ases, allAttr_ases)
+        computeASesStats(bgp_handler, del_handler, db_handler, ASrels,\
+                        ases_stats_file, def_dict_ases, allAttr_ases)
         end_time = time.time()
         sys.stderr.write("Stats for ASes computed successfully!\n")
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   

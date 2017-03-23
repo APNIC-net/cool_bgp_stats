@@ -11,8 +11,8 @@ import pickle
 import radix
 import datetime, calendar
 import pandas as pd
+import hashlib
 import ipaddress
-from VisibilityDBHandler import VisibilityDBHandler
 
 # For some reason in my computer os.getenv('PATH') differs from echo $PATH
 # /usr/local/bin is not in os.getenv('PATH')
@@ -25,16 +25,18 @@ class BGPDataHandler:
     KEEP = False
     RIBfiles = False
     COMPRESSED = False
-    visibilityDB = VisibilityDBHandler()
   
-    # STRUCTURES WITH CURRENT ROUTING DATA
-    # Radix indexed by routed IPv4 prefix containing the routing data from the
-    # routing file being considered
-    ipv4Prefixes_radix = radix.Radix()
+    # STRUCTURES WITH CURRENT ROUTING DATA  
+    # Data Frame containing routing info from RIB file or file with 'show ip bgp' output
+    bgp_data = pd.DataFrame()
+   
+   # Radix indexed by routed IPv4 prefix containing the indexes of the rows in
+    # the bgp_data Data Frame that contain info of BGP announcements of the IPv4 prefix
+    ipv4_prefixes_indexes_radix = radix.Radix()
 
-    # Radix indexed by routed IPv6 prefix containing the routing data from the
-    # routing file being considered
-    ipv6Prefixes_radix = radix.Radix()
+    # Radix indexed by routed IPv6 prefix containing the indexes of the rows in
+    # the bgp_data Data Frame that contain info of BGP announcements of the IPv6 prefix
+    ipv6_prefixes_indexes_radix = radix.Radix()
     
     # Dictionary indexed by AS containing all the prefixes originated by each AS
     ASes_originated_prefixes_dic = dict()
@@ -46,9 +48,60 @@ class BGPDataHandler:
     ipv4_longest_pref = -1
 
     # Numeric variable with the longest IPv6 prefix length
-    ipv6_longest_pref = -1  
+    ipv6_longest_pref = -1   
+
+    # STRUCTURES WITH TEMPORAL DATA
+    # Radix indexed by routed IPv4 prefix containing as values dictionaries
+    # with the following keys:
+    # * periodsSeen - the value for this key is a list of tuples representing
+    # periods of time during which the corresponding IPv4 prefix was seen
+    # Each tuple has the format (startDate, endDate)
+    # * firstSeen - the value for this key is the first date in which the
+    # IPv4 prefix was seen
+    # * lastSeen - the value for this key is the last date in which the
+    # IPv4 prefix was seen
+    # * totalDays - the value for this key is the number of days during
+    # which the IPv4 prefix was seen
+    ipv4_prefixesDates_radix = radix.Radix()
+
+    # Radix indexed by routed IPv6 prefix containing as values dictionaries
+    # with the following keys:
+    # * periodsSeen - the value for this key is a list of tuples representing
+    # periods of time during which the corresponding IPv6 prefix was seen
+    # Each tuple has the format (startDate, endDate)
+    # * firstSeen - the value for this key is the first date in which the
+    # IPv6 prefix was seen
+    # * lastSeen - the value for this key is the last date in which the
+    # IPv6 prefix was seen
+    # * totalDays - the value for this key is the number of days during
+    # which the IPv6 prefix was seen
+    ipv6_prefixesDates_radix = radix.Radix()
+
+    # Dictionary indexed by origin ASN (ASN that originates at least one prefix)
+    # It contains as values dictionaries with the following keys:
+    # * periodsSeen - the value for this key is a list of tuples representing
+    # periods of time during which the corresponding ASN originated prefixes
+    # Each tuple has the format (startDate, endDate)
+    # * firstSeen - the value for this key is the first date in which the
+    # ASN originated prefixes
+    # * lastSeen - the value for this key is the last date in which the
+    # ASN originated prefixes
+    # * totalDays - the value for this key is the number of days during
+    # which the ASN originated prefixes
+    originASesDates_dict = dict()
     
-    mostRecentDate = ''
+    # Dictionary indexed by middle ASN (ASN that propagates at least one prefix)
+    # It contains as values dictionaries with the following keys:
+    # * periodsSeen - the value for this key is a list of tuples representing
+    # periods of time during which the corresponding ASN prpagated prefixes
+    # Each tuple has the format (startDate, endDate)
+    # * firstSeen - the value for this key is the first date in which the
+    # ASN propagated prefixes
+    # * lastSeen - the value for this key is the last date in which the
+    # ASN propagated prefixes
+    # * totalDays - the value for this key is the number of days during
+    # which the ASN propagated prefixes
+    middleASesDates_dict = dict()
          
     # When we instantiate this class we set the variable with the path to the
     # folder we will use to store files (files_path), we set a boolean variable
@@ -67,16 +120,50 @@ class BGPDataHandler:
 
         sys.stderr.write("BGPDataHandler instantiated successfully! Remember to load the data structures.\n")
     
-   
+    # This function loads the class variables ipv4_prefixesDates and ipv6_prefixesDates
+    # from a previously generated pickle file containing Radixes indexed by
+    # routed prefix containing as values dictionaries with the following keys:
+    # * periodsSeen - the value for this key is a list of tuples representing
+    # periods of time during which the corresponding prefix was seen
+    # Each tuple has the format (startDate, endDate)
+    # * firstSeen - the value for this key is the first date in which the
+    # prefix was seen
+    # * lastSeen - the value for this key is the last date in which the
+    # prefix was seen
+    # * totalDays - the value for this key is the number of days during
+    # which the prefix was seen
+    def loadPrefixDatesFromFiles(self, ipv4_prefixesDates_file, ipv6_prefixesDates_file):
+        if ipv4_prefixesDates_file != '':        
+            self.ipv4_prefixesDates_radix = pickle.load(open(ipv4_prefixesDates_file, 'rb'))
+            sys.stderr.write("Radix with dates in which IPv4 prefixes were seen was loaded successfully!\n")
+    
+        if ipv6_prefixesDates_file != '':        
+            self.ipv6_prefixesDates_radix = pickle.load(open(ipv6_prefixesDates_file, 'rb'))
+            sys.stderr.write("Radix with dates in which IPv6 prefixes were seen was loaded successfully!\n")
+
+    # This function loads the class variable originASesDates from a previously
+    # generated pickle file containing a originASesDates dictionary 
+    def loadOriginASesDatesFromFile(self, originASesDates_file):
+        if originASesDates_file != '':        
+            self.originASesDates_dict = pickle.load(open(originASesDates_file, 'rb'))
+            sys.stderr.write("Dictionary with dates in which ASNs originated prefixes was loaded successfully!\n")
+    
+    # This function loads the class variable middleASesDates from a previously
+    # generated pickle file containing a middleASesDates dictionary 
+    def loadMiddleASesDatesFromFile(self, middleASesDates_file):
+        if middleASesDates_file != '':        
+            self.middleASesDates_dict = pickle.load(open(middleASesDates_file, 'rb'))
+            sys.stderr.write("Dictionary with dates in which ASNs propagated prefixes was loaded successfully!\n")
+    
     # This function loads the data structures of the class from previously
     # generated pickle files containing the result of already processed routing data
-    def loadStructuresFromFiles(self, date, ipv4_prefixes_file, ipv6_prefixes_file,\
-                                ASes_originated_prefixes_file,\
+    def loadStructuresFromFiles(self, bgp_data_file, ipv4_prefixes_indexes_file,\
+                                ipv6_prefixes_indexes_file, ASes_originated_prefixes_file,\
                                 ASes_propagated_prefixes_file):
      
-        self.mostRecentDate = date
-        self.ipv4Prefixes_radix = pickle.load(open(ipv4_prefixes_file, "rb"))
-        self.ipv6Prefixes_radix = pickle.load(open(ipv6_prefixes_file, "rb"))
+        self.bgp_data = pickle.load(open(bgp_data_file, "rb"))
+        self.ipv4_prefixes_indexes_radix = pickle.load(open(ipv4_prefixes_indexes_file, "rb"))
+        self.ipv6_prefixes_indexes_radix = pickle.load(open(ipv6_prefixes_indexes_file, "rb"))
         self.ASes_originated_prefixes_dic = pickle.load(open(ASes_originated_prefixes_file, "rb"))
         self.ASes_propagated_prefixes_dic = pickle.load(open(ASes_propagated_prefixes_file, "rb"))
         self.setLongestPrefixLengths()
@@ -87,15 +174,15 @@ class BGPDataHandler:
     # the URLs in the urls_file point, and loads the data structures of the class
     # with the results from this processing
     def loadStructuresFromURLSfile(self, urls_file):
-        date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
+        bgp_data, ipv4_prefixes_indexes_radix, ipv6_prefixes_indexes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref  =\
                         self.processMultipleFiles(files_list=urls_file,\
                                                 isList=False, containsURLs=True)
-                    
-        self.mostRecentDate = date
-        self.ipv4Prefixes_radix = ipv4Prefixes_radix
-        self.ipv6Prefixes_radix = ipv6Prefixes_radix
+                        
+        self.bgp_data = bgp_data
+        self.ipv4_prefixes_indexes_radix = ipv4_prefixes_indexes_radix
+        self.ipv6_prefixes_indexes_radix = ipv6_prefixes_indexes_radix
         self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
         self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
         
@@ -117,14 +204,14 @@ class BGPDataHandler:
         readable_file_name =  self.getReadableFile(routing_file, False)
         
         if readable_file_name != '':
-            date, ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
-                ipv4Prefixes_radix, ipv6Prefixes_radix,\
+            bgp_data, ipv4_prefixes_indexes_radix, ipv6_prefixes_indexes_radix,\
+                ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
                 ipv4_longest_pref, ipv6_longest_pref =\
                                     self.processReadableDF(readable_file_name)
-        
-            self.mostRecentDate = date              
-            self.ipv4Prefixes_radix = ipv4Prefixes_radix
-            self.ipv6Prefixes_radix = ipv6Prefixes_radix
+                                
+            self.bgp_data = bgp_data
+            self.ipv4_prefixes_indexes_radix = ipv4_prefixes_indexes_radix
+            self.ipv6_prefixes_indexes_radix = ipv6_prefixes_indexes_radix
             self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
             self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
             
@@ -147,7 +234,7 @@ class BGPDataHandler:
     # This function processes the routing data contained in the archive folder
     # provided, and loads the data structures of the class with the results
     # from this processing       
-    def loadStructuresFromArchive(self, archive_folder, extension, endDate):
+    def loadStructuresFromArchive(self, archive_folder, extension, startDate, endDate):
         historical_files = self.getPathsToHistoricalData(archive_folder, extension)
         
         if historical_files == '':
@@ -161,22 +248,21 @@ class BGPDataHandler:
                                 False)
 
         # In order for the most recent file not to be processed twice,
-        # we store the data from this file into the visibility database
+        # we load data from this file into the prefixesDates Radixes
         # now that we have the readable file available
-        self.storeHistoricalDataFromFile(mostRecent_readable, True)
+        self.loadHistoricalDataFromFile(mostRecent_readable, True)
 
-        # We then load the data structures
-        date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
+        # We then load the rest of the data structures
+        bgp_data, ipv4_prefixes_indexes_radix, ipv6_prefixes_indexes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref =\
                                 self.processReadableDF(mostRecent_readable)
         
-        self.mostRecentDate = date
-        self.ipv4Prefixes_radix = ipv4Prefixes_radix
-        self.ipv6Prefixes_radix = ipv6Prefixes_radix
+        self.bgp_data = bgp_data
+        self.ipv4_prefixes_indexes_radix = ipv4_prefixes_indexes_radix
+        self.ipv6_prefixes_indexes_radix = ipv6_prefixes_indexes_radix
         self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
         self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
-            
         
         if ipv4_longest_pref != -1:
             self.ipv4_longest_pref = ipv4_longest_pref
@@ -189,11 +275,11 @@ class BGPDataHandler:
 
         sys.stderr.write("Class data structures were loaded successfully!\n")
 
-        # Finally, we store the routing data from the rest of the routing files
-        # from the archive, providing the name of the most recent file in order
-        # for it to be skipped.
-        self.storeHistoricalData(historical_files, mostRecent_routing_file)
-        sys.stderr.write("Historical data inserted into visibility database successfully!\n")
+        # Finally, we load the prefixesDates Radixes and the originASesDates
+        # dictionary with the rest of the routing files from the archive,
+        # providing the name of the most recent file in order for it to be skipped.
+        self.loadDatesStructures(historical_files, startDate, endDate, mostRecent_routing_file)
+        sys.stderr.write("Radixes with dates in which prefixes were seen were loaded successfully!\n")
         
         return True
 
@@ -234,10 +320,12 @@ class BGPDataHandler:
                 date = int(dates[0])
         return date
     
-    # This function stores the routing data from the files listed in the
-    # historical_files file skipping the mostRecent routing file provided,
-    # as the data contained in this file has already been stored.
-    def storeHistoricalData(self, historical_files, mostRecent):
+    # This function loads the prefixesDates Radixes (class variables) and
+    # the originASesDates dictionary with the routing data from the files
+    # listed in the historical_files file and which have a date more recent
+    # than startDate in case startDate is provided. If startDate is not
+    # provided, all the files listed in the historical_files file will be processed.
+    def loadDatesStructures(self, historical_files, startDate, endDate, mostRecent):
 
         files_list_obj = open(historical_files, 'r')
         
@@ -246,27 +334,73 @@ class BGPDataHandler:
             line = line.strip()
             if line == mostRecent:
                 continue
+
+            if startDate != '' or endDate != '':
+                file_date = self.getDateFromFileName(line)
+                
+                if file_date == '' or\
+                    (startDate != '' and int(file_date) < int(startDate)) or\
+                    (endDate != '' and int(file_date) > int(endDate)+1):
+                    # We add 1 to the endDate because the files in the archive
+                    # have routing data for the day before of the date in the
+                    # name of the file
+                    continue
                     
             if not line.startswith('#') and line != '':
                  # If we work with several routing files
                 sys.stderr.write("Starting to work with %s\n" % line)
 
-                self.storeHistoricalDataFromFile(line, False)
+                self.loadHistoricalDataFromFile(line, False)
                         
             i += 1
             if self.DEBUG and i > 1:
                 break
 
-    
+    def updateDatesDict(self, dictionary, date):
+        if date < dictionary['firstSeen']:
+            dictionary['firstSeen'] = date
+                
+        if date > dictionary['lastSeen']:
+            dictionary['lastSeen'] = date
+            
+        dateReady = False
+        for period in dictionary['periodsSeen']:
+            if date >= period[0]:
+                if date <= period[1]:
+                    dateReady = True
+                    continue
+                elif date == period[1]+1:
+                    dictionary['periodsSeen'].remove(period)
+                    dictionary['periodsSeen'].append((period[0], date))
+                    dictionary['totalDays'] += 1
+                    dateReady = True
+        if not dateReady:
+            dictionary['periodsSeen'].append((date, date))
+            dictionary['totalDays'] = 1
                     
-    # This function stores the routing data from the routing_file provided
-    # into the visibility database
-    def storeHistoricalDataFromFile(self, routing_file, isReadable):
+    # This function loads the prefixesDates Radixes and the originASesDates
+    # dictionary with the routing data from the routing_file provided
+    def loadHistoricalDataFromFile(self, routing_file, isReadable):
         prefixes, originASes, middleASes, date =\
                         self.getPrefixesASesAndDate(routing_file, isReadable)
 
-        for prefix in prefixes:
-            self.visibilityDB.storePrefixSeen(prefix, date)
+        for pref in prefixes:
+            network = ipaddress.ip_network(unicode(pref, 'utf-8'))
+            
+            if network.version == 4:
+                prefixesDates = self.ipv4_prefixesDates_radix
+            else:
+                prefixesDates = self.ipv6_prefixesDates_radix
+
+            pref_node = prefixesDates.search_exact(pref)
+            if pref_node is not None:
+                self.updateDatesDict(pref_node.data, date)
+            else:
+                pref_node = prefixesDates.add(pref)
+                pref_node.data['periodsSeen'] = [(date, date)]
+                pref_node.data['firstSeen'] = date
+                pref_node.data['lastSeen'] = date
+                pref_node.data['totalDays'] = 1
         
         for asn in originASes:
             if asn is None or asn == 'nan':
@@ -277,10 +411,24 @@ class BGPDataHandler:
                 # (leaving the brackets out) and consider each AS separately.
                 asnList = asn[1:-1] .split(',')
                 for asn in asnList:
-                    self.visibilityDB.storeASSeen(asn, True, date)
+                    if asn in self.originASesDates_dict:
+                        self.updateDatesDict(self.originASesDates_dict[asn], date)
+                    else:
+                        self.originASesDates_dict[asn] = dict()
+                        self.originASesDates_dict[asn]['periodsSeen'] = [(date, date)]
+                        self.originASesDates_dict[asn]['firstSeen'] = date
+                        self.originASesDates_dict[asn]['lastSeen'] = date
+                        self.originASesDates_dict[asn]['totalDays'] = 1
             else:
                 asn = int(asn)
-                self.visibilityDB.storeASSeen(asn, True, date)
+                if asn in self.originASesDates_dict:
+                    self.updateDatesDict(self.originASesDates_dict[asn], date)
+                else:
+                    self.originASesDates_dict[asn] = dict()
+                    self.originASesDates_dict[asn]['periodsSeen'] = [(date, date)]
+                    self.originASesDates_dict[asn]['firstSeen'] = date
+                    self.originASesDates_dict[asn]['lastSeen'] = date
+                    self.originASesDates_dict[asn]['totalDays'] = 1
                 
         for asn in middleASes:
             if asn is None or asn == 'nan':
@@ -288,12 +436,24 @@ class BGPDataHandler:
             elif '{' in asn:
                 asnList = asn[1:-1] .split(',')
                 for asn in asnList:
-                    self.visibilityDB.storeASSeen(asn, False, date)
-
+                    if asn in self.middleASesDates_dict:
+                        self.updateDatesDict(self.middleASesDates_dict[asn], date)
+                    else:
+                        self.middleASesDates_dict[asn] = dict()
+                        self.middleASesDates_dict[asn]['periodsSeen'] = [(date, date)]
+                        self.middleASesDates_dict[asn]['firstSeen'] = date
+                        self.middleASesDates_dict[asn]['lastSeen'] = date
+                        self.middleASesDates_dict[asn]['totalDays'] = 1
             else:
                 asn = int(asn)
-                self.visibilityDB.storeASSeen(asn, False, date)
-
+                if asn in self.middleASesDates_dict:
+                    self.updateDatesDict(self.middleASesDates_dict[asn], date)
+                else:
+                    self.middleASesDates_dict[asn] = dict()
+                    self.middleASesDates_dict[asn]['periodsSeen'] = [(date, date)]
+                    self.middleASesDates_dict[asn]['firstSeen'] = date
+                    self.middleASesDates_dict[asn]['lastSeen'] = date
+                    self.middleASesDates_dict[asn]['totalDays'] = 1
     
     # This function returns a list of prefixes for which the routing_file has
     # announcements, a list of the origin ASes included in the routing_file,
@@ -340,13 +500,13 @@ class BGPDataHandler:
         if not isList:
             files_list = open(files_list, 'r')
                     
-        ipv4Prefixes_radix = radix.Radix()
-        ipv6Prefixes_radix = radix.Radix()
+        bgp_data = pd.DataFrame()
+        ipv4_prefixes_indexes_radix = radix.Radix()
+        ipv6_prefixes_indexes_radix = radix.Radix()
         ASes_originated_prefixes_dic = dict()
         ASes_propagated_prefixes_dic = dict()
         ipv4_longest_pref = -1
         ipv6_longest_pref = -1
-        mostRecentDate = 0
         
         i = 0
         for line in files_list:
@@ -361,8 +521,8 @@ class BGPDataHandler:
                     if readable_file_name == '':
                         continue
                     
-                    date, ipv4Prefixes_radix_partial,\
-                        ipv6Prefixes_radix_partial,\
+                    bgp_data_partial, ipv4_prefixes_indexes_radix_partial,\
+                        ipv6_prefixes_indexes_radix_partial,\
                         ASes_originated_prefixes_dic_partial,\
                         ASes_propagated_prefixes_dic_partial,\
                         ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
@@ -373,33 +533,33 @@ class BGPDataHandler:
                     if readable_file_name == '':
                         continue
                     
-                    date, ipv4Prefixes_radix_partial,\
-                        ipv6Prefixes_radix_partial,\
+                    bgp_data_partial, ipv4_prefixes_indexes_radix_partial,\
+                        ipv6_prefixes_indexes_radix_partial,\
                         ASes_originated_prefixes_dic_partial,\
                         ASes_propagated_prefixes_dic_partial,\
                         ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
                                 self.processReadableDF(readable_file_name)
                 
-                if date > mostRecentDate:
-                    mostRecentDate = date
-                    
-                for prefix in ipv4Prefixes_radix_partial.prefixes():
-                    node_partial = ipv4Prefixes_radix_partial.search_exact(prefix)
-                    node_gral= ipv4Prefixes_radix.search_exact(prefix)
+                # and then we merge them into the general data structures
+                bgp_data = pd.concat([bgp_data, bgp_data_partial])
+    
+                for prefix in ipv4_prefixes_indexes_radix_partial.prefixes():
+                    node_partial = ipv4_prefixes_indexes_radix_partial.search_exact(prefix)
+                    node_gral= ipv4_prefixes_indexes_radix.search_exact(prefix)
                     if node_gral is not None:
-                        node_gral.data['announcements'].update(list(node_partial.data['announcements']))
+                        node_gral.data['indexes'].update(list(node_partial.data['indexes']))
                     else:
-                        node_gral = ipv4Prefixes_radix.add(prefix)
-                        node_gral.data['announcements'] = node_partial.data['announcements']
+                        node_gral = ipv4_prefixes_indexes_radix.add(prefix)
+                        node_gral.data['indexes'] = node_partial.data['indexes']
 
-                for prefix in ipv6Prefixes_radix_partial.prefixes():
-                    node_partial = ipv6Prefixes_radix_partial.search_exact(prefix)
-                    node_gral= ipv6Prefixes_radix.search_exact(prefix)
+                for prefix in ipv6_prefixes_indexes_radix_partial.prefixes():
+                    node_partial = ipv6_prefixes_indexes_radix_partial.search_exact(prefix)
+                    node_gral= ipv6_prefixes_indexes_radix.search_exact(prefix)
                     if node_gral is not None:
-                        node_gral.data['announcements'].update(list(node_partial.data['announcements']))
+                        node_gral.data['indexes'].update(list(node_partial.data['indexes']))
                     else:
-                        node_gral = ipv6Prefixes_radix.add(prefix)
-                        node_gral.data['announcements'] = node_partial.data['announcements']
+                        node_gral = ipv6_prefixes_indexes_radix.add(prefix)
+                        node_gral.data['indexes'] = node_partial.data['indexes']
                         
                 for aut_sys, prefixes in ASes_originated_prefixes_dic_partial.iteritems():
                     if aut_sys in ASes_originated_prefixes_dic.keys():
@@ -426,7 +586,7 @@ class BGPDataHandler:
         if not isList:        
             files_list.close()
         
-        return mostRecentDate, ipv4Prefixes_radix, ipv6Prefixes_radix,\
+        return bgp_data, ipv4_prefixes_indexes_radix, ipv6_prefixes_indexes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref
         
@@ -481,9 +641,8 @@ class BGPDataHandler:
     # putting all the info into a Data Frame  
     def processReadableDF(self, readable_file_name):
         
-        date = ''
-        ipv4Prefixes_radix = radix.Radix()
-        ipv6Prefixes_radix = radix.Radix()
+        ipv4_prefixes_indexes_radix = radix.Radix()
+        ipv6_prefixes_indexes_radix = radix.Radix()
         ASes_originated_prefixes_dic = dict()
         ASes_propagated_prefixes_dic = dict()
         
@@ -502,10 +661,17 @@ class BGPDataHandler:
         
             if self.DEBUG:
                 bgp_df = bgp_df[0:10]
-
+                
+            # We create an index that is unique even amongst different routing files
+            # so that we can merge partial data structures into a single structure
+            file_id = hashlib.md5(readable_file_name).hexdigest()
+            bgp_df['source_file'] = '%s_' % file_id
+            bgp_df['index'] = bgp_df.index.astype(str)
+            bgp_df['index'] = bgp_df['source_file'] + bgp_df['index']
+            bgp_df.index = bgp_df['index']
+            
              # We add a column to the Data Frame with the corresponding date
             bgp_df['date'] = bgp_df.apply(lambda row: datetime.datetime.utcfromtimestamp(row['timestamp']).strftime('%Y%m%d'), axis=1)
-            date = max(bgp_df['date'])
             
             ASpath_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
             bgp_df['middleASes'] = ASpath_parts[0]
@@ -516,22 +682,15 @@ class BGPDataHandler:
                 if network.version == 4:
                     if network.prefixlen > ipv4_longest_prefix:
                         ipv4_longest_prefix = network.prefixlen
-                    prefixes_radix = ipv4Prefixes_radix
+                    prefixes_indexes_radix = ipv4_prefixes_indexes_radix
                     
                 else:
                     if network.prefixlen > ipv6_longest_prefix:
                         ipv6_longest_prefix = network.prefixlen 
-                    prefixes_radix = ipv6Prefixes_radix
+                    prefixes_indexes_radix = ipv6_prefixes_indexes_radix
                     
-                node = prefixes_radix.add(prefix)
-                node.data['announcements'] = []
-                for index, row in prefix_subset.iterrows():
-                    node.data['announcements'].append({'date': row['date'],
-                                                        'peer': row['peer'],
-                                                        'ASpath': row['ASpath'],
-                                                        'OriginAS': row['originAS'],
-                                                        'MiddleASes': row['middleASes'],
-                                                        'origin': row['origin']})
+                node = prefixes_indexes_radix.add(prefix)
+                node.data['indexes'] = set(prefix_subset.index)
                             
                 for middleASes in prefix_subset['middleASes']:
                     for asn in middleASes.split():
@@ -552,8 +711,9 @@ class BGPDataHandler:
                 except OSError:
                     pass
             
-        return date, ipv4Prefixes_radix, ipv6Prefixes_radix, ASes_originated_prefixes_dic,\
-                ASes_propagated_prefixes_dic, ipv4_longest_prefix, ipv6_longest_prefix
+        return bgp_df, ipv4_prefixes_indexes_radix, ipv6_prefixes_indexes_radix,\
+                ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+                ipv4_longest_prefix, ipv6_longest_prefix
 
     # This function downloads a routing file if the source provided is a URL
     # If the file is COMPRESSED, it is unzipped
@@ -636,15 +796,20 @@ class BGPDataHandler:
     def saveDataToFiles(self):
         today = datetime.date.today().strftime('%Y%m%d')
         
-        ipv4_radix_file_name = '%s/ipv4Prefixes_%s.pkl' % (self.files_path, today)
-        with open(ipv4_radix_file_name, 'wb') as f:
-            pickle.dump(self.ipv4Prefixes_radix, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing Radix with routing data for each IPv4 prefix.\n" % ipv4_radix_file_name)
+        bgp_file_name = '%s/bgp_data_%s.pkl' % (self.files_path, today)
+        with open(bgp_file_name, 'wb') as f:
+            pickle.dump(self.bgp_data, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing DataFrame with BGP data.\n" % bgp_file_name)
 
-        ipv6_radix_file_name = '%s/ipv6Prefixes_%s.pkl' % (self.files_path, today)
+        ipv4_radix_file_name = '%s/ipv4_prefixes_indexes_%s.pkl' % (self.files_path, today)
+        with open(ipv4_radix_file_name, 'wb') as f:
+            pickle.dump(self.ipv4_prefixes_indexes_radix, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing Radix with indexes in the BGP data DataFrame for each IPv4 prefix.\n" % ipv4_radix_file_name)
+
+        ipv6_radix_file_name = '%s/ipv6_prefixes_indexes_%s.pkl' % (self.files_path, today)
         with open(ipv6_radix_file_name, 'wb') as f:
-            pickle.dump(self.ipv6Prefixes_radix, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing Radix with routing data for each IPv6 prefix.\n" % ipv6_radix_file_name)
+            pickle.dump(self.ipv6_prefixes_indexes_radix, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing Radix with indexes in the BGP data DataFrame for each IPv6 prefix.\n" % ipv6_radix_file_name)
 
         o_ases_dic_file_name = '%s/ASes_originated_prefixes_%s.pkl' % (self.files_path, today)
         with open(o_ases_dic_file_name, 'wb') as f:
@@ -656,8 +821,30 @@ class BGPDataHandler:
             pickle.dump(self.ASes_propagated_prefixes_dic, f, pickle.HIGHEST_PROTOCOL)
             sys.stderr.write("Saved to disk %s pickle file containing dictionary with prefixes propagated by each AS.\n" % p_ases_dic_file_name)
         
-        return ipv4_radix_file_name, ipv6_radix_file_name,\
-                o_ases_dic_file_name, p_ases_dic_file_name
+        ipv4_prefDates_file_name = '%s/ipv4_prefixesDates_%s.pkl' % (self.files_path, today)
+        with open(ipv4_prefDates_file_name, 'wb') as f:
+            pickle.dump(self.ipv4_prefixesDates_radix, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing Radix with the dates in which each IPv4 prefix was seen.\n" % ipv4_prefDates_file_name)
+        
+        ipv6_prefDates_file_name = '%s/ipv6_prefixesDates_%s.pkl' % (self.files_path, today)
+        with open(ipv6_prefDates_file_name, 'wb') as f:
+            pickle.dump(self.ipv6_prefixesDates_radix, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing Radix with the dates in which each IPv6 prefix was seen.\n" % ipv6_prefDates_file_name)
+        
+        originASesDates_file_name = '%s/originASesDates_%s.pkl' % (self.files_path, today)
+        with open(originASesDates_file_name, 'wb') as f:
+            pickle.dump(self.originASesDates_dict, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing a dictionary indexed by origin AS with info about the periods of time during which the AS originated prefixes.\n" % originASesDates_file_name)
+
+        middleASesDates_file_name = '%s/middleASesDates_%s.pkl' % (self.files_path, today)
+        with open(middleASesDates_file_name, 'wb') as f:
+            pickle.dump(self.middleASesDates_dict, f, pickle.HIGHEST_PROTOCOL)
+            sys.stderr.write("Saved to disk %s pickle file containing a dictionary indexed by AS with info about the periods of time during which the AS propagated prefixes.\n" % middleASesDates_file_name)
+
+        return bgp_file_name, ipv4_radix_file_name, ipv6_radix_file_name,\
+                o_ases_dic_file_name, p_ases_dic_file_name,\
+                ipv4_prefDates_file_name, ipv6_prefDates_file_name,\
+                originASesDates_file_name, middleASesDates_file_name
 
     # This function sets the ipv4_longest_pref and ipv6_longest_pref class variables
     # with the corresponding maximum prefix lengths in the ipv4_prefixes_indexes
@@ -679,13 +866,13 @@ class BGPDataHandler:
     # that are included in the keys of the corresponding Radix
     def getRoutedParentAndGrandparents(self, network):        
         if network.version == 4:
-            prefixes_radix = self.ipv4Prefixes_radix
+            indexes_radix = self.ipv4_prefixes_indexes_radix
         else:
-            prefixes_radix = self.ipv6Prefixes_radix
+            indexes_radix = self.ipv6_prefixes_indexes_radix
             
         less_specifics = []
        
-        for less_spec_node in prefixes_radix.search_covering(str(network)):
+        for less_spec_node in indexes_radix.search_covering(str(network)):
             less_spec_pref = less_spec_node.prefix
         
             if less_spec_pref != str(network):
@@ -697,13 +884,13 @@ class BGPDataHandler:
     # that are included in the keys of the corresponding Radix
     def getRoutedChildren(self, network):
         if network.version == 4:
-            prefixes_radix = self.ipv4Prefixes_radix
+            indexes_radix = self.ipv4_prefixes_indexes_radix
         else:
-            prefixes_radix = self.ipv6Prefixes_radix
+            indexes_radix = self.ipv6_prefixes_indexes_radix
             
         more_specifics = []
        
-        for more_spec_node in prefixes_radix.search_covered(str(network)):
+        for more_spec_node in indexes_radix.search_covered(str(network)):
             more_specifics.append(more_spec_node.prefix)
                         
         return more_specifics
@@ -712,16 +899,16 @@ class BGPDataHandler:
     # according to the routing data included in the BGP_data class variable
     def getOriginASesForBlock(self, network):        
         if network.version == 4:
-            prefixes_radix = self.ipv4Prefixes_radix
+            indexes_radix = self.ipv4_prefixes_indexes_radix
         else:
-            prefixes_radix = self.ipv6Prefixes_radix
+            indexes_radix = self.ipv6_prefixes_indexes_radix
             
         originASes = set()
 
-        pref_node = prefixes_radix.search_exact(str(network))
+        pref_node = indexes_radix.search_exact(str(network))
         if pref_node is not None:
-            for announcement in pref_node.data['announcements']:
-                originASes.add(announcement['OriginAS'])
+            for index in pref_node.data['indexes']:
+                originASes.add(self.bgp_data.ix[index, 'originAS'])            
             return originASes
         else:
             return originASes
@@ -730,14 +917,149 @@ class BGPDataHandler:
     # according to the routing data included in the BGP_data class variable
     def getASpathsForBlock(self, network):
         if network.version == 4:
-            prefixes_radix = self.ipv4Prefixes_radix
+            indexes_radix = self.ipv4_prefixes_indexes_radix
         else:
-            prefixes_radix = self.ipv6Prefixes_radix
+            indexes_radix = self.ipv6_prefixes_indexes_radix
             
         ASpaths = set()
-        pref_node = prefixes_radix.search_exact(str(network))
+        pref_node = indexes_radix.search_exact(str(network))
         if pref_node is not None:
-            for announcement in pref_node.data['announcements']:
-                ASpaths.add(announcement['ASpath'])
+            for index in pref_node.data['indexes']:
+                ASpaths.add(self.bgp_data.ix[index, 'ASpath'])
         
         return ASpaths
+
+    # This function returns the date in which a prefix or part of it
+    # was first seen
+    # If the prefix hasn't been seen yet according to the routing data in the
+    # archive, None is returned
+    def getDateFirstSeen(self, network):
+
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        sometime_routed_covered_nodes = prefixesDates.search_covered(str(network))
+        
+        first_seen = float('inf')
+        
+        for node in sometime_routed_covered_nodes:
+            node_first_seen = int(node.data['firstSeen'])
+            if node_first_seen < first_seen:
+                first_seen = node_first_seen
+
+        if first_seen != float('inf'):
+            return datetime.datetime.strptime(str(first_seen), '%Y%m%d').date()
+        else:
+            return None
+
+    # This function returns the date in which a prefix was first seen
+    # If the prefix has never been seen according to the routing data in the
+    # archive, None is returned
+    def getDateFirstSeenExact(self, network):
+        
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        network_node = prefixesDates.search_exact(str(network))
+
+        if network_node is not None:
+            return datetime.datetime.strptime(str(network_node.data['firstSeen']), '%Y%m%d').date()
+        else:
+            return None
+
+    # This function returns the list of periods of time during which a prefix
+    # was seen. If the prefix has never been seen according to the routing data
+    # in the archive, an empty list is returned
+    def getPeriodsSeenExact(self, network):        
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        network_node = prefixesDates.search_exact(str(network))
+        
+        if network_node is not None:
+            return network_node.data['periodsSeen']
+        else:
+            return []
+
+    # This function returns a dictionary with the lists of periods of time
+    # during which a prefix or parts of it were seen.
+    # If any part of the prefix has ever been seen according to the routing data
+    # in the archive, an empty dictionary is returned
+    def getPeriodsSeenGral(self, network):        
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        covered_nodes = prefixesDates.search_covered(str(network))
+        
+        periods_dict = dict()
+        
+        for covered_node in covered_nodes:
+            covered_prefix = covered_node.prefix
+            periods_dict[covered_prefix] = covered_node.data['periodsSeen']
+      
+        return periods_dict
+            
+
+    # This function returns the number of days during which a prefix was seen.
+    def getTotalDaysSeenExact(self, network):
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        network_node = prefixesDates.search_exact(str(network))
+        
+        if network_node is not None:
+            return int(network_node.data['totalDays'])
+        else:
+            return 0
+
+    # This function returns the date in which a prefix was last seen.
+    # If the prefix has never been seen according to the routing data in the
+    # archive, None is returned
+    def getDateLastSeenExact(self, network):
+        
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        network_node = prefixesDates.search_exact(str(network))
+
+        if network_node is not None:
+            return datetime.datetime.strptime(str(network_node.data['lastSeen']), '%Y%m%d').date()
+        else:
+            return None
+        
+    # This function returns the date in which a prefix or part of it
+    # was last seen.
+    # If the prefix has never been seen according to the routing data in the
+    # archive, None is returned
+    def getDateLastSeen(self, network):
+
+        if network.version == 4:
+            prefixesDates = self.ipv4_prefixesDates_radix
+        else:
+            prefixesDates = self.ipv6_prefixesDates_radix
+                
+        sometime_routed_covered_nodes = prefixesDates.search_covered(str(network))
+        
+        last_seen = 0
+        
+        for node in sometime_routed_covered_nodes:
+            node_last_seen = int(node.data['lastSeen'])
+            if node_last_seen > last_seen:
+                last_seen = node_last_seen
+
+        if last_seen != 0:
+            return datetime.datetime.strptime(str(last_seen), '%Y%m%d').date()
+        else:
+            return None
