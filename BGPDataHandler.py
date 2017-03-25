@@ -387,23 +387,19 @@ class BGPDataHandler:
                     node_partial = ipv4Prefixes_radix_partial.search_exact(prefix)
                     node_gral= ipv4Prefixes_radix.search_exact(prefix)
                     if node_gral is not None:
-                        node_gral.data['OriginASes'].update(node_partial.data['OriginASes'])
-                        node_gral.data['ASpaths'].update(node_partial.data['ASpaths'])
+                        node_gral.data['announcements'].update(list(node_partial.data['announcements']))
                     else:
                         node_gral = ipv4Prefixes_radix.add(prefix)
-                        node_gral.data['OriginASes'] = node_partial.data['OriginASes']
-                        node_gral.data['ASpaths'] = node_partial.data['ASpaths']
+                        node_gral.data['announcements'] = node_partial.data['announcements']
 
                 for prefix in ipv6Prefixes_radix_partial.prefixes():
                     node_partial = ipv6Prefixes_radix_partial.search_exact(prefix)
                     node_gral= ipv6Prefixes_radix.search_exact(prefix)
                     if node_gral is not None:
-                        node_gral.data['OriginASes'].update(node_partial.data['OriginASes'])
-                        node_gral.data['ASpaths'].update(node_partial.data['ASpaths'])
+                        node_gral.data['announcements'].update(list(node_partial.data['announcements']))
                     else:
                         node_gral = ipv6Prefixes_radix.add(prefix)
-                        node_gral.data['OriginASes'] = node_partial.data['OriginASes']
-                        node_gral.data['ASpaths'] = node_partial.data['ASpaths']
+                        node_gral.data['announcements'] = node_partial.data['announcements']
                         
                 for aut_sys, prefixes in ASes_originated_prefixes_dic_partial.iteritems():
                     if aut_sys in ASes_originated_prefixes_dic.keys():
@@ -528,8 +524,14 @@ class BGPDataHandler:
                     prefixes_radix = ipv6Prefixes_radix
                     
                 node = prefixes_radix.add(prefix)
-                node.data['ASpaths'] = set(prefix_subset['ASpath'])
-                node.data['OriginASes'] = set(prefix_subset['originAS'])
+                node.data['announcements'] = []
+                for index, row in prefix_subset.iterrows():
+                    node.data['announcements'].append({'date': row['date'],
+                                                        'peer': row['peer'],
+                                                        'ASpath': row['ASpath'],
+                                                        'OriginAS': row['originAS'],
+                                                        'MiddleASes': row['middleASes'],
+                                                        'origin': row['origin']})
                             
                 for middleASes in prefix_subset['middleASes']:
                     for asn in middleASes.split():
@@ -713,12 +715,16 @@ class BGPDataHandler:
             prefixes_radix = self.ipv4Prefixes_radix
         else:
             prefixes_radix = self.ipv6Prefixes_radix
+            
+        originASes = set()
 
         pref_node = prefixes_radix.search_exact(str(network))
         if pref_node is not None:
-            return set(pref_node.data['OriginASes'])
+            for announcement in pref_node.data['announcements']:
+                originASes.add(announcement['OriginAS'])
+            return originASes
         else:
-            return set()
+            return originASes
     
     # This function returns a set with all the AS paths for a specific prefix
     # according to the routing data included in the BGP_data class variable
@@ -728,8 +734,10 @@ class BGPDataHandler:
         else:
             prefixes_radix = self.ipv6Prefixes_radix
             
+        ASpaths = set()
         pref_node = prefixes_radix.search_exact(str(network))
         if pref_node is not None:
-            return pref_node.data['ASpaths']
-        else:
-            return set()
+            for announcement in pref_node.data['announcements']:
+                ASpaths.add(announcement['ASpath'])
+        
+        return ASpaths
