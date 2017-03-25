@@ -215,7 +215,7 @@ def main(argv):
                 existing_stats_df = pd.read_csv(stats_file, sep = ',')
                 final_existing_date = str(max(existing_stats_df['Date']))
                 del existing_stats_df
-            except (ValueError, pd.EmptyDataError, KeyError):
+            except (ValueError, KeyError):
                 final_existing_date = ''
                 INCREMENTAL = False
 
