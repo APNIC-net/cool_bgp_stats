@@ -12,6 +12,7 @@ from get_file import get_file
 import ipaddress
 import numpy as np
 import radix
+import datetime
 
 
 class DelegatedHandler:
@@ -104,6 +105,12 @@ class DelegatedHandler:
         delegated_df['date'] = pd.to_datetime(delegated_df['date'], format='%Y%m%d')
         
         self.fullASN_df = delegated_df[delegated_df['resource_type'] == 'asn']
+
+        # We filter out the rows corresponding to today as there may be missing
+        # delegations.
+        # The delegations made today will be considered tomorrow :)
+        delegated_df = delegated_df[delegated_df['date'] < datetime.date.today()]
+        
         
         if date != '':  
             try:

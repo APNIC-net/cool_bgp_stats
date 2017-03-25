@@ -86,12 +86,13 @@ class BGPDataHandler:
     # This function processes the routing data contained in the files to which
     # the URLs in the urls_file point, and loads the data structures of the class
     # with the results from this processing
-    def loadStructuresFromURLSfile(self, urls_file):
+    def loadStructuresFromURLSfile(self, urls_file, READABLE):
         date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref  =\
                         self.processMultipleFiles(files_list=urls_file,\
-                                                isList=False, containsURLs=True)
+                                                isList=False, containsURLs=True,\
+                                                areReadable=READABLE)
                     
         self.mostRecentDate = date
         self.ipv4Prefixes_radix = ipv4Prefixes_radix
@@ -113,8 +114,11 @@ class BGPDataHandler:
                                                 
     # This function processes the routing data contained in the routing_file
     # and loads the data structures of the class with the results from this processing                                           
-    def loadStructuresFromRoutingFile(self, routing_file):
-        readable_file_name =  self.getReadableFile(routing_file, False)
+    def loadStructuresFromRoutingFile(self, routing_file, READABLE):
+        if not READABLE:
+            readable_file_name =  self.getReadableFile(routing_file, False)
+        else:
+            readable_file_name = routing_file
         
         if readable_file_name != '':
             date, ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
@@ -147,7 +151,7 @@ class BGPDataHandler:
     # This function processes the routing data contained in the archive folder
     # provided, and loads the data structures of the class with the results
     # from this processing       
-    def loadStructuresFromArchive(self, archive_folder, extension, endDate):
+    def loadStructuresFromArchive(self, archive_folder, extension, endDate, READABLE):
         historical_files = self.getPathsToHistoricalData(archive_folder, extension)
         
         if historical_files == '':
@@ -156,9 +160,11 @@ class BGPDataHandler:
 
         mostRecent_routing_file  =\
                         self.getMostRecentFromHistoricalList(historical_files, endDate)
-        
-        mostRecent_readable = self.getReadableFile(mostRecent_routing_file,\
-                                False)
+        if not READABLE:
+            mostRecent_readable = self.getReadableFile(mostRecent_routing_file,\
+                                                        False)
+        else:
+            mostRecent_readable = mostRecent_routing_file
 
         # In order for the most recent file not to be processed twice,
         # we store the data from this file into the visibility database
@@ -192,7 +198,7 @@ class BGPDataHandler:
         # Finally, we store the routing data from the rest of the routing files
         # from the archive, providing the name of the most recent file in order
         # for it to be skipped.
-        self.storeHistoricalData(historical_files, mostRecent_routing_file)
+        self.storeHistoricalData(historical_files, mostRecent_routing_file, READABLE)
         sys.stderr.write("Historical data inserted into visibility database successfully!\n")
         
         return True
@@ -237,7 +243,7 @@ class BGPDataHandler:
     # This function stores the routing data from the files listed in the
     # historical_files file skipping the mostRecent routing file provided,
     # as the data contained in this file has already been stored.
-    def storeHistoricalData(self, historical_files, mostRecent):
+    def storeHistoricalData(self, historical_files, mostRecent, areReadable):
 
         files_list_obj = open(historical_files, 'r')
         
@@ -251,7 +257,7 @@ class BGPDataHandler:
                  # If we work with several routing files
                 sys.stderr.write("Starting to work with %s\n" % line)
 
-                self.storeHistoricalDataFromFile(line, False)
+                self.storeHistoricalDataFromFile(line, areReadable)
                         
             i += 1
             if self.DEBUG and i > 1:
@@ -336,7 +342,7 @@ class BGPDataHandler:
     # This function downloads and processes all the files in the provided list.
     # The boolean variable containsURLs must be True if the files_list is a list
     # of URLs or False if it is a list of paths
-    def processMultipleFiles(self, files_list, isList, containsURLs):
+    def processMultipleFiles(self, files_list, isList, containsURLs, areReadable):
         if not isList:
             files_list = open(files_list, 'r')
                     
@@ -356,10 +362,13 @@ class BGPDataHandler:
 
                 # We obtain partial data structures
                 if containsURLs:
-                    readable_file_name =  self.getReadableFile(line.strip(), True)          
+                    if not areReadable:
+                        readable_file_name =  self.getReadableFile(line.strip(), True)          
                     
-                    if readable_file_name == '':
-                        continue
+                        if readable_file_name == '':
+                            continue
+                    else:
+                        readable_file_name = line.strip()
                     
                     date, ipv4Prefixes_radix_partial,\
                         ipv6Prefixes_radix_partial,\
@@ -368,10 +377,13 @@ class BGPDataHandler:
                         ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
                                 self.processReadableDF(readable_file_name)
                 else:
-                    readable_file_name =  self.getReadableFile(line.strip(), False)
+                    if not areReadable:
+                        readable_file_name =  self.getReadableFile(line.strip(), False)
                     
-                    if readable_file_name == '':
-                        continue
+                        if readable_file_name == '':
+                            continue
+                    else:
+                        readable_file_name = line.strip()
                     
                     date, ipv4Prefixes_radix_partial,\
                         ipv6Prefixes_radix_partial,\
