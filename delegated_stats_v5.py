@@ -221,7 +221,7 @@ def main(argv):
 
     if not INCREMENTAL:
         stats_file = '{}.csv'.format(file_name)
-        
+        final_existing_date = ''
         with open(stats_file, 'w') as csv_file:
             csv_file.write('Geographic Area,ResourceType,Status,Organization,Date,NumOfDelegations,NumOfResources,IPCount,IPSpace\n')
         
