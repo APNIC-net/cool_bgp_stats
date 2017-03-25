@@ -10,12 +10,13 @@ from get_file import get_file
 from VisibilityDBHandler import VisibilityDBHandler
 from DelegatedHandler import DelegatedHandler
 from BGPDataHandler import BGPDataHandler
+from OrgHeuristics import OrgHeuristics
 import ipaddress
 import pandas as pd
 import numpy as np
 import datetime, time
 import math
-import pickle, copy
+import copy
 
 
 # This function downloads information about relationships between ASes inferred
@@ -152,8 +153,7 @@ def weighted_avg_and_std(values, weights):
     return (average, math.sqrt(variance))
     
 def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
-                                    db_handler, first_seen_intact,\
-                                    visibilityPerPeriods):
+                                    db_handler, first_seen_intact):
     # TODO Debug
 
     # History of Visibility (Visibility Evoluntion in Time) computation
@@ -266,16 +266,10 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
             # Evolution of Visibility (Visibility per period)
             # Taking into account the block itself being routed and
             # and its fragments being routed
-            visibilityPerPeriods[str(network)] = dict()
             visibilities = []
             periodLengths = []
-            
-            visibilityPerPeriods[str(network)][\
-                                (statsForPrefix['del_date'], timeBreaks[0])] = 0
-            
+                        
             last_seen = db_handler.getDateLastSeen(network)
-            if last_seen < today:
-                visibilityPerPeriods[str(network)][(last_seen, today)] = 0
             
             if len(timeBreaks) == 1:
                 numOfIPsVisible = 0
@@ -287,8 +281,6 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
                             numOfIPsVisible += prefix.num_addresses
                 
                 visibility = float(numOfIPsVisible)*100/network.num_addresses
-                visibilityPerPeriods[str(network)][(timeBreaks[0],\
-                                                    timeBreaks[0])] = visibility
                 visibilities.append(visibility)
                 periodLengths.append(1)
             
@@ -302,8 +294,6 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, bgp_handler,\
                             numOfIPsVisible += prefix.num_addresses
                 
                 visibility = float(numOfIPsVisible)*100/network.num_addresses
-                visibilityPerPeriods[str(network)][(timeBreaks[i],\
-                                                    timeBreaks[i+1])] = visibility
                 visibilities.append(visibility)
                 periodLengths.append((timeBreaks[i+1] - timeBreaks[i]).days+1)
             
@@ -356,9 +346,29 @@ def computeNetworkUsageLatency(network, statsForPrefix, bgp_handler, db_handler)
 # These classes are taken from those defined in [1]
 # The corresponding variables in the statsForPrefix dictionary are incremented
 # to keep track of the number of prefixes in each class.
-def classifyPrefixAndUpdateCounters(routedPrefix, statsForPrefix, levenshteinDists,\
-                                    bgp_handler, ASrels):
+def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, levenshteinDists,\
+                                    bgp_handler, ASrels, files_path):
     # TODO Debug
+    
+    # If the delegated prefix is not already marked as having fragments being
+    # announced by an AS delegated to an organization different from the
+    # organization that received the delegation of the prefix
+    if not statsForPrefix['hasFragmentsOriginatedByDiffOrg']:
+        # We check if the routed prefix  (fragment of the delegated prefix)
+        # and all its origin ASes were delegated to the same organization
+        sameOrgs = True
+        
+        blockOriginASes = bgp_handler.getOriginASesForBlock(routedPrefix)
+          
+        for blockOriginAS in blockOriginASes:
+            sameOrgs = OrgHeuristics.checkIfSameOrg(routedPrefix, blockOriginAS)                                
+            with open('{}/DiffOrgs.txt'.format(files_path), 'w') as orgs_file:
+                orgs_file.write('Prefix: {}, Origin AS: {}, Same Orgs?: {}\n'.format(routedPrefix, blockOriginAS, sameOrgs))
+                
+            if not sameOrgs:
+                statsForPrefix['hasFragmentsOriginatedByDiffOrg'] = True
+                break
+            
     routedNetwork = ipaddress.ip_network(unicode(routedPrefix, "utf-8"))
         
     # Find routed blocks related to the prefix of interest 
@@ -512,17 +522,12 @@ def writeStatsLineToFile(statsForPrefix, allAttr, stats_filename):
 
 
 def computePerPrefixStats(bgp_handler, del_handler, db_handler, ASrels,
-                            stats_filename, def_dict, allAttr):
+                            stats_filename, def_dict, allAttr, files_path):
     # Obtain a subset of all the delegated prefixes
     delegatedNetworks = del_handler.delegated_df[\
                             (del_handler.delegated_df['resource_type'] == 'ipv4') |\
                             (del_handler.delegated_df['resource_type'] == 'ipv6')]
-    
-     # Obtain ASN delegation data
-    asn_del = del_handler.fullASN_df
                 
-    visibilityPerPeriods = dict()
-
     for i in delegatedNetworks.index:
         prefix_row = delegatedNetworks.ix[i]
         prefix = '{}/{}'.format(prefix_row['initial_resource'],\
@@ -543,8 +548,7 @@ def computePerPrefixStats(bgp_handler, del_handler, db_handler, ASrels,
         first_seen_intact = computeNetworkUsageLatency(delNetwork, statsForPrefix,\
                                                         bgp_handler, db_handler)
         computeNetworkHistoryOfVisibility(delNetwork, statsForPrefix, bgp_handler,\
-                                            db_handler, first_seen_intact,\
-                                            visibilityPerPeriods)
+                                            db_handler, first_seen_intact)
 
         ips_delegated = delNetwork.num_addresses 
 
@@ -573,62 +577,25 @@ def computePerPrefixStats(bgp_handler, del_handler, db_handler, ASrels,
                     statsForPrefix['onlyRoot'] = True
                 
                 blockOriginASes = bgp_handler.getOriginASesForBlock(delNetwork)
-                statsForPrefix['numOfOriginASes'] = len(blockOriginASes)
-            
-                # We check if the prefix and all its origin ASes were delegated
-                # to the same organization
-            
-                originASesOrgs = set()
-                
-                for blockOriginAS in blockOriginASes:
-                    originASorg = asn_del[(pd.to_numeric(asn_del['initial_resource'])\
-                                            <= int(blockOriginAS)) &\
-                                            (pd.to_numeric(asn_del['initial_resource'])+\
-                                            pd.to_numeric(asn_del['count/prefLen'])>\
-                                            int(blockOriginAS))]['opaque_id'].get_values()
-                    if len(originASorg) == 1:
-                        originASesOrgs.add(originASorg[0])
-                    # There can not be more than one result in the ASN DataFrame,
-                    # therefore, if the len is not 1, it's 0 and it means the origin AS was
-                    # not delegated by APNIC
-                    else:
-                        originASesOrgs.add('UNKNOWN Org')
-                        
-                sameOrgs = True
-                    
-                for org in originASesOrgs:
-                    if org != statsForPrefix['opaque_id']:
-                        sameOrgs = False
-                        break
-                        
-                if not sameOrgs:
-                    with open('/Users/sofiasilva/BGP_files/DiffOrgs.txt', 'w') as orgs_file:
-                        orgs_file.write('Prefix: {}, Org for Prefix: {}, Origin ASes: {}, Orgs for Origin ASes: {}\n'.format(prefix, statsForPrefix['opaque_id'], blockOriginASes, originASesOrgs))
-                        
-                    # TODO check with WHOIS/RDAP
-                    # Get Org ID for prefix and for origin ASes and compare
-                    # https://www.apnic.net/about-apnic/whois_search/about/rdap/
-                    # Check with bootstrap right registry to query
-                    
-                    # If even after checking with WHOIS/RDAP we have different orgs:
-                    # If the prefix is being originated by an AS delegated to
-                    # a different organization from the organization that
-                    # received the delegation of the block                 
-            #            statsForPrefix['originatedByDiffOrg'] = True
+                statsForPrefix['numOfOriginASesIntact'] = len(blockOriginASes)
+                # TODO Agregar avg, std, max y min numOfOriginASesGral
                 
                 # We get the set of AS paths for the block
                 blockASpaths = bgp_handler.getASpathsForBlock(delNetwork)
-                statsForPrefix['numOfASPaths'] = len(blockASpaths)
+                statsForPrefix['numOfASPathsIntact'] = len(blockASpaths)
+                # TODO Agregar avg, std, max y min numOfASPathsGral
                 
                 ASpathsLengths = []
                 for path in blockASpaths:
                     ASpathsLengths.append(len(path.split()))
                     
                 ASpathsLengths = np.array(ASpathsLengths)
-                statsForPrefix['avgASPathLength'] = ASpathsLengths.mean()
-                statsForPrefix['stdASPathLength'] = ASpathsLengths.std()
-                statsForPrefix['minASPathLength'] = ASpathsLengths.min()
-                statsForPrefix['maxASPathLength'] = ASpathsLengths.max()
+                statsForPrefix['avgASPathLengthIntact'] = ASpathsLengths.mean()
+                statsForPrefix['stdASPathLengthIntact'] = ASpathsLengths.std()
+                statsForPrefix['minASPathLengthIntact'] = ASpathsLengths.min()
+                statsForPrefix['maxASPathLengthIntact'] = ASpathsLengths.max()
+                
+                # TODO Agregar avg, std, max y min ASPathLengthGral
                 
                 if len(more_specifics) > 1:    
                     aggr_more_spec = [ipaddr for ipaddr in
@@ -682,8 +649,9 @@ def computePerPrefixStats(bgp_handler, del_handler, db_handler, ASrels,
         
             levenshteinDists = []
             for moreSpec in more_specifics:
-                classifyPrefixAndUpdateCounters(moreSpec, statsForPrefix,
-                                           levenshteinDists, bgp_handler, ASrels)
+                classifyPrefixAndUpdateVariables(moreSpec, statsForPrefix,
+                                           levenshteinDists, bgp_handler,
+                                           ASrels, files_path)
 
             if len(levenshteinDists) > 0:
                 levenshteinDists = np.array(levenshteinDists)
@@ -693,8 +661,6 @@ def computePerPrefixStats(bgp_handler, del_handler, db_handler, ASrels,
                 statsForPrefix['maxLevenshteinDist'] = levenshteinDists.max()
             
             writeStatsLineToFile(statsForPrefix, allAttr, stats_filename)
-            
-    return visibilityPerPeriods
 
 # This function determines whether the allocated ASNs are active
 # either as middle AS, origin AS or both
@@ -817,10 +783,6 @@ def main(argv):
     ipv6_prefixes_indexes_file = ''
     ASes_originated_prefixes_file = ''
     ASes_propagated_prefixes_file = ''
-    ipv4_prefixesDates_file = ''
-    ipv6_prefixesDates_file = ''
-    originASesDates_file = ''
-    middleASesDates_file = ''
     archive_folder = '' 
     ext = ''
     COMPRESSED = False
@@ -842,23 +804,16 @@ def main(argv):
     date = '20170115'
 #    COMPRESSED = True
 #    COMPUTE = False  
-    ASes_originated_prefixes_file = '{}/ASes_originated_prefixes_20170322.pkl'.format(files_path)
-    ASes_propagated_prefixes_file = '{}/ASes_propagated_prefixes_20170322.pkl'.format(files_path)
-    ipv4_prefixesDates_file = '{}/ipv4_prefixesDates_20170322.pkl'.format(files_path)
-    ipv4_prefixes_indexes_file = '{}/ipv4_prefixes_indexes_20170322.pkl'.format(files_path)
-    ipv6_prefixesDates_file = '{}/ipv6_prefixesDates_20170322.pkl'.format(files_path)
-    ipv6_prefixes_indexes_file = '{}/ipv6_prefixes_indexes_20170322.pkl'.format(files_path)
-
     
     try:
-        opts, args = getopt.getopt(argv, "hf:u:r:H:E:I:ocknD:Ud:ep:a:4:6:O:P:F:S:A:M:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "Extension=", "InitialDate=", "Date=", "delegated_file=", "prefixes_stats_file=", "ases_stats_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_Originated_prefixes_file=", "ASes_Propagated_prefixes_file=", "ipv4_prefixesDates_file=", "ipv6_prefixesDates_file=", "originASesDates_file=", "middleASesDates_file="])
+        opts, args = getopt.getopt(argv, "hf:u:r:H:E:I:ocknD:Ud:ep:a:4:6:O:P:", ["files_path=", "urls_file=", "routing_file=", "Historcial_data_folder=", "Extension=", "InitialDate=", "Date=", "delegated_file=", "prefixes_stats_file=", "ases_stats_file=", "IPv4_prefixes_ASes_file=", "IPv6_prefixes_ASes_file=", "ASes_Originated_prefixes_file=", "ASes_Propagated_prefixes_file="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>] [-A <originASesDates_file>] [-M <middleASesDates_file>]'
+        print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file>] [-F <ipv4_prefixesDates file>] [-S <ipv6_prefixesDates file>] [-A <originASesDates_file>] [-M <middleASesDates_file>]'
+            print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes_indexes file> -6 <IPv6 prefixes_indexes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file>]'
             print 'h = Help'
             print "f = Path to folder in which Files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -869,7 +824,6 @@ def main(argv):
             print "H = Historical data. Instead of processing a single file, process the routing data contained in the archive folder provided."
             print "E = Extension. If you use the -H option you MUST also use the -E option to provide the extension of the files in the archive you want to work with."
             print "I = Incremental dates. If you use this option you must provide a start date for the period of time for which you want to get the dates in which the prefixes were seen."
-            print "If you also use the -F or the -S option to provide an existing prefixesDates file, the new dates will be added to the existing dates in the Radix."
             print "If none of the three options -u, -r or -H are provided, the script will try to work with routing data from URLs included ./BGPoutputs.txt"
             print 'o = The routing data to be processed is in the format of "show ip bgp" outputs.'
             print 'c = Compressed. The files containing routing data are compressed.'
@@ -891,10 +845,6 @@ def main(argv):
             print "P = ASes_Propagated_prefixes file. Path to pickle file containing ASes_Propagated_prefixes dictionary."
             print "If you want to work with BGP data from files, the five options -b, -4, -6, -O and -P must be used."
             print "If not, none of these five options should be used."
-            print "F = IPv4 (Four) prefixesDates file. Path to pickle file containing prefixesDates Radix with the dates in which each IPv4 prefix was seen."
-            print "S = IPv6 (Six) prefixesDates file. Path to pickle file containing prefixesDates Radix with the dates in which each IPv6 prefix was seen."
-            print "A = Origin ASes Dates file. Path to pickle file containing originASesDates dictionary with the date in which each ASN originated prefixes."
-            print "M = Middle ASes Dates file. Path to pickle file containing middleASesDates dictionary with the date in which each ASN propagated prefixes."
             sys.exit()
         elif opt == '-u':
             if arg != '':
@@ -992,30 +942,6 @@ def main(argv):
             ext = arg
         elif opt == '-I':
             startDate = int(arg)
-        elif opt == '-F':
-            if arg != '':
-                ipv4_prefixesDates_file = os.path.abspath(arg)
-            else:
-                print "If option -F is used, the path to a pickle file containing prefixesDates Radix with the dates in which each IPv4 prefix was seen MUST be provided."
-                sys.exit()
-        elif opt == '-S':
-            if arg != '':
-                ipv6_prefixesDates_file = os.path.abspath(arg)
-            else:
-                print "If option -S is used, the path to a pickle file containing prefixesDates Radix with the dates in which each IPv6 prefix was seen MUST be provided."
-                sys.exit()
-        elif opt == '-A':
-            if arg != '':
-                originASesDates_file = os.path.abspath(arg)
-            else:
-                print "If option -A is used, the path to a pickle file containing originASesDates dictionary with the date in which each ASN originated prefixes MUST be provided."
-                sys.exit()
-        elif opt == '-M':
-            if arg != '':
-                middleASesDates_file = os.path.abspath(arg)
-            else:
-                print "If option -M is used, the path to a pickle file containing middleASesDates dictionary with the date in which each ASN propagated prefixes MUST be provided."
-                sys.exit()
         else:
             assert False, 'Unhandled option'
             
@@ -1092,15 +1018,6 @@ def main(argv):
     bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP, RIBfiles, COMPRESSED)
 
     loaded = False 
-    
-    if ipv4_prefixesDates_file != '' or ipv6_prefixesDates_file != '':
-        bgp_handler.loadPrefixDatesFromFiles(ipv4_prefixesDates_file, ipv6_prefixesDates_file)    
-    
-    if originASesDates_file != '':
-        bgp_handler.loadOriginASesDatesFromFile(originASesDates_file)
-
-    if middleASesDates_file != '':
-        bgp_handler.loadMiddleASesDatesFromFile(middleASesDates_file)
         
     if fromFiles:
         loaded = bgp_handler.loadStructuresFromFiles(routing_date, ipv4_prefixes_indexes_file,
@@ -1108,6 +1025,7 @@ def main(argv):
                                 ASes_propagated_prefixes_file)
         if UNTIL:
             # TODO 
+            print 'TODO'
     else:
         if routing_file == '' and archive_folder == '':
             loaded = bgp_handler.loadStructuresFromURLSfile(urls_file)
@@ -1254,10 +1172,11 @@ def main(argv):
         def_dict_pref = getDictionaryWithDefaults(booleanKeys_pref, valueKeys_pref, counterKeys_pref)
 
         start_time = time.time()
-        visibilityPerPeriods = computePerPrefixStats(bgp_handler, del_handler,
+        computePerPrefixStats(bgp_handler, del_handler,
                                                     db_handler, ASrels,
                                                     prefixes_stats_file,
-                                                    def_dict_pref, allAttr_pref)
+                                                    def_dict_pref, allAttr_pref,
+                                                    files_path)
         end_time = time.time()
         sys.stderr.write("Stats for prefixes computed successfully!\n")
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
@@ -1268,13 +1187,7 @@ def main(argv):
         sys.stderr.write("Prefixes stats saved to JSON file successfully!\n")
         sys.stderr.write("Files generated:\n{}\nand\n{})\n".format(prefixes_stats_file,
                                                         prefixes_json_filename))
-
-        # TODO Ask George and Byron whether we are interested in saving this data
-        visibility_file_name = '{}/visibilityPerPeriods_{}.pkl'.format(files_path, today)
-        with open(visibility_file_name, 'wb') as visibility_file:
-            pickle.dump(visibilityPerPeriods, visibility_file, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing dictionary of the visibiity of each prefix during each period of time.\n" % visibility_file_name)
-
+        
         valueKeys_ases = ['UsageLatency', 'relUsedTime', 'effectiveUsage',
                             'timeFragmentation', 'avgPeriodLength', 'stdPeriodLength',
                             'minPeriodLength', 'maxPeriodLength']
