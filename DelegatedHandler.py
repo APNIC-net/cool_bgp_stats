@@ -12,12 +12,13 @@ from get_file import get_file
 import ipaddress
 import numpy as np
 import radix
+import pickle
+import datetime
 
 
 class DelegatedHandler:
 
     delegated_df = pd.DataFrame()
-    fullASN_df = pd.DataFrame()    
 
     def __init__(self, DEBUG, EXTENDED, del_file, date, UNTIL, INCREMENTAL, final_existing_date):
          
@@ -53,7 +54,6 @@ class DelegatedHandler:
                         date, UNTIL, INCREMENTAL, final_existing_date):
                             
         summary_records = pd.DataFrame()
-        AP_regions = ['Eastern Asia', 'Oceania', 'Southern Asia', 'South-Eastern Asia']
         res_types = ['asn', 'ipv4', 'ipv6']
         
         if not DEBUG:
@@ -103,8 +103,10 @@ class DelegatedHandler:
         
         delegated_df['date'] = pd.to_datetime(delegated_df['date'], format='%Y%m%d')
         
-        self.fullASN_df = delegated_df[delegated_df['resource_type'] == 'asn']
-        
+        # We filter out the delegations made today as there could be missing delegations
+        # Delegations for today will be considered tomorrow :)
+        delegated_df = delegated_df[delegated_df['date'] < datetime.date.today()]
+            
         if date != '':  
             try:
                 year = int(date[0:4])
@@ -154,26 +156,8 @@ class DelegatedHandler:
                 return pd.DataFrame()
             
         delegated_df.ix[pd.isnull(delegated_df.cc), 'cc'] = 'XX'
-        CCs = list(set(delegated_df['cc'].values))    
     
-        country_regions = dict()
-        
-        with open('./Collections.txt', 'r') as coll_file:
-            for line in coll_file:
-                cc = line.split(',')[1]
-                if cc in CCs:
-                    try:
-                        region = line.split('001 World,')[1].split(',')[0][4:]
-                        if region not in AP_regions:
-                            country_regions[cc] = 'Reg_Out of APNIC region'
-                        else:
-                            country_regions[cc] = 'Reg_%s' % region
-                    except IndexError:
-                            country_regions[cc] = 'NA'                        
-      
-    
-        country_regions['AP'] = 'AP Region'
-        country_regions['XX'] = 'NA'
+        country_regions = pickle.load(open('./CountryRegions.pkl', "rb"))
                 
         if EXTENDED:        
             delegated_df.ix[pd.isnull(delegated_df.opaque_id), 'opaque_id'] = 'NA'
