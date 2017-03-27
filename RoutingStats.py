@@ -17,15 +17,14 @@ import numpy as np
 
 class RoutingStats:
     
-    def __init__(self, files_path, DEBUG, KEEP, RIBfiles, COMPRESSED, COMPUTE,\
-                    EXTENDED, del_file, date, UNTIL, INCREMENTAL, final_existing_date,\
-                    file_name):
+    def __init__(self, files_path, DEBUG, KEEP, COMPUTE, EXTENDED, del_file,\
+                date, UNTIL, INCREMENTAL, final_existing_date, file_name):
                         
-        self.bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP, RIBfiles, COMPRESSED)
+        self.bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP)
         
         if COMPUTE: 
-            self.del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, date, UNTIL,
-                                            INCREMENTAL, final_existing_date)
+            self.del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, date,\
+                                                UNTIL, INCREMENTAL, final_existing_date)
     
             self.db_handler = VisibilityDBHandler()
             
@@ -37,9 +36,14 @@ class RoutingStats:
             # of it haven't been visible in the routing table for more than a year
             # isDeadIntact: Boolean variable that will be True if the prefix as-is
             # hasn't been visible in the routing table for more than a year
-            # OriginatedByDiffOrg: Boolean key to store info about the prefix being
+            # originatedByDiffOrg: Boolean key to store info about the prefix being
             # originated by an AS that was delegated to an organization that is not
             # the same that received the delegation of the block
+            # hasFragmentsOriginatedByDiffOrg and hasLessSpecificsOriginatedByDiffOrg
+            # are analogous boolean variables storing info about the routed fragments
+            # (more specifics) and routed less specifics of the delegated block
+            # being originated by an AS that was delegated to an organization
+            # that is not the same that received the delegation of the block.
     
             # Usage Latency :  Based on [1]
             # We define usage latency of a delegated address block as
@@ -81,11 +85,16 @@ class RoutingStats:
             # visibility for the prefix over time.
     
             # If the delegated prefix is being routed, we get a set of the ASes that
-            # originate the prefix and save the length of this set (numOfOriginASes).
+            # originate the prefix and save the length of this set (numOfOriginASesIntact).
             # We also get a set of all the AS paths in the BGP announcements of the
-            # prefix and save the number of AS paths (numOfASpaths) and compute and
+            # prefix and save the number of AS paths (numOfASpathsIntact) and compute and
             # save the average, standard distribution, maximum and minimum amongst
-            # the lengths of these AS paths.
+            # the lengths of these AS paths (avg, std, min and max ASPathLengthIntact).
+    
+            # Taking into account the routed fragments we compute the avg, std,
+            # min and max of the number of originASes (numOfOriginASesGral), of
+            # the number of AS paths (numOfASPathsGral) and of the length of the
+            # AS paths (ASPathLengthGral).
     
             # For the routed fragments of the delegated prefix that are classified 
             # as SODP or DODP we compute the Levenshtein Distance between the AS path
@@ -107,7 +116,8 @@ class RoutingStats:
             # classified as DOSP or DODP in [1].     
             
             booleanKeys_pref = ['isRoutedIntact', 'isDead', 'isDeadIntact',
-                                'originatedByDiffOrg', 'onlyRoot', 'rootMSCompl',
+                                'originatedByDiffOrg', 'hasFragmentsOriginatedByDiffOrg',\
+                                'hasLessSpecificsOriginatedByDiffOrg', 'onlyRoot', 'rootMSCompl',
                                 'rootMSIncompl', 'noRootMSCompl', 'noRootMSIncompl']
                                            
             valueKeys_pref = ['UsageLatencyGral', 'UsageLatencyIntact',
@@ -119,21 +129,51 @@ class RoutingStats:
                               'avgPeriodLengthGral', 'stdPeriodLengthGral',
                               'maxPeriodLengthGral', 'minPeriodLengthGral',
                               'avgVisibility', 'stdVisibility', 'maxVisibility',
-                              'minVisibility', 'avgASPathLength', 'stdASPathLength',
-                              'maxASPathLength', 'minASPathLength',
-                              'avgLevenshteinDist', 'stdLevenshteinDist',
-                              'minLevenshteinDist', 'maxLevenshteinDist',
-                              'currentVisibility']
+                              'minVisibility', 'avgASPathLengthIntact',
+                              'stdASPathLengthIntact', 'maxASPathLengthIntact',
+                              'minASPathLengthIntact', 'avgNumOfOriginASesGral',
+                              'stdNumOfOriginASesGral', 'minNumOfOriginASesGral',
+                              'maxNumOfOriginASesGral', 'avgNumOfASPathsGral',
+                              'stdNumOfASPathsGral', 'minNumOfASPathsGral',
+                              'maxNumOfASPathsGral', 'avgASPathLengthGral',
+                              'stdASPathLengthGral', 'minASPathLengthGral',
+                              'maxASPathLengthGral', 'avgLevenshteinDistMoreSpec',
+                              'stdLevenshteinDistMoreSpec', 'minLevenshteinDistMoreSpec',
+                              'maxLevenshteinDistMoreSpec', 'avgLevenshteinDistLessSpec',
+                              'stdLevenshteinDistLessSpec', 'minLevenshteinDistLessSpec',
+                              'maxLevenshteinDistLessSpec', 'currentVisibility']
                               
-            counterKeys_pref = ['numOfOriginASes', 'numOfASPaths',
-                                'numOfLessSpecificsRouted', 'numOfMoreSpecificsRouted',
-                                'numOfCoveringMoreSpec', 'numOfCoveredLevel1MoreSpec',
-                                'numOfCoveredLevel2MoreSpec', 'numOfSOSPMoreSpec',
-                                'numOfSODP1MoreSpec', 'numOfSODP2MoreSpec',
-                                'numOfDOSPMoreSpec', 'numOfDODP1MoreSpec',
-                                'numOfDODP2MoreSpec', 'numOfDODP3MoreSpec',
-                                'numOfLonelyMoreSpec']
+            gralCounterKeys_pref = ['numOfOriginASesIntact', 'numOfASPathsIntact',
+                                'numOfLessSpecificsRouted', 'numOfMoreSpecificsRouted']
     
+            self.moreSpec_variables = {'DODP1': 'numOfDODP1MoreSpec',
+                                       'DODP2': 'numOfDODP2MoreSpec',
+                                       'DODP3': 'numOfDODP3MoreSpec',
+                                       'DOSP': 'numOfDOSPMoreSpec',
+                                       'SODP1': 'numOfSODP1MoreSpec',
+                                       'SODP2': 'numOfSODP2MoreSpec',
+                                       'SOSP': 'numOfSOSPMoreSpec',
+                                       'coveredLevel1': 'numOfCoveredLevel1MoreSpec',
+                                       'coveredLevel2plus': 'numOfCoveredLevel2plusMoreSpec',
+                                       'covering': 'numOfCoveringMoreSpec',
+                                       'lonely': 'numOfLonelyMoreSpec'}
+            
+            self.lessSpec_variables = {'DODP1': 'numOfDODP1LessSpec',
+                                       'DODP2': 'numOfDODP2LessSpec',
+                                       'DODP3': 'numOfDODP3LessSpec',
+                                       'DOSP': 'numOfDOSPLessSpec',
+                                       'SODP1': 'numOfSODP1LessSpec',
+                                       'SODP2': 'numOfSODP2LessSpec',
+                                       'SOSP': 'numOfSOSPLessSpec',
+                                       'coveredLevel1': 'numOfCoveredLevel1LessSpec',
+                                       'coveredLevel2plus': 'numOfCoveredLevel2plusLessSpec',
+                                       'covering': 'numOfCoveringLessSpec',
+                                       'lonely': 'numOfLonelyLessSpec'}
+                                       
+            counterKeys_pref = gralCounterKeys_pref +\
+                                self.moreSpec_variables.values() +\
+                                self.lessSpec_variables.values()
+                
             other_data_columns = ['prefix', 'del_date', 'resource_type', 'status',
                                   'opaque_id', 'cc', 'region', 'mostRecentRoutingData_date']
             
@@ -154,7 +194,7 @@ class RoutingStats:
                     csv_file.write(line)
             
             self.def_dict_pref = self.getDictionaryWithDefaults(booleanKeys_pref, valueKeys_pref, counterKeys_pref)
-
+ 
             valueKeys_ases = ['UsageLatency', 'relUsedTime', 'effectiveUsage',
                                 'timeFragmentation', 'avgPeriodLength', 'stdPeriodLength',
                                 'minPeriodLength', 'maxPeriodLength']
@@ -190,7 +230,7 @@ class RoutingStats:
     # and the value is another dictionary that also has an AS as key and a string
     # as value specifying whether it is a P2P, a P2C or a C2P relationship
     # The serial variable must be 1 or 2 depending on CAIDAS's data to be used
-    @classmethod    
+    @staticmethod    
     def getASrelInfo(serial, files_path, KEEP):
         
         folder_url = 'http://data.caida.org/datasets/as-relationships/serial-{}/'.format(serial)
@@ -245,7 +285,7 @@ class RoutingStats:
             
         return ASrels
     
-    @classmethod
+    @staticmethod
     # Function that returns a dictionary with default values for all the keys that
     # will be used to store the computed variables
     def getDictionaryWithDefaults(booleanKeys, valueKeys, counterKeys):

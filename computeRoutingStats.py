@@ -76,8 +76,7 @@ def weighted_avg_and_std(values, weights):
     return (average, math.sqrt(variance))
     
 def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first_seen_intact):
-    # TODO Debug
-
+    prefix = str(network)
     # History of Visibility (Visibility Evoluntion in Time) computation
     today = datetime.date.today()
     daysUsable = (today-statsForPrefix['del_date']).days + 1
@@ -85,14 +84,14 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
     # Intact Allocation History of Visibility
     # The Intact Allocation History of Visibility only takes into
     # account the exact block that was delegated
-    periodsIntact = db_handler.getPeriodsSeenExact(network)
+    periodsIntact = db_handler.getPeriodsSeenExact(prefix)
     numOfPeriods = len(periodsIntact)
     
     if numOfPeriods > 0:
-        last_seen_intact = db_handler.getDateLastSeenExact(network)
+        last_seen_intact = db_handler.getDateLastSeenExact(prefix)
         statsForPrefix['isDeadIntact'] = ((today-last_seen_intact).days > 365)
         daysUsed = (last_seen_intact-first_seen_intact).days + 1
-        daysSeen = db_handler.getTotalDaysSeenExact(network)
+        daysSeen = db_handler.getTotalDaysSeenExact(prefix)
         
         statsForPrefix['relUsedTimeIntact'] = 100*float(daysUsed)/daysUsable
         statsForPrefix['effectiveUsageIntact'] = 100*float(daysSeen)/daysUsed
@@ -111,7 +110,7 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
     # General History of Visibility of Prefix
     # The General History of Visibility takes into account not only
     # the block itself being routed but also its fragments
-    periodsGral = db_handler.getPeriodsSeenGral(network)
+    periodsGral = db_handler.getPeriodsSeenGral(prefix)
     
     if len(periodsGral) > 0:
         
@@ -123,12 +122,11 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
         timeBreaks = []
         
         for fragment in periodsGral:
-            frag_network = ipaddress.ip_network(unicode(fragment, "utf-8"))
             numsOfPeriodsGral.append(len(periodsGral[fragment]))
             daysUsedGral.append(\
-                (db_handler.getDateLastSeenExact(frag_network) -\
-                db_handler.getDateFirstSeenExact(frag_network)).days+1)
-            daysSeenGral.append(db_handler.getTotalDaysSeenExact(frag_network))
+                (db_handler.getDateLastSeenExact(fragment) -\
+                db_handler.getDateFirstSeenExact(fragment)).days+1)
+            daysSeenGral.append(db_handler.getTotalDaysSeenExact(fragment))
             
             for period in periodsGral[fragment]:
                 timeBreaks.append(period[0])
@@ -191,7 +189,7 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
             visibilities = []
             periodLengths = []
                         
-            last_seen = db_handler.getDateLastSeen(network)
+            last_seen = db_handler.getDateLastSeen(prefix)
             
             if len(timeBreaks) == 1:
                 numOfIPsVisible = 0
@@ -233,9 +231,9 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
                                     
             statsForPrefix['isDead'] = ((today-last_seen).days > 365)
 
-def computeNetworkUsageLatency(network, statsForPrefix, db_handler): 
+def computeNetworkUsageLatency(prefix, statsForPrefix, db_handler): 
     # Usage Latency computation
-    first_seen = db_handler.getDateFirstSeen(network)
+    first_seen = db_handler.getDateFirstSeen(prefix)
                 
     if first_seen is not None and statsForPrefix['del_date'] is not None:
         statsForPrefix['UsageLatencyGral'] =\
@@ -247,7 +245,7 @@ def computeNetworkUsageLatency(network, statsForPrefix, db_handler):
     # We compute the number of days between the date the block
     # was delegated and the date the block as-is was first seen
     if first_seen is not None:
-        first_seen_intact = db_handler.getDateFirstSeenExact(network)
+        first_seen_intact = db_handler.getDateFirstSeenExact(prefix)
     else:
         first_seen_intact = None
                 
@@ -273,6 +271,34 @@ def getASNOpaqueID(asn, del_handler):
     # not delegated by APNIC
     else:
         return 'UNKNOWN'
+        
+def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, del_handler):
+    nirs_opaque_ids = ['A91A7381', 'A9186214', 'A9162E3D', 'A918EDB2',
+                       'A9149F3E', 'A91BDB29', 'A91A560A']
+                       
+    sameOrgs = True
+              
+    for blockOriginAS in blockOriginASes:
+        originASorg = getASNOpaqueID(blockOriginAS, del_handler)
+        if prefix_org in nirs_opaque_ids or\
+            originASorg in nirs_opaque_ids:
+                sameOrgs = OrgHeuristics.checkIfSameOrg(routedPrefix, blockOriginAS)
+        elif originASorg == 'UNKNOWN':
+            # If we get an UNKNOWN organization for the AS it means the AS
+            # was not delegated by APNIC, therefore, it cannot be the same
+            # organization than the one that received the delegation of
+            # the prefix.
+            sameOrgs = False
+        else:
+            # If we have both opaque ids (for the prefix and for the
+            # origin AS), and neither of them are opaque ids of NIRs,
+            # we just compare the opaque ids.
+            sameOrgs = (prefix_org == originASorg)
+            
+        if not sameOrgs:
+            break
+    
+    return sameOrgs
     
 
 # This function classifies the provided prefix into Covering or Covered
@@ -284,42 +310,27 @@ def getASNOpaqueID(asn, del_handler):
 # These classes are taken from those defined in [1]
 # The corresponding variables in the statsForPrefix dictionary are incremented
 # to keep track of the number of prefixes in each class.
-def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, levenshteinDists,\
-                                    routingStatsObj, files_path):
-    # TODO Debug
+def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
+                                        diffOrg_var, levenshteinDists,\
+                                        routingStatsObj, files_path):
     
-    nirs_opaque_ids = ['A91A7381', 'A9186214', 'A9162E3D', 'A918EDB2',
-                       'A9149F3E', 'A91BDB29', 'A91A560A']
-                       
+    routedNetwork = ipaddress.ip_network(unicode(routedPrefix, "utf-8"))
+
+    blockOriginASes = routingStatsObj.bgp_handler.getOriginASesForBlock(routedNetwork)
+    blockASpaths = routingStatsObj.bgp_handler.getASpathsForBlock(routedNetwork)
+        
     # If the delegated prefix is not already marked as having fragments being
     # announced by an AS delegated to an organization different from the
     # organization that received the delegation of the prefix
-    if not statsForPrefix['hasFragmentsOriginatedByDiffOrg']:
+    if not statsForPrefix[diffOrg_var]:
         # We check if the routed prefix  (fragment of the delegated prefix)
         # and all its origin ASes were delegated to the same organization
-        sameOrgs = True
-        
-        blockOriginASes = routingStatsObj.bgp_handler.getOriginASesForBlock(routedPrefix)
-          
-        for blockOriginAS in blockOriginASes:
-            originASorg = getASNOpaqueID(blockOriginAS, routingStatsObj.del_handler)
-            if statsForPrefix['opaque_id'] in nirs_opaque_ids or\
-                originASorg in nirs_opaque_ids or originASorg == 'UNKNOWN':
-                    sameOrgs = OrgHeuristics.checkIfSameOrg(routedPrefix, blockOriginAS)                                
-                    with open('{}/DiffOrgs.txt'.format(files_path), 'a') as orgs_file:
-                        orgs_file.write('Delegated Prefix: {}, Opaque ID for Delegated Prefix: {}, Routed Prefix: {}, Origin AS: {}, Same Orgs?: {}\n'.format(statsForPrefix['prefix'], statsForPrefix['opaque_id'], routedPrefix, blockOriginAS, sameOrgs))
-            else:
-                # If neither the opaque id for the prefix or the opaque id
-                # for the origin AS are the opaque ids of NIRs, we just
-                # compare the opaque ids
-                sameOrgs = (statsForPrefix['opaque_id'] == originASorg)
-            
-            if not sameOrgs:
-                statsForPrefix['hasFragmentsOriginatedByDiffOrg'] = True
-                break
-            
-    routedNetwork = ipaddress.ip_network(unicode(routedPrefix, "utf-8"))
-        
+        statsForPrefix[diffOrg_var] = not checkIfSameOrg(routedPrefix,\
+                                                                    blockOriginASes,\
+                                                                    statsForPrefix['opaque_id'],\
+                                                                    routingStatsObj.del_handler)
+                
+                    
     # Find routed blocks related to the prefix of interest 
     net_less_specifics = routingStatsObj.bgp_handler.getRoutedParentAndGrandparents(routedNetwork)
     net_more_specifics = routingStatsObj.bgp_handler.getRoutedChildren(routedNetwork)
@@ -328,16 +339,13 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, levenshteinDi
     # the block is a covered prefix
     if len(net_less_specifics) > 0:        
         if len(net_less_specifics) == 1:
-            statsForPrefix['numOfCoveredLevel1MoreSpec'] += 1
+            statsForPrefix[variables['coveredLevel1']] += 1
         else:
-            statsForPrefix['numOfCoveredLevel2plusMoreSpec'] += 1
+            statsForPrefix[variables['coveredLevel2plus']] += 1
 
         # We classify the covered prefix based on its AS paths
         # relative to those of its corresponding covering prefix
 
-        blockOriginASes = routingStatsObj.bgp_handler.getOriginASesForBlock(routedNetwork)
-        blockASpaths = routingStatsObj.bgp_handler.getASpathsForBlock(routedNetwork)
-        
         # The corresponding covering prefix is the last prefix in the
         # list of less specifics
         coveringPref = net_less_specifics[-1]
@@ -348,9 +356,9 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, levenshteinDi
         if len(blockOriginASes.intersection(coveringPrefOriginASes)) > 0:
             if len(blockASpaths) == 1:
                 if blockASpaths.issubset(coveringPrefASpaths):
-                    statsForPrefix['numOfSOSPMoreSpec'] += 1
+                    statsForPrefix[variables['SOSP']] += 1
                 else:
-                    statsForPrefix['numOfSODP2MoreSpec'] += 1
+                    statsForPrefix[variables['SODP2']] += 1
                     
                     levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
                                                                     coveringPrefASpaths))
@@ -358,7 +366,7 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, levenshteinDi
             else: # len(blockASpaths) >= 2
                 if len(coveringPrefASpaths.intersection(blockASpaths)) > 0 and\
                     len(blockASpaths.difference(coveringPrefASpaths)) > 0:
-                    statsForPrefix['numOfSODP1MoreSpec'] += 1
+                    statsForPrefix[variables['SODP1']] += 1
                     
                     levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
                                                                     coveringPrefASpaths))
@@ -381,14 +389,14 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, levenshteinDi
                                         blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
                                         
                                         if blockASpath_woOrigin == coveringPrefASpath:
-                                            statsForPrefix['numOfDOSPMoreSpec'] += 1
+                                            statsForPrefix[variables['DOSP']] += 1
                                             break
                                 else:
                                     continue
                                 break
                                 
                 if not blockASpaths.issubset(coveringPrefASpaths):
-                    statsForPrefix['numOfDODP1MoreSpec'] += 1
+                    statsForPrefix[variables['DODP1']] += 1
                     
                     levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
                                                                     coveringPrefASpaths))
@@ -400,7 +408,7 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, levenshteinDi
                 
                 if len(coveringPrefASpaths.intersection(blockASpaths_woOrigin)) > 0 and\
                     len(blockASpaths_woOrigin.difference(coveringPrefASpaths)) > 0:
-                    statsForPrefix['numOfDODP2MoreSpec'] += 1
+                    statsForPrefix[variables['DODP2']] += 1
                     
                     levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
                                                                     coveringPrefASpaths))
@@ -428,7 +436,7 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, levenshteinDi
                                 intersection(blockOriginASes)
                         for correspondingOriginAS in correspondingOriginASes:
                             if len(routingStatsObj.bgp_handler.ASes_originated_prefixes_dic[correspondingOriginAS]) >= 2:
-                                statsForPrefix['numOfDODP3MoreSpec'] += 1
+                                statsForPrefix[variables['DODP3']] += 1
                                 levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
                                                                 coveringPrefASpaths))
                                 break
@@ -446,14 +454,14 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, levenshteinDi
             # the block is a Lonely prefix
             # • Lonely: a prefix that does not overlap
             # with any other prefix.
-            statsForPrefix['numOfLonelyMoreSpec'] += 1
+            statsForPrefix[variables['lonely']] += 1
         elif (routedPrefix not in net_more_specifics and len(net_more_specifics) > 0)\
             or (routedPrefix in net_more_specifics and len(net_more_specifics) > 1):
         # If there are more specific blocks being routed apart from
         # the block itself, taking into account we are under the case
         # of the block not having less specific blocks being routed,
             # The block is a Covering prefix  
-            statsForPrefix['numOfCoveringMoreSpec'] += 1
+            statsForPrefix[variables['covering']] += 1
 
     
         
@@ -494,7 +502,7 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
         delNetwork = ipaddress.ip_network(unicode(prefix, "utf-8"))
         
         if TEMPORAL_DATA:
-            first_seen_intact = computeNetworkUsageLatency(delNetwork, statsForPrefix, routingStatsObj.db_handler)
+            first_seen_intact = computeNetworkUsageLatency(prefix, statsForPrefix, routingStatsObj.db_handler)
             computeNetworkHistoryOfVisibility(delNetwork, statsForPrefix, routingStatsObj.db_handler, first_seen_intact)
 
         ips_delegated = delNetwork.num_addresses 
@@ -506,8 +514,22 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
         if len(less_specifics) > 0:
             statsForPrefix['currentVisibility'] = 100
             statsForPrefix['numOfLessSpecificsRouted'] = len(less_specifics)
-            # What should we do with the routed less specific prefixes?
-            # They could be related to other delegations
+            
+            levenshteinDists = []
+            for lessSpec in less_specifics:
+                classifyPrefixAndUpdateVariables(lessSpec, statsForPrefix,
+                                                 routingStatsObj.lessSpec_variables,
+                                                 'hasLessSpecificsOriginatedByDiffOrg',
+                                                 levenshteinDists, routingStatsObj,
+                                                 files_path)
+            
+            if len(levenshteinDists) > 0:
+                levenshteinDists = np.array(levenshteinDists)
+                statsForPrefix['avgLevenshteinDistLessSpec'] = levenshteinDists.mean()
+                statsForPrefix['stdLevenshteinDistLessSpec'] = levenshteinDists.std()
+                statsForPrefix['minLevenshteinDistLessSpec'] = levenshteinDists.min()
+                statsForPrefix['maxLevenshteinDistLessSpec'] = levenshteinDists.max()
+            
             
         if len(more_specifics) > 0:
             statsForPrefix['numOfMoreSpecificsRouted'] = len(more_specifics)
@@ -515,6 +537,15 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
             more_specifics_wo_prefix = copy.copy(more_specifics)
 
             if prefix in more_specifics:
+                
+                blockOriginASes = routingStatsObj.bgp_handler.getOriginASesForBlock(delNetwork)
+                statsForPrefix['numOfOriginASesIntact'] = len(blockOriginASes)
+                
+                statsForPrefix['originatedByDiffOrg'] = not checkIfSameOrg(\
+                                                                prefix,\
+                                                                blockOriginASes,\
+                                                                statsForPrefix['opaque_id'],\
+                                                                routingStatsObj.del_handler)
                 more_specifics_wo_prefix.remove(prefix)
 
                 statsForPrefix['isRoutedIntact'] = True
@@ -523,14 +554,9 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                 if len(more_specifics) == 1 and len(less_specifics) == 0:
                     statsForPrefix['onlyRoot'] = True
                 
-                blockOriginASes = routingStatsObj.bgp_handler.getOriginASesForBlock(delNetwork)
-                statsForPrefix['numOfOriginASesIntact'] = len(blockOriginASes)
-                # TODO Agregar avg, std, max y min numOfOriginASesGral
-                
                 # We get the set of AS paths for the block
                 blockASpaths = routingStatsObj.bgp_handler.getASpathsForBlock(delNetwork)
                 statsForPrefix['numOfASPathsIntact'] = len(blockASpaths)
-                # TODO Agregar avg, std, max y min numOfASPathsGral
                 
                 ASpathsLengths = []
                 for path in blockASpaths:
@@ -541,9 +567,7 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                 statsForPrefix['stdASPathLengthIntact'] = ASpathsLengths.std()
                 statsForPrefix['minASPathLengthIntact'] = ASpathsLengths.min()
                 statsForPrefix['maxASPathLengthIntact'] = ASpathsLengths.max()
-                
-                # TODO Agregar avg, std, max y min ASPathLengthGral
-                
+
                 if len(more_specifics) > 1:    
                     aggr_more_spec = [ipaddr for ipaddr in
                                         ipaddress.collapse_addresses(
@@ -554,13 +578,13 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                                     [str(ip_net) for ip_net in aggr_more_spec]:
                         # • root/MS-complete: The root prefix and at least two subprefixes
                         # are announced. The set of all sub-prefixes spans the whole root prefix.
-                        statsForPrefix['rootMScompl'] = True
+                        statsForPrefix['rootMSCompl'] = True
                     elif len(more_specifics) >= 2 and prefix not in\
                                     [str(ip_net) for ip_net in aggr_more_spec]:
                         # • root/MS-incomplete: The root prefix and at least one subprefix
                         # is announced. Together, the set of announced subprefixes
                         # does not cover the root prefix.
-                        statsForPrefix['rootMSincompl'] = True
+                        statsForPrefix['rootMSIncompl'] = True
 
             else:
                 # We summarize the more specific routed blocks without the block itself
@@ -586,28 +610,59 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                     # • no root/MS-complete: The root prefix is not announced.
                     # However, there are at least two sub-prefixes which together
                     # cover the complete root prefix.
-                    statsForPrefix['noRootMScompl'] = True
+                    statsForPrefix['noRootMSCompl'] = True
                 elif len(more_specifics) >= 1 and prefix not in\
                                     [str(ip_net) for ip_net in aggr_more_spec]:
                     # • no root/MS-incomplete: The root prefix is not announced.
                     # There is at least one sub-prefix. Taking all sub-prefixes
                     # together, they do not cover the complete root prefix.
-                    statsForPrefix['noRootMSincompl'] = True
+                    statsForPrefix['noRootMSIncompl'] = True
+            
+            numsOfOriginASesGral = []
+            numsOfASPathsGral = []
+            ASPathLengthsGral = []                
+            for fragment in more_specifics:
+                fragmentNetwork = ipaddress.ip_network(unicode(fragment, "utf-8"))
+                numsOfOriginASesGral.append(len(routingStatsObj.bgp_handler.getOriginASesForBlock(fragmentNetwork)))
+                fragmentASpaths = routingStatsObj.bgp_handler.getASpathsForBlock(fragmentNetwork)
+                numsOfASPathsGral.append(len(fragmentASpaths))
+                for asPath in fragmentASpaths:
+                    ASPathLengthsGral.append(len(asPath.split()))
+            
+            numsOfOriginASesGral = np.array(numsOfOriginASesGral)
+            statsForPrefix['avgNumOfOriginASesGral'] = numsOfOriginASesGral.mean()
+            statsForPrefix['stdNumOfOriginASesGral'] = numsOfOriginASesGral.std()
+            statsForPrefix['minNumOfOriginASesGral'] = numsOfOriginASesGral.min()
+            statsForPrefix['maxNumOfOriginASesGral'] = numsOfOriginASesGral.max()
+
+            numsOfASPathsGral = np.array(numsOfASPathsGral)
+            statsForPrefix['avgNumOfASPathsGral'] = numsOfASPathsGral.mean()
+            statsForPrefix['stdNumOfASPathsGral'] = numsOfASPathsGral.std()
+            statsForPrefix['minNumOfASPathsGral'] = numsOfASPathsGral.min()
+            statsForPrefix['maxNumOfASPathsGral'] = numsOfASPathsGral.max()
+
+            ASPathLengthsGral = np.array(ASPathLengthsGral)
+            statsForPrefix['avgASPathLengthGral'] = ASPathLengthsGral.mean()
+            statsForPrefix['stdASPathLengthGral'] = ASPathLengthsGral.std()
+            statsForPrefix['minASPathLengthGral'] = ASPathLengthsGral.min()
+            statsForPrefix['maxASPathLengthGral'] = ASPathLengthsGral.max()
         
             levenshteinDists = []
             for moreSpec in more_specifics:
                 classifyPrefixAndUpdateVariables(moreSpec, statsForPrefix,
-                                           levenshteinDists, routingStatsObj,\
-                                           files_path)
+                                                 routingStatsObj.moreSpec_variables,
+                                                 'hasFragmentsOriginatedByDiffOrg',
+                                                 levenshteinDists, routingStatsObj,
+                                                 files_path)
 
             if len(levenshteinDists) > 0:
                 levenshteinDists = np.array(levenshteinDists)
-                statsForPrefix['avgLevenshteinDist'] = levenshteinDists.mean()
-                statsForPrefix['stdLevenshteinDist'] = levenshteinDists.std()
-                statsForPrefix['minLevenshteinDist'] = levenshteinDists.min()
-                statsForPrefix['maxLevenshteinDist'] = levenshteinDists.max()
+                statsForPrefix['avgLevenshteinDistMoreSpec'] = levenshteinDists.mean()
+                statsForPrefix['stdLevenshteinDistMoreSpec'] = levenshteinDists.std()
+                statsForPrefix['minLevenshteinDistMoreSpec'] = levenshteinDists.min()
+                statsForPrefix['maxLevenshteinDistMoreSpec'] = levenshteinDists.max()
             
-            writeStatsLineToFile(statsForPrefix, routingStatsObj.allAttr_pref, stats_filename)
+        writeStatsLineToFile(statsForPrefix, routingStatsObj.allAttr_pref, stats_filename)
 
 # This function determines whether the allocated ASNs are active
 # either as middle AS, origin AS or both
@@ -688,9 +743,7 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
                                                 
                 periodsLengths = []
                 for period in periodsActive:
-                    periodsLengths.append(\
-                        (datetime.datetime.strptime(str(period[1]), '%Y%m%d').date() -\
-                        datetime.datetime.strptime(str(period[0]), '%Y%m%d').date()).days + 1)
+                    periodsLengths.append((period[1] - period[0]).days + 1)
                 
                 periodsLengths = np.array(periodsLengths)
                 statsForAS['avgPeriodLength'] = periodsLengths.mean()
@@ -742,17 +795,18 @@ def main(argv):
 
 
 #For DEBUG
-#    files_path = '/Users/sofiasilva/BGP_files'
-##    routing_file = '/Users/sofiasilva/BGP_files/bgptable.txt'
-#    KEEP = True
-##    RIBfiles = False
-#    DEBUG = True
-#    EXTENDED = True
-#    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170315.txt'
-##    archive_folder = '/Users/sofiasilva/BGP_files'
-##    ext = 'bgprib.mrt'
-#    UNTIL = True
-#    date = '20170115'
+    files_path = '/Users/sofiasilva/BGP_files'
+#    routing_file = '/Users/sofiasilva/BGP_files/2017-01-16.bgprib.readable'
+    KEEP = True
+#    RIBfiles = False
+    DEBUG = True
+    EXTENDED = True
+    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170324.txt'
+    archive_folder = '/Users/sofiasilva/BGP_files'
+    ext = 'bgprib.readable'
+    UNTIL = True
+    date = '20170115'
+    READABLE = True
 ##    COMPRESSED = True
 ##    COMPUTE = False  
     
@@ -944,29 +998,6 @@ def main(argv):
         print "If you use the -H option you MUST also use the -E option to provide the extension of the files in the archive you want to work with."
         sys.exit()
 
-        
-    if INCREMENTAL:
-        if prefixes_stats_file == '' or ases_stats_file == '':
-            print "You CANNOT use only one of the option -p and -a."            
-            print "Both the -p and the -a options should be used or none of them should be used."
-            print "If options -p and -a are used, the corresponding paths to files with existing statistics for prefixes and ASes respectively MUST be provided."
-        try:
-            maxDate_prefixes = max(pd.read_csv(prefixes_stats_file, sep = ',')['Date'])
-            maxDate_ases = max(pd.read_csv(ases_stats_file, sep = ',')['Date'])
-            final_existing_date = str(max(maxDate_prefixes, maxDate_ases))
-        except (ValueError, pd.EmptyDataError, KeyError):
-            final_existing_date = ''
-            INCREMENTAL = False
-    
-    # TODO Cambiar para que solo reciba el folder y que se usen los archivos
-    # correspondientes. Si de alguno hay más de uno, usar el más reciente.
-    if fromFiles and (ipv4_prefixes_file == '' or\
-        ipv6_prefixes_file == '' or ASes_originated_prefixes_file == '' or\
-        ASes_propagated_prefixes_file == '' or routing_date == ''):
-        print "If you want to work with BGP data from files, the five options -4, -6, -O , -P and -R must be used."
-        print "If not, none of these five options should be used."
-        sys.exit()
-        
     today = datetime.date.today().strftime('%Y%m%d')
     
     if date == '':
@@ -986,10 +1017,35 @@ def main(argv):
 
     else:
         file_name = '%s/routing_stats_test_%s' % (files_path, dateStr)
+        
+    if INCREMENTAL:
+        if prefixes_stats_file == '' or ases_stats_file == '':
+            print "You CANNOT use only one of the option -p and -a."            
+            print "Both the -p and the -a options should be used or none of them should be used."
+            print "If options -p and -a are used, the corresponding paths to files with existing statistics for prefixes and ASes respectively MUST be provided."
+        try:
+            maxDate_prefixes = max(pd.read_csv(prefixes_stats_file, sep = ',')['Date'])
+            maxDate_ases = max(pd.read_csv(ases_stats_file, sep = ',')['Date'])
+            final_existing_date = str(max(maxDate_prefixes, maxDate_ases))
+        except (ValueError, pd.EmptyDataError, KeyError):
+            final_existing_date = ''
+            INCREMENTAL = False
+    else:
+        prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
+        ases_stats_file = '{}_ases.csv'.format(file_name)
     
-    routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, RIBfiles, COMPRESSED,\
-                                    COMPUTE, EXTENDED, del_file, date, UNTIL,\
-                                    INCREMENTAL, final_existing_date, file_name)
+    if fromFiles and (ipv4_prefixes_file == '' or\
+        ipv6_prefixes_file == '' or ASes_originated_prefixes_file == '' or\
+        ASes_propagated_prefixes_file == '' or routing_date == ''):
+        print "If you want to work with BGP data from files, the five options -4, -6, -O, -P and -R must be used."
+        print "If not, none of these five options should be used."
+        sys.exit()
+        
+    
+    
+    routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, COMPUTE, EXTENDED,\
+                                    del_file, date, UNTIL, INCREMENTAL,\
+                                    final_existing_date, file_name)
     
     loaded = False 
         
@@ -997,18 +1053,19 @@ def main(argv):
         loaded = routingStatsObj.bgp_handler.loadStructuresFromFiles(routing_date, ipv4_prefixes_file,
                                 ipv6_prefixes_file, ASes_originated_prefixes_file,
                                 ASes_propagated_prefixes_file)
-        if UNTIL:
-            # TODO 
-            print 'TODO'
+        if UNTIL and routing_date != date:
+            print "If you use the options -4, -6, -O and -P to provide files with the data structures with routing data, and you use the -U (UNTIL) option, the routing date provided must be the same than the date until which you want the statistics to be computed."
+            sys.exit()
     else:
         if routing_file == '' and archive_folder == '':
-            loaded = routingStatsObj.bgp_handler.loadStructuresFromURLSfile(urls_file, READABLE)
+            loaded = routingStatsObj.bgp_handler.loadStructuresFromURLSfile(\
+                        urls_file, READABLE, RIBfiles)
         elif routing_file != '':
-            loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(routing_file, READABLE)
+            loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(\
+                        routing_file, READABLE, RIBfiles, COMPRESSED)
         else: # archive_folder not null
             loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
-                                                    archive_folder, ext, date,\
-                                                    READABLE)
+                        archive_folder, ext, date, READABLE, RIBfiles, COMPRESSED)
             TEMPORAL_DATA = True
     
     if not loaded:
@@ -1035,7 +1092,7 @@ def main(argv):
         sys.stderr.write("Stats for ASes computed successfully!\n")
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
 
-        
+        routingStatsObj.db_handler.close()
     else:
        routingStatsObj.bgp_handler.saveDataToFiles()
         

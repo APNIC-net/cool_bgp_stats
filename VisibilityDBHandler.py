@@ -28,20 +28,26 @@ class VisibilityDBHandler:
     def __init__(self):
         # Try to connect
         try:
-            conn = psycopg2.connect("dbname='{}' user='{}' host='{}'"\
+            self.conn = psycopg2.connect("dbname='{}' user='{}' host='{}'"\
                                     .format(self.dbname, self.user, self.host))
-            self.cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+            self.conn.autocommit = True
+            self.cur = self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             psycopg2.extras.register_inet()
         except:
-            sys.stderr.write("Unable to connect to the database.")
+            sys.stderr.write("Unable to connect to the database.\n")
+    
+    def close(self):
+        self.cur.close()
+        self.conn.close()
 
     def storePrefixSeen(self, prefix, date):
         try:
             self.cur.execute("""INSERT INTO prefixes VALUES (%s, %s)""",
                              (prefix, date))
             return True
-        except:
-            sys.stderr.write("Unable to insert ({}, {}) into the Prefixes table."\
+        except psycopg2.IntegrityError:
+            self.conn.rollback()
+            sys.stderr.write("Duplicated tuple ({}, {}) was not inserted into the Prefixes table.\n"\
                             .format(prefix, date))
             return False
             
@@ -50,8 +56,9 @@ class VisibilityDBHandler:
             self.cur.execute("""INSERT INTO asns VALUES (%s, %s, %s)""",
                              (asn, isOriginAS, date))
             return True
-        except:
-            sys.stderr.write("Unable to insert ({}, {}, {}) into the ASNs table."\
+        except psycopg2.IntegrityError:
+            self.conn.rollback()
+            sys.stderr.write("Duplicated tuple ({}, {}, {}) was not inserted into the ASNs table.\n"\
                             .format(asn, isOriginAS, date))
             return False
             
@@ -63,7 +70,7 @@ class VisibilityDBHandler:
             return min(rows)['dateseen']
         except:
             sys.stderr.write("Unable to get the date the prefix {} or any of its\
-                            fragments were first seen.".format(prefix))
+                            fragments were first seen.\n".format(prefix))
             return None
             
     def getDateFirstSeenExact(self, prefix):
@@ -73,7 +80,7 @@ class VisibilityDBHandler:
             rows = self.cur.fetchall()
             return min(rows)['dateseen']
         except:
-            sys.stderr.write("Unable to get the date the prefix {} was first seen."\
+            sys.stderr.write("Unable to get the date the prefix {} was first seen\n."\
                             .format(prefix))
             return None
             
@@ -85,8 +92,8 @@ class VisibilityDBHandler:
             return self.getListOfDateTuples(rows, True)
         except:
             sys.stderr.write("Unable to get the periods during which the prefix\
-                            {} was seen.".format(prefix))
-            return None
+                            {} was seen.\n".format(prefix))
+            return []
             
     def getPeriodsSeenGral(self, prefix):
         try:
@@ -96,8 +103,8 @@ class VisibilityDBHandler:
             return self.getDictOfPrefixDateTuples(rows)
         except:
             sys.stderr.write("Unable to get the periods during which the prefix\
-                            {} and its fragments were seen.".format(prefix))
-            return None
+                            {} and its fragments were seen.\n".format(prefix))
+            return dict()
             
     def getTotalDaysSeen(self, prefix):
         try:
@@ -106,7 +113,7 @@ class VisibilityDBHandler:
             return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the number of days during which the\
-                            prefix {} or its fragments were seen.".format(prefix))
+                            prefix {} or its fragments were seen.\n".format(prefix))
             return -1
                              
     def getTotalDaysSeenExact(self, prefix):
@@ -116,7 +123,7 @@ class VisibilityDBHandler:
             return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the number of days during which the\
-                            prefix {} was seen.".format(prefix))
+                            prefix {} was seen.\n".format(prefix))
             return -1
                              
     def getDateLastSeenExact(self, prefix):
@@ -126,7 +133,7 @@ class VisibilityDBHandler:
             rows = self.cur.fetchall()
             return max(rows)['dateseen']
         except:
-            sys.stderr.write("Unable to get the date the prefix {} was last seen."\
+            sys.stderr.write("Unable to get the date the prefix {} was last seen.\n"\
                             .format(prefix))
             return None
             
@@ -138,7 +145,7 @@ class VisibilityDBHandler:
             return max(rows)['dateseen']
         except:
             sys.stderr.write("Unable to get the date the prefix {} or any of its\
-                            fragments were last seen.".format(prefix))
+                            fragments were last seen.\n".format(prefix))
             return None
         
     def getDateASNFirstSeen(self, asn):
@@ -147,7 +154,7 @@ class VisibilityDBHandler:
             rows = self.cur.fetchall()
             return min(rows)['dateseen']
         except:
-            sys.stderr.write("Unable to get the date the ASN {} was first seen."\
+            sys.stderr.write("Unable to get the date the ASN {} was first seen.\n"\
                             .format(asn))
             return None
         
@@ -158,8 +165,8 @@ class VisibilityDBHandler:
             return self.getListOfDateTuples(rows, True)
         except:
             sys.stderr.write("Unable to get the periods during which the ASN\
-                            {} was seen.".format(asn))
-            return None
+                            {} was seen.\n".format(asn))
+            return []
             
     def getTotalDaysASNSeen(self, asn):
         try:
@@ -167,7 +174,7 @@ class VisibilityDBHandler:
             return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the number of days during which the\
-                            ASN {} was seen.".format(asn))
+                            ASN {} was seen.\n".format(asn))
             return -1
             
     def getDateASNLastSeen(self, asn):
@@ -176,10 +183,10 @@ class VisibilityDBHandler:
             rows = self.cur.fetchall()
             return max(rows)['dateseen']
         except:
-            sys.stderr.write("Unable to get the date the ASN {} was last seen.".format(asn))
+            sys.stderr.write("Unable to get the date the ASN {} was last seen.\n".format(asn))
             return None
 
-    @classmethod    
+    @staticmethod    
     def getListOfDateTuples(datesList, isDict):
         periodsList = []
         
@@ -199,7 +206,7 @@ class VisibilityDBHandler:
         
         return periodsList
     
-    @classmethod
+    @staticmethod
     def getDictOfPrefixDateTuples(prefixesDates):
         prefixesPeriodsDict = dict()
         
