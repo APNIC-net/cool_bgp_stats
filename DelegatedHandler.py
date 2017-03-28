@@ -6,7 +6,7 @@ Created on Fri Feb  3 11:09:35 2017
 
 @author: sofiasilva
 """
-import sys
+import sys, os
 import pandas as pd
 from get_file import get_file
 import ipaddress
@@ -20,7 +20,7 @@ class DelegatedHandler:
     delegated_df = pd.DataFrame()
     fullASN_df = pd.DataFrame()    
 
-    def __init__(self, DEBUG, EXTENDED, del_file, date, UNTIL, INCREMENTAL, final_existing_date):
+    def __init__(self, DEBUG, EXTENDED, del_file, date, UNTIL, INCREMENTAL, final_existing_date, KEEP):
          
         if EXTENDED:
             download_url = 'ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-extended-latest'
@@ -47,11 +47,11 @@ class DelegatedHandler:
                         ]
         
         self.getAndTidyData(DEBUG, EXTENDED, download_url, del_file, col_names,\
-                                date, UNTIL, INCREMENTAL, final_existing_date)
+                                date, UNTIL, INCREMENTAL, final_existing_date, KEEP)
         sys.stderr.write("DelegatedHandler instantiated and loaded successfully!\n")
     
     def getAndTidyData(self, DEBUG, EXTENDED, download_url, del_file, col_names,\
-                        date, UNTIL, INCREMENTAL, final_existing_date):
+                        date, UNTIL, INCREMENTAL, final_existing_date, KEEP):
                             
         summary_records = pd.DataFrame()
         AP_regions = ['Eastern Asia', 'Oceania', 'Southern Asia', 'South-Eastern Asia']
@@ -261,6 +261,12 @@ class DelegatedHandler:
                                                             delegated_df['count/prefLen']
         
         self.delegated_df = delegated_df
+        
+        if not KEEP:
+            try:
+                os.remove(del_file)
+            except OSError:
+                pass
         
     # This function returns a DataFrame with all the blocks delegated and all
     # the blocks delegated to an organization summarized as much as possible

@@ -125,16 +125,17 @@ def main(argv):
     stats_file = ''
     user = ''
     password = ''
+    KEEP = False
     
     try:
-        opts, args = getopt.getopt(argv, "hp:D:Ud:ei:u:P:", ["files_path=", "Date=", "del_file=", "stats_file=", "user=", "Password="])
+        opts, args = getopt.getopt(argv, "hp:D:Ud:eki:u:P:", ["files_path=", "Date=", "del_file=", "stats_file=", "user=", "Password="])
     except getopt.GetoptError:
-        print 'Usage: delegatd_stats_v5.py -h | -p <files path [-D <Date>] [-U] [-d <delegated file>] [-e] [-i <stats file>] [-u <ElasticSearch user> -P <ElasticSearch password>]'
+        print 'Usage: delegatd_stats_v5.py -h | -p <files path [-D <Date>] [-U] [-d <delegated file>] [-e] [-k] [-i <stats file>] [-u <ElasticSearch user> -P <ElasticSearch password>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes daily statistics from one of the delegated files provided by the RIRs"
-            print 'Usage: delegatd_stats_v5.py -h | -p <files path [-D <Date>] [-U] [-d <delegated file>] [-e] [-i <stats file>] [-u <ElasticSearch user> -P <ElasticSearch password>]'
+            print 'Usage: delegatd_stats_v5.py -h | -p <files path [-D <Date>] [-U] [-d <delegated file>] [-e] [-k] [-i <stats file>] [-u <ElasticSearch user> -P <ElasticSearch password>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print 'D = Date in format YYYY or YYYYmm or YYYYmmdd. Date for which or until which to compute stats.'
@@ -143,6 +144,7 @@ def main(argv):
             print 'e = Use Extended file'
             print "If option -e is used in DEBUG mode, delegated file must be a extended file."
             print "If option -e is not used in DEBUG mode, delegated file must be delegated file not extended."
+            print "k = Keep. Keep downloaded files."
             print "i = Incremental. Compute incremental statistics from existing stats file (CSV)."
             print "If option -i is used, a statistics file MUST be provided."
             print "u = User to save stats to ElasticSearch."
@@ -157,6 +159,8 @@ def main(argv):
             del_file = arg
         elif opt == '-e':
             EXTENDED = True
+        elif opt == '-k':
+            KEEP = True
         elif opt == '-p':
             files_path = arg
         elif opt == '-i':
@@ -226,7 +230,7 @@ def main(argv):
             csv_file.write('Geographic Area,ResourceType,Status,Organization,Date,NumOfDelegations,NumOfResources,IPCount,IPSpace\n')
         
     del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, date, UNTIL,\
-                                    INCREMENTAL, final_existing_date )
+                                    INCREMENTAL, final_existing_date, KEEP)
         
     if not del_handler.delegated_df.empty:
         start_time = time.time()
