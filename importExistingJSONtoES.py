@@ -8,6 +8,51 @@ Created on Mon Feb 20 13:46:12 2017
 import sys, getopt, os
 import hashlib, json, requests, getpass
 import pandas as pd
+import elasticsearch
+
+def connect():
+    # configure elasticsearch
+	config = {
+	    'host': 'twerp.matong.apnic.net'
+	}
+	es = elasticsearch.Elasticsearch([config,], timeout=300)
+
+def createIndex(mapping_dict):
+    request_body = {
+	    "settings" : {
+	        "number_of_shards": 5,
+	        "number_of_replicas": 1
+	    },
+
+	    'mappings': mapping_dict
+	}
+	print("creating 'example_index' index...")
+	es.indices.create(index = 'example_index', body = request_body)
+
+def prepareData():
+    bulk_data = []
+
+	for index, row in data_for_es.iterrows():
+	    data_dict = {}
+	    for i in range(len(row)):
+	        data_dict[data_for_es.columns[i]] = row[i]
+	    op_dict = {
+	        "index": {
+	            "_index": 'example_index',
+	            "_type": 'examplecase',
+	            "_id": data_dict['some_PK']
+	        }
+	    }
+	    bulk_data.append(op_dict)
+	    bulk_data.append(data_dict)
+     
+def inputData():
+    res = es.bulk(index = 'example_index', body = bulk_data)
+
+	# check data is in there, and structure in there
+	es.search(body={"query": {"match_all": {}}}, index = 'example_index')
+	es.indices.get_mapping(index = 'example_index')
+ 
 
 def hashFromColValue(col_value):
     return hashlib.md5(col_value).hexdigest()
@@ -115,3 +160,61 @@ def main(argv):
         
 if __name__ == "__main__":
     main(sys.argv[1:])
+
+# Alternative main
+# Mapping for stats about delegations
+delStats_mapping = {"_default_" : {
+                        "properties" : {
+                            "stat_id" : {
+                                "type": "integer"
+                                        },
+                            "GeographicArea" : {
+                                "index" : "analyzed",
+                                "type": "text",
+                                "fields": {
+                                    "raw": {
+                                        "type": "keyword"
+                                            }}},
+                            "ResourceType" : {
+                                "index" : "not_analyzed",
+                                "type": "text",
+                                "fields": {
+                                    "raw": {
+                                        "type": "keyword"
+                                            }}},
+                            "Status" : {
+                                "index" : "not_analyzed",
+                                "type": "text",
+                                "fields": {
+                                    "raw": {
+                                        "type": "keyword"
+                                            }}},
+                            "Organization" : {
+                                "index" : "not_analyzed",
+                                "type": "text",
+                                "fields": {
+                                    "raw": {
+                                        "type": "keyword"
+                                            }}},
+                            "Date" : {
+                                "type": "date",
+                                "format": "yyyyMMdd"
+                                    },
+                            "NumOfDelegations" : {
+                                "type" : "integer"
+                                                },
+                            "NumOfResources" : {
+                                "type" : "integer"
+                                                },
+                            "IPCount" : {
+                                "type" : "integer"
+                                        },
+                            "IPSpace" : {
+                                "type" : "integer"
+                                        }
+                                    }
+                                }
+                            }
+
+connect()
+createIndex(delStats_mapping)

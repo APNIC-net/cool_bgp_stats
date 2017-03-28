@@ -24,7 +24,8 @@ class RoutingStats:
         
         if COMPUTE: 
             self.del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, date,\
-                                                UNTIL, INCREMENTAL, final_existing_date)
+                                                UNTIL, INCREMENTAL,\
+                                                final_existing_date, KEEP)
     
             self.db_handler = VisibilityDBHandler()
             

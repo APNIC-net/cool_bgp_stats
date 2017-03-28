@@ -265,11 +265,11 @@ class BGPDataHandler:
         prefixes, originASes, middleASes, date =\
                         self.getPrefixesASesAndDate(routing_file, isReadable,\
                                                     RIBfile, COMPRESSED)
-
         for prefix in prefixes:
             self.visibilityDB.storePrefixSeen(prefix, date)
         
         for asn in originASes:
+            print asn
             if asn is None or asn == 'nan':
                 continue
             elif '{' in asn:
@@ -284,6 +284,7 @@ class BGPDataHandler:
                 self.visibilityDB.storeASSeen(asn, True, date)
                 
         for asn in middleASes:
+            print asn
             if asn is None or asn == 'nan':
                 continue
             elif '{' in asn:
@@ -540,15 +541,16 @@ class BGPDataHandler:
                 node.data['ASpaths'] = set(prefix_subset['ASpath'])
                 node.data['OriginASes'] = set(prefix_subset['originAS'])
                             
-                for middleASes in prefix_subset['middleASes']:
-                    for asn in middleASes.split():
-                        asn = int(asn)
-                        if asn in ASes_propagated_prefixes_dic.keys():
-                            if prefix not in ASes_propagated_prefixes_dic[asn]:
-                                ASes_propagated_prefixes_dic[asn].add(prefix)
-                        else:
-                            ASes_propagated_prefixes_dic[asn] = set([prefix])
-                            
+            for middleASes, middleASes_subset in  bgp_df.groupby('middleASes'):
+                for asn in middleASes.split():
+                    asn = int(asn)
+                    prefixes = set(middleASes_subset['prefix'].tolist())
+                    if asn in ASes_propagated_prefixes_dic.keys():
+                        ASes_propagated_prefixes_dic[asn] =\
+                            ASes_propagated_prefixes_dic[asn].union(prefixes)
+                    else:
+                        ASes_propagated_prefixes_dic[asn] = prefixes
+                
             for originAS, originAS_subset in bgp_df.groupby('originAS'):
                 originAS = int(originAS)
                 ASes_originated_prefixes_dic[originAS] = set(originAS_subset['prefix'])
