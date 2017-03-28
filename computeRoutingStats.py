@@ -796,19 +796,19 @@ def main(argv):
 
 #For DEBUG
 #    files_path = '/Users/sofiasilva/BGP_files'
-##    routing_file = '/Users/sofiasilva/BGP_files/2017-01-16.bgprib.readable'
+#    routing_file = '/Users/sofiasilva/BGP_files/2017-03-06.bgprib_20170322.readable'
 #    KEEP = True
-##    RIBfiles = False
-#    DEBUG = True
+#    RIBfiles = False
+##    DEBUG = True
 #    EXTENDED = True
-#    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170324.txt'
-#    archive_folder = '/Users/sofiasilva/BGP_files'
-#    ext = 'bgprib.readable'
-#    UNTIL = True
-#    date = '20170115'
+##    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170324.txt'
+##    archive_folder = '/Users/sofiasilva/BGP_files'
+##    ext = 'bgprib.readable'
+##    UNTIL = True
+##    date = '20170115'
 #    READABLE = True
-###    COMPRESSED = True
-###    COMPUTE = False  
+##    COMPRESSED = True
+##    COMPUTE = False  
     
     try:
         opts, args = getopt.getopt(argv, "hf:u:r:H:E:I:TNocknD:Ud:ep:a:4:6:O:P:R:",\
