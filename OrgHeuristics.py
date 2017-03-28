@@ -104,7 +104,7 @@ class OrgHeuristics:
             if pref_country in nirs_dict:
                 nir_name_in_pref_name = False
                 for nir_name in nirs_dict[pref_country]['nir_names']:
-                    if nir_name in pref_name:
+                    if nir_name in pref_name or pref_name in nir_name:
                         nir_name_in_pref_name = True
                         break
             if not nir_name_in_pref_name or pref_country not in nirs_dict:
@@ -113,10 +113,11 @@ class OrgHeuristics:
             for remark in pref_obj['remarks']:
                 for desc in remark['description']:
                     if pref_country in nirs_dict and\
-                        desc not in nirs_dict[pref_country]['address']:
+                        desc not in nirs_dict[pref_country]['address'] and\
+                        nirs_dict[pref_country]['address'] not in desc:
                             nir_name_in_desc = False
                             for nir_name in nirs_dict[pref_country]['nir_names']:
-                                if nir_name in desc:
+                                if nir_name in desc or desc in nir_name:
                                     nir_name_in_desc = True
                                     break
                     if not nir_name_in_desc or pref_country not in nirs_dict:
@@ -126,7 +127,9 @@ class OrgHeuristics:
                 if 'vcardArray' in ent:
                     if 'label' in ent['vcardArray'][1][3][1]:
                         address = ent['vcardArray'][1][3][1]['label'].replace('\\n', ', ')
-                        if pref_country in nirs_dict and address not in nirs_dict[pref_country]['address'] and\
+                        if pref_country in nirs_dict and\
+                            address not in nirs_dict[pref_country]['address'] and\
+                            nirs_dict[pref_country]['address'] not in address and\
                             OrgHeuristics.similar(address, nirs_dict[pref_country]['address']) < 0.5 or\
                             pref_country not in nirs_dict:
                             pref_org_data.add(address)
@@ -170,7 +173,7 @@ class OrgHeuristics:
             if asn_country in nirs_dict:
                 nir_name_in_asn_name = False
                 for nir_name in nirs_dict[asn_country]['nir_names']:
-                    if nir_name in asn_name:
+                    if nir_name in asn_name or asn_name in nir_name:
                         nir_name_in_asn_name = True
                         break
             if not nir_name_in_asn_name or asn_country not in nirs_dict:
@@ -179,10 +182,11 @@ class OrgHeuristics:
             for remark in asn_obj['remarks']:
                 for desc in remark['description']:
                     if asn_country in nirs_dict and\
-                        desc not in nirs_dict[asn_country]['address']:
+                        desc not in nirs_dict[asn_country]['address'] and\
+                        nirs_dict[asn_country]['address'] not in desc:
                             nir_name_in_desc = False
                             for nir_name in nirs_dict[asn_country]['nir_names']:
-                                if nir_name in desc:
+                                if nir_name in desc or desc in nir_name:
                                     nir_name_in_desc = True
                                     break
                     if not nir_name_in_desc or asn_country not in nirs_dict:
@@ -192,7 +196,9 @@ class OrgHeuristics:
                 if 'vcardArray' in ent:
                     if 'label' in ent['vcardArray'][1][3][1]:
                         address = ent['vcardArray'][1][3][1]['label'].replace('\\n', ', ')
-                        if asn_country in nirs_dict and address not in nirs_dict[asn_country]['address'] and\
+                        if asn_country in nirs_dict and\
+                            address not in nirs_dict[asn_country]['address'] and\
+                            nirs_dict[asn_country]['address'] not in address and\
                             OrgHeuristics.similar(address, nirs_dict[asn_country]['address']) < 0.5 or\
                             asn_country not in nirs_dict:
                             asn_org_data.add(address)
