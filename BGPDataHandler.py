@@ -142,18 +142,21 @@ class BGPDataHandler:
 
     
     # This function processes the routing data contained in the archive folder
-    # provided, and loads the data structures of the class with the results
-    # from this processing       
-    def loadStructuresFromArchive(self, archive_folder, extension, endDate,\
-                                    READABLE, RIBfiles, COMPRESSED):
-        historical_files = self.getPathsToHistoricalData(archive_folder, extension)
+    # provided corresponding to dates older than the endDate provided,
+    # and loads the data structures of the class and stores the historical info
+    # into the database with the results from this processing       
+    def loadStructuresFromArchive(self, archive_folder, extension, startDate,
+                                    endDate, READABLE, RIBfiles, COMPRESSED):
+        historical_files = self.getPathsToHistoricalData(archive_folder,
+                                                         extension, startDate,
+                                                         endDate)
         
         if historical_files == '':
             sys.stderr.write("Archive is empty!\n")
             return False
 
         mostRecent_routing_file  =\
-                        self.getMostRecentFromHistoricalList(historical_files, endDate)
+                        self.getMostRecentFromHistoricalList(historical_files)
         if not READABLE:
             mostRecent_readable = self.getReadableFile(mostRecent_routing_file,\
                                                         False, RIBfiles, COMPRESSED)
@@ -192,14 +195,15 @@ class BGPDataHandler:
         # Finally, we store the routing data from the rest of the routing files
         # from the archive, providing the name of the most recent file in order
         # for it to be skipped.
-        self.storeHistoricalData(historical_files, mostRecent_routing_file, READABLE, RIBfiles, COMPRESSED)
+        self.storeHistoricalData(historical_files, mostRecent_routing_file, 
+                                 READABLE, RIBfiles, COMPRESSED)
         sys.stderr.write("Historical data inserted into visibility database successfully!\n")
         
         return True
 
     # This function returns a path to the most recent file in the provided list 
     # of historical files
-    def getMostRecentFromHistoricalList(self, historical_files, endDate):
+    def getMostRecentFromHistoricalList(self, historical_files):
         files_list_obj = open(historical_files, 'r')
 
         mostRecentDate = 0
@@ -213,9 +217,8 @@ class BGPDataHandler:
                     # We add 1 to the endDate because the files in the archive
                     # have routing data for the day before of the date in the
                     # name of the file
-                    if endDate == '' or (endDate != '' and date <= int(endDate)+1):
-                        mostRecentDate = date
-                        mostRecentFile = line.strip()
+                    mostRecentDate = date
+                    mostRecentFile = line.strip()
         
         return mostRecentFile
         
@@ -237,7 +240,8 @@ class BGPDataHandler:
     # This function stores the routing data from the files listed in the
     # historical_files file skipping the mostRecent routing file provided,
     # as the data contained in this file has already been stored.
-    def storeHistoricalData(self, historical_files, mostRecent, areReadable, RIBfiles, COMPRESSED):
+    def storeHistoricalData(self, historical_files, mostRecent, areReadable,
+                            RIBfiles, COMPRESSED):
 
         files_list_obj = open(historical_files, 'r')
         
@@ -646,7 +650,7 @@ class BGPDataHandler:
     # file with a list of paths to the files with the provided extension
     # in the archive folder
     # It returns the path to the created file
-    def getPathsToHistoricalData(self, archive_folder, extension):
+    def getPathsToHistoricalData(self, archive_folder, extension, startDate, endDate):
         files_list_filename = '%s/RoutingFiles.txt' % self.files_path
         
         files_list_list = []
@@ -654,7 +658,10 @@ class BGPDataHandler:
         for root, subdirs, files in os.walk(archive_folder):
             for filename in files:
                 if filename.endswith(extension):
-                    files_list_list.append(os.path.join(root, filename))
+                    file_date = self.getDateFromFileName(filename)
+                    if (endDate != '' and file_date <= int(endDate)+1 or endDate == '') and\
+                        (startDate != '' and file_date > int(startDate) or startDate == ''):
+                        files_list_list.append(os.path.join(root, filename))
         
         if len(files_list_list) == 0:
             return ''

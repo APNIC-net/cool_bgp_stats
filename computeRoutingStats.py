@@ -477,7 +477,9 @@ def writeStatsLineToFile(statsForPrefix, allAttr, stats_filename):
     with open(stats_filename, 'a') as stats_file:
         stats_file.write(line)
 
-
+# TODO update function so that it receives startDate and endDate and only computes
+# stats for prefixes delegated between those dates
+# Decide which historical data has to be taken into account in this case
 def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_DATA):
     # Obtain a subset of all the delegated prefixes
     delegatedNetworks = routingStatsObj.del_handler.delegated_df[\
@@ -664,6 +666,10 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
             
         writeStatsLineToFile(statsForPrefix, routingStatsObj.allAttr_pref, stats_filename)
 
+# TODO update function so that it receives startDate and endDate and only computes
+# stats for prefixes delegated between those dates
+# Decide which historical data has to be taken into account in this case
+        
 # This function determines whether the allocated ASNs are active
 # either as middle AS, origin AS or both
 # Returns dictionary with an ASN as key and a dictionary containing:
@@ -773,7 +779,9 @@ def main(argv):
     COMPUTE = True 
     DEBUG = False
     EXTENDED = False
+    startDate = ''
     date = ''
+    endDate = ''
     UNTIL = False
     del_file = ''
     prefixes_stats_file = ''
@@ -787,28 +795,28 @@ def main(argv):
     archive_folder = '' 
     ext = ''
     COMPRESSED = False
-#    startDate = ''
     INCREMENTAL = False
     final_existing_date = ''
     TEMPORAL_DATA = False
     READABLE = True
 
 
-#For DEBUG
+##For DEBUG
 #    files_path = '/Users/sofiasilva/BGP_files'
-#    routing_file = '/Users/sofiasilva/BGP_files/2017-03-06.bgprib_20170322.readable'
+##    routing_file = '/Users/sofiasilva/BGP_files/2017-03-06.bgprib_20170322.readable'
 #    KEEP = True
-#    RIBfiles = False
-##    DEBUG = True
-#    EXTENDED = True
-##    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170324.txt'
-##    archive_folder = '/Users/sofiasilva/BGP_files'
-##    ext = 'bgprib.readable'
-##    UNTIL = True
-##    date = '20170115'
+##    RIBfiles = False
+###    DEBUG = True
+##    EXTENDED = True
+###    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170324.txt'
+#    archive_folder = '/Users/sofiasilva/BGP_files'
+#    ext = '.readable'
+#    startDate = '20170305'
+#    UNTIL = True
+#    date = '20170310'
 #    READABLE = True
-##    COMPRESSED = True
-##    COMPUTE = False  
+###    COMPRESSED = True
+#    COMPUTE = False  
     
     try:
         opts, args = getopt.getopt(argv, "hf:u:r:H:E:I:TNocknD:Ud:ep:a:4:6:O:P:R:",\
@@ -837,16 +845,16 @@ def main(argv):
             print 'If the routing file contains a "show ip bgp" output, the "-o" option must be used to specify this.'
             print "H = Historical data. Instead of processing a single file, process the routing data contained in the archive folder provided."
             print "E = Extension. If you use the -H option you MUST also use the -E option to provide the extension of the files in the archive you want to work with."
-            print "I = Incremental dates. If you use this option you must provide a start date for the period of time for which you want to get the dates in which the prefixes were seen."
             print "If none of the three options -u, -r or -H are provided, the script will try to work with routing data from URLs included ./BGPoutputs.txt"
             print "T = Temporal data available. Use this option if there is temporal data available in the visibility database and you want to use it, even if you don't provide the path to the archive."
+            print "I = Initial date. The date since which you want the historical routing data to be considered."
+            print 'D = Date in format YYYY or YYYYmm or YYYYmmdd. Delegation date of the resources for which you want the stats to be computed or or until which (if you use the -U option) you want to consider delegations.'
+            print 'U = Until. If you use the -U option the resources for which you want the statistics to be computed will be filtered so that they have a delegation date before the provided date and the routing data considered corresponds to dates before the provided date.'            
             print "N = Not readable. The routing data provided (in the files to which the URLs file points, in the routing file or in the archive are not in the 'readable' format (BGPdump output))."
             print 'o = The routing data to be processed is in the format of "show ip bgp" outputs.'
             print 'c = Compressed. The files containing routing data are compressed.'
             print 'k = Keep downloaded Internet routing data file.'
             print 'n = No computation. If this option is used, statistics will not be computed, just the dictionaries with prefixes/origin ASes will be created and saved to disk.'
-            print 'D = Date in format YYYY or YYYYmm or YYYYmmdd. Delegation date of the resources for which you want the stats to be computed or or until which (if you use the -U option) you want to consider delegations.'
-            print 'U = Until. If you use the -U option the resources for which you want the statistics to be computed will be filtered so that they have a delegation date before the provided date and the routing data considered corresponds to dates before the provided date.'
             print 'd = DEBUG mode. Provide path to delegated file. If not in DEBUG mode the latest delegated file will be downloaded from ftp://ftp.apnic.net/pub/stats/apnic'
             print 'e = Use Extended file'
             print "If option -e is used in DEBUG mode, delegated file must be a extended file."
@@ -962,8 +970,8 @@ def main(argv):
                 sys.exit()
         elif opt == '-E':
             ext = arg
-#        elif opt == '-I':
-#            startDate = int(arg)
+        elif opt == '-I':
+            startDate = int(arg)
         elif opt == '-T':
             TEMPORAL_DATA = True
         elif opt == '-N':
@@ -1000,10 +1008,15 @@ def main(argv):
 
     today = datetime.date.today().strftime('%Y%m%d')
     
-    if date == '':
+    dateStr = ''
+    if date == '' and startDate == '':
         dateStr = 'AllDates'
-    elif UNTIL:
-        dateStr = 'UNTIL{}'.format(date)
+    elif startDate != '':
+        dateStr = 'SINCE{}'.format(startDate)
+
+    if UNTIL:
+        dateStr = '{}UNTIL{}'.format(dateStr, date)
+        endDate = date
     else:
         dateStr = date
         
@@ -1040,8 +1053,6 @@ def main(argv):
         print "If you want to work with BGP data from files, the five options -4, -6, -O, -P and -R must be used."
         print "If not, none of these five options should be used."
         sys.exit()
-        
-    
     
     routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, COMPUTE, EXTENDED,\
                                     del_file, date, UNTIL, INCREMENTAL,\
@@ -1065,7 +1076,8 @@ def main(argv):
                         routing_file, READABLE, RIBfiles, COMPRESSED)
         else: # archive_folder not null
             loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
-                        archive_folder, ext, date, READABLE, RIBfiles, COMPRESSED)
+                        archive_folder, ext, startDate, endDate, READABLE, RIBfiles,
+                        COMPRESSED)
             TEMPORAL_DATA = True
     
     if not loaded:
@@ -1074,7 +1086,8 @@ def main(argv):
         
     if COMPUTE:
         start_time = time.time()
-        computePerPrefixStats(routingStatsObj, prefixes_stats_file, files_path, TEMPORAL_DATA)
+        computePerPrefixStats(routingStatsObj, prefixes_stats_file, files_path,
+                              TEMPORAL_DATA)
         end_time = time.time()
         sys.stderr.write("Stats for prefixes computed successfully!\n")
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
@@ -1093,9 +1106,6 @@ def main(argv):
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
 
         routingStatsObj.db_handler.close()
-    else:
-       routingStatsObj.bgp_handler.saveDataToFiles()
-        
         
 if __name__ == "__main__":
     main(sys.argv[1:])
