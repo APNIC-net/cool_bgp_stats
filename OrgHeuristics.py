@@ -86,7 +86,6 @@ class OrgHeuristics:
         
         if pref_node is not None:
             pref_org_data = pref_node.data['org_data']
-            pref_country = pref_node.data['country']
         else:
             pref_node = prefixesData_radix.add(prefix)
             
@@ -94,45 +93,42 @@ class OrgHeuristics:
             r = urllib2.urlopen(url_ip)
             text = r.read()
             pref_obj = json.loads(text) 
-
-            pref_country = pref_obj['country']
             
             pref_org_data = set()
 
             pref_name = pref_obj['name']
             
-            if pref_country in nirs_dict:
+            for nir_country in nirs_dict:
                 nir_name_in_pref_name = False
-                for nir_name in nirs_dict[pref_country]['nir_names']:
+                for nir_name in nirs_dict[nir_country]['nir_names']:
                     if nir_name in pref_name or pref_name in nir_name:
                         nir_name_in_pref_name = True
                         break
-            if not nir_name_in_pref_name or pref_country not in nirs_dict:
+            if not nir_name_in_pref_name:
                 pref_org_data.add(pref_name)
                 
             for remark in pref_obj['remarks']:
                 for desc in remark['description']:
-                    if pref_country in nirs_dict and\
-                        desc not in nirs_dict[pref_country]['address'] and\
-                        nirs_dict[pref_country]['address'] not in desc:
+                    for nir_country in nirs_dict:
+                        if desc not in nirs_dict[nir_country]['address'] and\
+                            nirs_dict[nir_country]['address'] not in desc:
                             nir_name_in_desc = False
-                            for nir_name in nirs_dict[pref_country]['nir_names']:
+                            for nir_name in nirs_dict[nir_country]['nir_names']:
                                 if nir_name in desc or desc in nir_name:
                                     nir_name_in_desc = True
                                     break
-                    if not nir_name_in_desc or pref_country not in nirs_dict:
+                    if not nir_name_in_desc:
                         pref_org_data.add(desc)
             
             for ent in pref_obj['entities']:
                 if 'vcardArray' in ent:
                     if 'label' in ent['vcardArray'][1][3][1]:
                         address = ent['vcardArray'][1][3][1]['label'].replace('\\n', ', ')
-                        if pref_country in nirs_dict and\
-                            address not in nirs_dict[pref_country]['address'] and\
-                            nirs_dict[pref_country]['address'] not in address and\
-                            OrgHeuristics.similar(address, nirs_dict[pref_country]['address']) < 0.5 or\
-                            pref_country not in nirs_dict:
-                            pref_org_data.add(address)
+                        for nir_country in nirs_dict:
+                            if address not in nirs_dict[nir_country]['address'] and\
+                                nirs_dict[nir_country]['address'] not in address and\
+                                OrgHeuristics.similar(address, nirs_dict[nir_country]['address']) < 0.5:
+                                pref_org_data.add(address)
             
             whois = False
             for data in pref_org_data:
@@ -147,64 +143,55 @@ class OrgHeuristics:
                     if 'Name' in line or 'Organization' in line or '@' in line:
                         pref_org_data.add(line.split(']')[1].lstrip())
             
-            pref_node.data['country'] = pref_country
             pref_node.data['org_data'] = pref_org_data
             
             with open(prefixes_data_file, 'wb') as f:
                 pickle.dump(prefixesData_radix, f, pickle.HIGHEST_PROTOCOL)
 
-        if asn in asesData_dict:
-            asn_org_data = asesData_dict[asn]['org_data']
-            asn_country = asesData_dict[asn]['country']
-        else:
-            asesData_dict[asn] = dict()
+        if asn not in asesData_dict:
+            asesData_dict[asn] = set()
             
             url_asn = '{}autnum/{}'.format(rdap, asn)
             r = urllib2.urlopen(url_asn)
             text = r.read()
             asn_obj = json.loads(text)
-           
-            asn_country = asn_obj['country']
-            
-            asn_org_data = set()
-            
+                       
             asn_name = asn_obj['name']
             
-            if asn_country in nirs_dict:
+            for nir_country in nirs_dict:
                 nir_name_in_asn_name = False
-                for nir_name in nirs_dict[asn_country]['nir_names']:
+                for nir_name in nirs_dict[nir_country]['nir_names']:
                     if nir_name in asn_name or asn_name in nir_name:
                         nir_name_in_asn_name = True
                         break
-            if not nir_name_in_asn_name or asn_country not in nirs_dict:
-                asn_org_data.add(asn_name)
+            if not nir_name_in_asn_name:
+                asesData_dict[asn].add(asn_name)
 
             for remark in asn_obj['remarks']:
                 for desc in remark['description']:
-                    if asn_country in nirs_dict and\
-                        desc not in nirs_dict[asn_country]['address'] and\
-                        nirs_dict[asn_country]['address'] not in desc:
+                    for nir_country in nirs_dict:
+                        if desc not in nirs_dict[nir_country]['address'] and\
+                            nirs_dict[nir_country]['address'] not in desc:
                             nir_name_in_desc = False
-                            for nir_name in nirs_dict[asn_country]['nir_names']:
+                            for nir_name in nirs_dict[nir_country]['nir_names']:
                                 if nir_name in desc or desc in nir_name:
                                     nir_name_in_desc = True
                                     break
-                    if not nir_name_in_desc or asn_country not in nirs_dict:
-                        asn_org_data.add(desc)
+                    if not nir_name_in_desc:
+                        asesData_dict[asn].add(desc)
             
             for ent in asn_obj['entities']:
                 if 'vcardArray' in ent:
                     if 'label' in ent['vcardArray'][1][3][1]:
                         address = ent['vcardArray'][1][3][1]['label'].replace('\\n', ', ')
-                        if asn_country in nirs_dict and\
-                            address not in nirs_dict[asn_country]['address'] and\
-                            nirs_dict[asn_country]['address'] not in address and\
-                            OrgHeuristics.similar(address, nirs_dict[asn_country]['address']) < 0.5 or\
-                            asn_country not in nirs_dict:
-                            asn_org_data.add(address)
+                        for nir_country in nirs_dict:
+                            if address not in nirs_dict[nir_country]['address'] and\
+                                nirs_dict[nir_country]['address'] not in address and\
+                                OrgHeuristics.similar(address, nirs_dict[nir_country]['address']) < 0.5:
+                                asesData_dict[asn].add(address)
             
             whois = False
-            for data in asn_org_data:
+            for data in asesData_dict[asn]:
                 if 'whois.nic.ad.jp' in data:
                     whois = True
                     break
@@ -214,20 +201,16 @@ class OrgHeuristics:
                 out = subprocess.check_output(cmd, shell=True).split('\n')
                 for line in out:
                     if 'Name' in line or 'Organization' in line:
-                        asn_org_data.add(line.split(']')[1].lstrip())     
-
-            asesData_dict[asn]['country'] = asn_country
-            asesData_dict[asn]['org_data'] = asn_org_data
+                        asesData_dict[asn].add(line.split(']')[1].lstrip())     
             
             with open(ases_data_file, 'wb') as f:
                 pickle.dump(asesData_dict, f, pickle.HIGHEST_PROTOCOL)
-
-        if pref_country != asn_country:
-            return False
         
         for pref_data in pref_org_data:
-            for asn_data in asn_org_data:
+            for asn_data in asesData_dict[asn]:
                 if OrgHeuristics.similar(pref_data, asn_data) > 0.5:
                     return True
     
         return False
+        
+#The “TL;DR” answer is, if you can read the data from the NIRs’ services directly, that’s probably going to be more reliable.
