@@ -269,7 +269,6 @@ class BGPDataHandler:
             self.visibilityDB.storePrefixSeen(prefix, date)
         
         for asn in originASes:
-            print asn
             if asn is None or asn == 'nan':
                 continue
             elif '{' in asn:
@@ -278,6 +277,7 @@ class BGPDataHandler:
                 # (leaving the brackets out) and consider each AS separately.
                 asnList = asn[1:-1] .split(',')
                 for asn in asnList:
+                    asn = int(asn)
                     self.visibilityDB.storeASSeen(asn, True, date)
             else:
                 asn = int(asn)
@@ -543,18 +543,45 @@ class BGPDataHandler:
                             
             for middleASes, middleASes_subset in  bgp_df.groupby('middleASes'):
                 for asn in middleASes.split():
-                    asn = int(asn)
-                    prefixes = set(middleASes_subset['prefix'].tolist())
-                    if asn in ASes_propagated_prefixes_dic.keys():
-                        ASes_propagated_prefixes_dic[asn] =\
-                            ASes_propagated_prefixes_dic[asn].union(prefixes)
+                    if asn is None or asn == 'nan':
+                        continue
+                    elif '{' in asn:
+                        # If the asn field contains a bracket ({}), there is an as-set
+                        # in first place in the AS path, therefore, we split it
+                        # (leaving the brackets out) and consider each AS separately.
+                        asnList = asn[1:-1] .split(',')
+                        for asn in asnList:
+                            asn = int(asn)
+                            prefixes = set(middleASes_subset['prefix'].tolist())
+                            if asn in ASes_propagated_prefixes_dic.keys():
+                                ASes_propagated_prefixes_dic[asn] =\
+                                    ASes_propagated_prefixes_dic[asn].union(prefixes)
+                            else:
+                                ASes_propagated_prefixes_dic[asn] = prefixes
                     else:
-                        ASes_propagated_prefixes_dic[asn] = prefixes
+                        asn = int(asn)
+                        prefixes = set(middleASes_subset['prefix'].tolist())
+                        if asn in ASes_propagated_prefixes_dic.keys():
+                            ASes_propagated_prefixes_dic[asn] =\
+                                ASes_propagated_prefixes_dic[asn].union(prefixes)
+                        else:
+                            ASes_propagated_prefixes_dic[asn] = prefixes
                 
             for originAS, originAS_subset in bgp_df.groupby('originAS'):
-                originAS = int(originAS)
-                ASes_originated_prefixes_dic[originAS] = set(originAS_subset['prefix'])
-            
+                if asn is None or asn == 'nan':
+                    continue
+                elif '{' in asn:
+                    # If the asn field contains a bracket ({}), there is an as-set
+                    # in first place in the AS path, therefore, we split it
+                    # (leaving the brackets out) and consider each AS separately.
+                    asnList = asn[1:-1] .split(',')
+                    for asn in asnList:
+                        originAS = int(originAS)
+                        ASes_originated_prefixes_dic[originAS] = set(originAS_subset['prefix'])
+                else:
+                    originAS = int(originAS)
+                    ASes_originated_prefixes_dic[originAS] = set(originAS_subset['prefix'])
+        
             if not self.KEEP:
                 try:
                     os.remove(readable_file_name)
