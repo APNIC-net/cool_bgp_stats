@@ -47,8 +47,7 @@ class VisibilityDBHandler:
             return True
         except psycopg2.IntegrityError:
             self.conn.rollback()
-            sys.stderr.write("Duplicated tuple ({}, {}) was not inserted into the Prefixes table.\n"\
-                            .format(prefix, date))
+            # Duplicated tuple not inserted into the Prefixes table.
             return False
             
     def storeASSeen(self, asn, isOriginAS, date):
@@ -58,8 +57,7 @@ class VisibilityDBHandler:
             return True
         except psycopg2.IntegrityError:
             self.conn.rollback()
-            sys.stderr.write("Duplicated tuple ({}, {}, {}) was not inserted into the ASNs table.\n"\
-                            .format(asn, isOriginAS, date))
+            # Duplicated tuple not inserted into the Prefixes table.
             return False
             
     def getDateFirstSeen(self, prefix):
