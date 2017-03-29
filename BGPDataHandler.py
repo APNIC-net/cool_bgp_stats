@@ -284,7 +284,6 @@ class BGPDataHandler:
                 self.visibilityDB.storeASSeen(asn, True, date)
                 
         for asn in middleASes:
-            print asn
             if asn is None or asn == 'nan':
                 continue
             elif '{' in str(asn):

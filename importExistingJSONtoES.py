@@ -10,11 +10,10 @@ import hashlib
 import pandas as pd
 import elasticsearch
 
-def connect(user, password):
+def connect(host, user, password):
     # configure elasticsearch
 	config = {
-#	    'host': 'twerp.matong.apnic.net'
-         'host': 'localhost',
+         'host': host,
          'user': user,
          'password': password
 	}
@@ -56,6 +55,8 @@ def prepareData(data_for_es, index_name, index_type):
 def inputData(es, index_name, bulk_data):
     es.bulk(index = index_name, body = bulk_data)
 
+#The <TOKEN> is computed as base64(USERNAME:PASSWORD)
+
     # check data is in there, and structure in there
     es.search(body={"query": {"match_all": {}}}, index = index_name)
     es.indices.get_mapping(index = index_name)
@@ -81,12 +82,9 @@ def preparePlainDF(plain_df):
 def main(argv):    
 
     files_path = ''
+    host = ''
     user = ''
     password = ''
-    
-    files_path = '/Users/sofiasilva/BGP_files'
-    user = 'elastic'
-    password = 'q1w2e3r4'
     
     # Mapping for stats about delegations
     delStats_mapping = {"_default_" : {
@@ -145,21 +143,24 @@ def main(argv):
     del_stats_index_type = 'id'
     
     try:
-        opts, args = getopt.getopt(argv, "hp:u:P:", ["files_path=", "user=", "password="])
+        opts, args = getopt.getopt(argv, "hp:H:u:P:", ["files_path=", "host=", "user=", "password="])
     except getopt.GetoptError:
-        print 'Usage: importExistingJSONtoES.py -h | -p <files path -u <ElasticSearch user> -P <ElasticSearch password>'
+        print 'Usage: importExistingJSONtoES.py -h | -p <files path> -H <Elasticsearch host> -u <ElasticSearch user> -P <ElasticSearch password>'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script stores into ElasticSearch the statistics contained in the JSON files in the provided folder."
-            print 'Usage: importExistingJSONtoES.py -h | -p <files path -u <ElasticSearch user> -P <ElasticSearch password>'
+            print 'Usage: importExistingJSONtoES.py -h | -p <files path> -H <Elasticsearch host> -u <ElasticSearch user> -P <ElasticSearch password>'
             print 'h = Help'
             print "p = Path to folder containing JSON files. (MANDATORY)"
-            print "u = User to save stats to ElasticSearch."
-            print "P = Password to save to stats to ElasticSearch."
+            print "H = Host running Elasticsearch. (MANDATORY)"
+            print "u = User to save stats to ElasticSearch. (MANDATORY)"
+            print "P = Password to save to stats to ElasticSearch. (MANDATORY)"
             sys.exit()
         elif opt == '-p':
             files_path = arg
+        elif opt == '-H':
+            host = arg
         elif opt == '-u':
             user = arg
         elif opt == '-P':
@@ -167,7 +168,7 @@ def main(argv):
         else:
             assert False, 'Unhandled option'
 
-    if user != '' and password != '':
+    if host != '' and user != '' and password != '':
         for json_file in os.listdir(files_path):
             if json_file.endswith(".json"):
                 plain_df = pd.read_json('%s/%s' % (files_path, json_file), orient = 'index').reset_index()
@@ -183,7 +184,7 @@ def main(argv):
                 plain_df = plain_df[plain_df['ResourceType'] != 'All']
                 plain_df = plain_df[plain_df['Status'] != 'All']
                 
-                es = connect(user, password)
+                es = connect(host, user, password)
                 createIndex(es, delStats_mapping, del_stats_index_name)
                 preparePlainDF(plain_df)
                 bulk_data = prepareData(plain_df, del_stats_index_name,\
@@ -194,7 +195,7 @@ def main(argv):
                 sys.stderr.write("Stats from file %s saved to ElasticSearch successfully!\n" % json_file)
 
     else:
-        print "User and Password for ElasticSearch MUST be provided."
+        print "Host, User and Password for ElasticSearch MUST be provided."
         sys.exit()
 
         
