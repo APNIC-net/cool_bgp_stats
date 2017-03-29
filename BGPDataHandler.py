@@ -271,11 +271,11 @@ class BGPDataHandler:
         for asn in originASes:
             if asn is None or asn == 'nan':
                 continue
-            elif '{' in asn:
+            elif '{' in str(asn):
                 # If the asn field contains a bracket ({}), there is an as-set
                 # in first place in the AS path, therefore, we split it
                 # (leaving the brackets out) and consider each AS separately.
-                asnList = asn[1:-1] .split(',')
+                asnList = asn[1:-1].split(',')
                 for asn in asnList:
                     asn = int(asn)
                     self.visibilityDB.storeASSeen(asn, True, date)
@@ -287,8 +287,8 @@ class BGPDataHandler:
             print asn
             if asn is None or asn == 'nan':
                 continue
-            elif '{' in asn:
-                asnList = asn[1:-1] .split(',')
+            elif '{' in str(asn):
+                asnList = asn[1:-1].split(',')
                 for asn in asnList:
                     self.visibilityDB.storeASSeen(asn, False, date)
 
@@ -545,11 +545,11 @@ class BGPDataHandler:
                 for asn in middleASes.split():
                     if asn is None or asn == 'nan':
                         continue
-                    elif '{' in asn:
+                    elif '{' in str(asn):
                         # If the asn field contains a bracket ({}), there is an as-set
                         # in first place in the AS path, therefore, we split it
                         # (leaving the brackets out) and consider each AS separately.
-                        asnList = asn[1:-1] .split(',')
+                        asnList = asn[1:-1].split(',')
                         for asn in asnList:
                             asn = int(asn)
                             prefixes = set(middleASes_subset['prefix'].tolist())
@@ -570,11 +570,11 @@ class BGPDataHandler:
             for originAS, originAS_subset in bgp_df.groupby('originAS'):
                 if asn is None or asn == 'nan':
                     continue
-                elif '{' in asn:
+                elif '{' in str(asn):
                     # If the asn field contains a bracket ({}), there is an as-set
                     # in first place in the AS path, therefore, we split it
                     # (leaving the brackets out) and consider each AS separately.
-                    asnList = asn[1:-1] .split(',')
+                    asnList = asn[1:-1].split(',')
                     for asn in asnList:
                         originAS = int(originAS)
                         ASes_originated_prefixes_dic[originAS] = set(originAS_subset['prefix'])
