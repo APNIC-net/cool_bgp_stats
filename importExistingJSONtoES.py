@@ -18,22 +18,19 @@ def connect(host):
 	return elasticsearch.Elasticsearch([config,], timeout=300)
 
 def createIndex(es, mapping_dict, index_name):
-    try:
-        es.search(body={"query": {"match_all": {}}}, index = index_name)
-    except elasticsearch.exceptions.NotFoundError:
-        request_body = {
-    	    "settings" : {
-    	        "number_of_shards": 5,
-    	        "number_of_replicas": 1
-    	    },
-    
-    	    'mappings': mapping_dict
-         }
-    
-        print("creating {} index...".format(index_name))
-        es.indices.create(index = index_name, body = request_body)
+    request_body = {
+            	    "settings" : {
+                         "number_of_shards": 5,
+                         "number_of_replicas": 1
+                         },                
+                    "mappings": mapping_dict
+                    }
 
-def prepareData(data_for_es, index_name, index_type):
+    print("creating {} index...".format(index_name))
+    es.indices.create(index = index_name, body = request_body, ignore=400)
+    es.indices.refresh(index = index_name)
+
+def prepareData(data_for_es, index_name, index_type, id_column):
     bulk_data = []
 
     for index, row in data_for_es.iterrows():
@@ -45,22 +42,25 @@ def prepareData(data_for_es, index_name, index_type):
             "index": {
                 "_index": index_name,
                 "_type": index_type,
-                "_id": '{}_{}'.format(data_dict['_id'], data_dict['Date'])
+                "_id": data_dict[id_column]
                     }
                     }
         bulk_data.append(op_dict)
         bulk_data.append(data_dict)
     
-    return bulk_data
+    return bulk_data, len(data_for_es)
      
-def inputData(es, index_name, bulk_data):
-    es.bulk(index = index_name, body = bulk_data)
+def inputData(es, index_name, bulk_data, numOfDocs):
+    es.bulk(index = index_name, body = bulk_data, refresh = True)
 
     # check data is in there, and structure in there
     try:
-        es.search(body={"query": {"match_all": {}}}, index = index_name)
+        res = es.search(body={"query": {"match_all": {}}}, index = index_name)
         es.indices.get_mapping(index = index_name)
-        return True
+        if len(res['hits']['hits']) == numOfDocs:
+            return True
+        else:
+            return False
     except elasticsearch.exceptions.NotFoundError:
         return False
  
@@ -78,7 +78,7 @@ def preparePlainDF(plain_df):
                                     plain_df['Organization']
                                     
     plain_df['index'] = plain_df['multiindex_comb'].apply(hashFromColValue)
-    plain_df['_id'] = plain_df['Date'].astype('str') + '_' + plain_df['index'].astype('str')
+    plain_df['del_stat_id'] = plain_df['Date'].astype('str') + '_' + plain_df['index'].astype('str')
     del plain_df['index']
     del plain_df['multiindex_comb']
     
@@ -89,10 +89,12 @@ def main(argv):
 #    user = ''
 #    password = ''
     
+    id_column = 'del_stat_id'
+    
     # Mapping for stats about delegations
     delStats_mapping = {"_default_" : {
                             "properties" : {
-                                "stat_id" : {
+                                "del_stat_id" : {
                                     "type": "integer"
                                             },
                                 "GeographicArea" : {
@@ -190,10 +192,10 @@ def main(argv):
                 plain_df = plain_df[plain_df['Status'] != 'All']
                 
                 preparePlainDF(plain_df)
-                bulk_data = prepareData(plain_df, del_stats_index_name,\
-                                        del_stats_index_type)
-                dataImported = inputData(es, del_stats_index_name, bulk_data)
-                
+                bulk_data, numOfDocs = prepareData(plain_df, del_stats_index_name,\
+                                                    del_stats_index_type, id_column)
+                dataImported = inputData(es, del_stats_index_name, bulk_data, numOfDocs)
+
                 if dataImported:
                     sys.stderr.write("Stats from file %s saved to ElasticSearch successfully!\n" % json_file)
                 else:
