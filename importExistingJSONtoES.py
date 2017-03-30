@@ -30,7 +30,7 @@ def createIndex(es, mapping_dict, index_name):
     es.indices.create(index = index_name, body = request_body, ignore=400)
     es.indices.refresh(index = index_name)
 
-def prepareData(data_for_es, index_name, index_type, id_column):
+def prepareData(data_for_es, index_name, doc_type, id_column):
     bulk_data = []
 
     for index, row in data_for_es.iterrows():
@@ -41,7 +41,7 @@ def prepareData(data_for_es, index_name, index_type, id_column):
         op_dict = {
             "index": {
                 "_index": index_name,
-                "_type": index_type,
+                "_type": doc_type,
                 "_id": data_dict[id_column]
                     }
                     }
@@ -145,7 +145,7 @@ def main(argv):
                                     }
                                 }
     del_stats_index_name = 'delegated_stats'
-    del_stats_index_type = 'id'
+    del_stats_doc_type = 'delegated_stats'
     
     try:
         opts, args = getopt.getopt(argv, "hp:H:", ["files_path=", "host="])
@@ -193,7 +193,7 @@ def main(argv):
                 
                 preparePlainDF(plain_df)
                 bulk_data, numOfDocs = prepareData(plain_df, del_stats_index_name,\
-                                                    del_stats_index_type, id_column)
+                                                    del_stats_doc_type, id_column)
                 dataImported = inputData(es, del_stats_index_name, bulk_data, numOfDocs)
 
                 if dataImported:
