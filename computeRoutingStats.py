@@ -799,6 +799,7 @@ def main(argv):
     final_existing_date = ''
     TEMPORAL_DATA = False
     READABLE = True
+    STORE = False
 
 
 ##For DEBUG
@@ -819,7 +820,7 @@ def main(argv):
 #    COMPUTE = False  
     
     try:
-        opts, args = getopt.getopt(argv, "hf:u:r:H:E:I:TNocknD:Ud:ep:a:4:6:O:P:R:",\
+        opts, args = getopt.getopt(argv, "hf:u:r:H:E:I:TNocknsD:Ud:ep:a:4:6:O:P:R:",\
                                         ["files_path=", "urls_file=", "routing_file=",\
                                         "Historcial_data_folder=", "Extension=",\
                                         "InitialDate=", "Date=", "delegated_file=",\
@@ -830,12 +831,12 @@ def main(argv):
                                         "ASes_Propagated_prefixes_file=",\
                                         "Routing date="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>] [-T] [-N]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>]'
+        print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>] [-T] [-N]] [-o] [-c] [-k] [-n] [-s] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>] [-T] [-N]] [-o] [-c] [-k] [-n] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>]'
+            print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>] [-T] [-N]] [-o] [-c] [-k] [-n] [-s] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>]'
             print 'h = Help'
             print "f = Path to folder in which Files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -855,6 +856,7 @@ def main(argv):
             print 'c = Compressed. The files containing routing data are compressed.'
             print 'k = Keep downloaded Internet routing data file.'
             print 'n = No computation. If this option is used, statistics will not be computed, just the dictionaries with prefixes/origin ASes will be created and saved to disk.'
+            print 's = Store. Store historical data into database.'
             print 'd = DEBUG mode. Provide path to delegated file. If not in DEBUG mode the latest delegated file will be downloaded from ftp://ftp.apnic.net/pub/stats/apnic'
             print 'e = Use Extended file'
             print "If option -e is used in DEBUG mode, delegated file must be a extended file."
@@ -892,6 +894,8 @@ def main(argv):
             KEEP = True
         elif opt == '-n':
             COMPUTE = False
+        elif opt == '-s':
+            STORE = True
         elif opt == '-D':
             date = arg
             if date == '':
@@ -1077,7 +1081,7 @@ def main(argv):
         else: # archive_folder not null
             loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
                         archive_folder, ext, startDate, endDate, READABLE, RIBfiles,
-                        COMPRESSED)
+                        COMPRESSED, STORE)
             TEMPORAL_DATA = True
     
     if not loaded:

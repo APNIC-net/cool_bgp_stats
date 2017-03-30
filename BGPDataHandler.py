@@ -146,7 +146,7 @@ class BGPDataHandler:
     # and loads the data structures of the class and stores the historical info
     # into the database with the results from this processing       
     def loadStructuresFromArchive(self, archive_folder, extension, startDate,
-                                    endDate, READABLE, RIBfiles, COMPRESSED):
+                                    endDate, READABLE, RIBfiles, COMPRESSED, STORE):
         historical_files = self.getPathsToHistoricalData(archive_folder,
                                                          extension, startDate,
                                                          endDate)
@@ -163,10 +163,11 @@ class BGPDataHandler:
         else:
             mostRecent_readable = mostRecent_routing_file
 
-        # In order for the most recent file not to be processed twice,
-        # we store the data from this file into the visibility database
-        # now that we have the readable file available
-        self.storeHistoricalDataFromFile(mostRecent_readable, True, RIBfiles, COMPRESSED)
+        if STORE:
+            # In order for the most recent file not to be processed twice,
+            # we store the data from this file into the visibility database
+            # now that we have the readable file available
+            self.storeHistoricalDataFromFile(mostRecent_readable, True, RIBfiles, COMPRESSED)
 
         # We then load the data structures
         date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
@@ -192,12 +193,13 @@ class BGPDataHandler:
 
         sys.stderr.write("Class data structures were loaded successfully!\n")
 
-        # Finally, we store the routing data from the rest of the routing files
-        # from the archive, providing the name of the most recent file in order
-        # for it to be skipped.
-        self.storeHistoricalData(historical_files, mostRecent_routing_file, 
-                                 READABLE, RIBfiles, COMPRESSED)
-        sys.stderr.write("Historical data inserted into visibility database successfully!\n")
+        if STORE:
+            # Finally, we store the routing data from the rest of the routing files
+            # from the archive, providing the name of the most recent file in order
+            # for it to be skipped.
+            self.storeHistoricalData(historical_files, mostRecent_routing_file, 
+                                     READABLE, RIBfiles, COMPRESSED)
+            sys.stderr.write("Historical data inserted into visibility database successfully!\n")
         
         return True
 
@@ -272,20 +274,20 @@ class BGPDataHandler:
         for prefix in prefixes:
             self.visibilityDB.storePrefixSeen(prefix, date)
         
-        for asn in originASes:
-            if asn is None or asn == 'nan':
+        for originAS in originASes:
+            if originAS is None or originAS == 'nan':
                 continue
-            elif '{' in str(asn):
+            elif '{' in str(originAS):
                 # If the asn field contains a bracket ({}), there is an as-set
                 # in first place in the AS path, therefore, we split it
                 # (leaving the brackets out) and consider each AS separately.
-                asnList = asn.replace('{', '').replace('}', '').split(',')
+                asnList = originAS.replace('{', '').replace('}', '').split(',')
                 for asn in asnList:
                     asn = int(asn)
                     self.visibilityDB.storeASSeen(asn, True, date)
             else:
-                asn = int(asn)
-                self.visibilityDB.storeASSeen(asn, True, date)
+                originAS = int(originAS)
+                self.visibilityDB.storeASSeen(originAS, True, date)
                 
         for asn in middleASes:
             if asn is None or asn == 'nan':
@@ -571,14 +573,14 @@ class BGPDataHandler:
                             ASes_propagated_prefixes_dic[asn] = prefixes
                 
             for originAS, originAS_subset in bgp_df.groupby('originAS'):
-                if asn is None or asn == 'nan':
+                if originAS is None or originAS == 'nan':
                     continue
-                elif '{' in str(asn):
+                elif '{' in str(originAS):
                     # If the asn field contains a bracket ({}), there is an as-set
                     # in first place in the AS path, therefore, we split it
                     # (leaving the brackets out) and consider each AS separately.
-                    asnList = asn.replace('{', '').replace('}', '').split(',')
-                    for asn in asnList:
+                    asnList = originAS.replace('{', '').replace('}', '').split(',')
+                    for originAS in asnList:
                         originAS = int(originAS)
                         ASes_originated_prefixes_dic[originAS] = set(originAS_subset['prefix'])
                 else:
