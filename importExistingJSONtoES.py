@@ -60,7 +60,7 @@ def inputData(es, index_name, bulk_data, numOfDocs):
     # check data is in there, and structure in there
     try:
         es.indices.get_mapping(index = index_name)
-        if es.count('delegated_stats_index') == numOfDocs:
+        if es.count(index_name)['count'] == numOfDocs:
             return True
         else:
             return False
@@ -120,10 +120,10 @@ def main(argv):
                                     "type" : "integer"
                                                     },
                                 "IPCount" : {
-                                    "type" : "integer"
+                                    "type" : "long"
                                             },
                                 "IPSpace" : {
-                                    "type" : "integer"
+                                    "type" : "long"
                                             }
                                         }
                                     }
@@ -160,8 +160,7 @@ def main(argv):
     if host != '':
         es = connect(host)
         createIndex(es, delStats_mapping, del_stats_index_name)
-        existingDocs = es.search(body={"query": {"match_all": {}}}, index = del_stats_index_name)
-        numOfDocs = len(existingDocs['hits']['hits'])
+        numOfDocs = es.count(del_stats_index_name)['count']
                 
         for json_file in os.listdir(files_path):
             if json_file.endswith(".json"):
