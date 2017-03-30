@@ -10,27 +10,28 @@ import hashlib
 import pandas as pd
 import elasticsearch
 
-def connect(host, user, password):
+def connect(host):
     # configure elasticsearch
 	config = {
-         'host': host,
-         'user': user,
-         'password': password
+         'host': host
 	}
 	return elasticsearch.Elasticsearch([config,], timeout=300)
 
 def createIndex(es, mapping_dict, index_name):
-    request_body = {
-	    "settings" : {
-	        "number_of_shards": 5,
-	        "number_of_replicas": 1
-	    },
-
-	    'mappings': mapping_dict
-	}
-
-    print("creating {} index...".format(index_name))
-    es.indices.create(index = index_name, body = request_body)
+    try:
+        es.search(body={"query": {"match_all": {}}}, index = index_name)
+    except elasticsearch.exceptions.NotFoundError:
+        request_body = {
+    	    "settings" : {
+    	        "number_of_shards": 5,
+    	        "number_of_replicas": 1
+    	    },
+    
+    	    'mappings': mapping_dict
+         }
+    
+        print("creating {} index...".format(index_name))
+        es.indices.create(index = index_name, body = request_body)
 
 def prepareData(data_for_es, index_name, index_type):
     bulk_data = []
@@ -55,11 +56,13 @@ def prepareData(data_for_es, index_name, index_type):
 def inputData(es, index_name, bulk_data):
     es.bulk(index = index_name, body = bulk_data)
 
-#The <TOKEN> is computed as base64(USERNAME:PASSWORD)
-
     # check data is in there, and structure in there
-    es.search(body={"query": {"match_all": {}}}, index = index_name)
-    es.indices.get_mapping(index = index_name)
+    try:
+        es.search(body={"query": {"match_all": {}}}, index = index_name)
+        es.indices.get_mapping(index = index_name)
+        return True
+    except elasticsearch.exceptions.NotFoundError:
+        return False
  
 
 def hashFromColValue(col_value):
@@ -83,8 +86,8 @@ def main(argv):
 
     files_path = ''
     host = ''
-    user = ''
-    password = ''
+#    user = ''
+#    password = ''
     
     # Mapping for stats about delegations
     delStats_mapping = {"_default_" : {
@@ -143,32 +146,34 @@ def main(argv):
     del_stats_index_type = 'id'
     
     try:
-        opts, args = getopt.getopt(argv, "hp:H:u:P:", ["files_path=", "host=", "user=", "password="])
+        opts, args = getopt.getopt(argv, "hp:H:", ["files_path=", "host="])
     except getopt.GetoptError:
-        print 'Usage: importExistingJSONtoES.py -h | -p <files path> -H <Elasticsearch host> -u <ElasticSearch user> -P <ElasticSearch password>'
+        print 'Usage: importExistingJSONtoES.py -h | -p <files path> -H <Elasticsearch host>'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script stores into ElasticSearch the statistics contained in the JSON files in the provided folder."
-            print 'Usage: importExistingJSONtoES.py -h | -p <files path> -H <Elasticsearch host> -u <ElasticSearch user> -P <ElasticSearch password>'
+            print 'Usage: importExistingJSONtoES.py -h | -p <files path> -H <Elasticsearch host>'
             print 'h = Help'
             print "p = Path to folder containing JSON files. (MANDATORY)"
             print "H = Host running Elasticsearch. (MANDATORY)"
-            print "u = User to save stats to ElasticSearch. (MANDATORY)"
-            print "P = Password to save to stats to ElasticSearch. (MANDATORY)"
+#            print "u = User to save stats to ElasticSearch. (MANDATORY)"
+#            print "P = Password to save to stats to ElasticSearch. (MANDATORY)"
             sys.exit()
         elif opt == '-p':
             files_path = arg
         elif opt == '-H':
             host = arg
-        elif opt == '-u':
-            user = arg
-        elif opt == '-P':
-            password = arg
+#        elif opt == '-u':
+#            user = arg
+#        elif opt == '-P':
+#            password = arg
         else:
             assert False, 'Unhandled option'
 
-    if host != '' and user != '' and password != '':
+    if host != '':
+        es = connect(host)
+        createIndex(es, delStats_mapping, del_stats_index_name)
         for json_file in os.listdir(files_path):
             if json_file.endswith(".json"):
                 plain_df = pd.read_json('%s/%s' % (files_path, json_file), orient = 'index').reset_index()
@@ -184,18 +189,18 @@ def main(argv):
                 plain_df = plain_df[plain_df['ResourceType'] != 'All']
                 plain_df = plain_df[plain_df['Status'] != 'All']
                 
-                es = connect(host, user, password)
-                createIndex(es, delStats_mapping, del_stats_index_name)
                 preparePlainDF(plain_df)
                 bulk_data = prepareData(plain_df, del_stats_index_name,\
                                         del_stats_index_type)
-                inputData(es, del_stats_index_name, bulk_data)
+                dataImported = inputData(es, del_stats_index_name, bulk_data)
                 
-                # TODO Check if success
-                sys.stderr.write("Stats from file %s saved to ElasticSearch successfully!\n" % json_file)
+                if dataImported:
+                    sys.stderr.write("Stats from file %s saved to ElasticSearch successfully!\n" % json_file)
+                else:
+                    sys.stderr.write("Stats from file %s could not be saved to ElasticSearch.\n" % json_file)
 
     else:
-        print "Host, User and Password for ElasticSearch MUST be provided."
+        print "A host in which ElasticSearch is running MUST be provided."
         sys.exit()
 
         
