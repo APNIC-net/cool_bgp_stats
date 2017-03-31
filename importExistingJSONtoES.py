@@ -56,7 +56,8 @@ def prepareData(data_for_es, index_name, doc_type, numOfDocs):
      
 def inputData(es, index_name, bulk_data, numOfDocs):
     helpers.bulk(es, bulk_data)
-
+    es.indices.refresh(index_name)
+    
     # check data is in there, and structure in there
     try:
         es.indices.get_mapping(index = index_name)
@@ -165,19 +166,23 @@ def main(argv):
         for json_file in os.listdir(files_path):
             if json_file.endswith(".json"):
                 plain_df = pd.read_json('%s/%s' % (files_path, json_file), orient = 'index').reset_index()
-                plain_df['GeographicArea'] = plain_df['Geographic Area']
-                del plain_df['Geographic Area']
-                plain_df = plain_df.fillna(-1)
+                if len(plain_df) > 0:
+                    plain_df['GeographicArea'] = plain_df['Geographic Area']
+                    del plain_df['Geographic Area']
+                    plain_df = plain_df.fillna(-1)
+    
+                    bulk_data, numOfDocs = prepareData(plain_df, del_stats_index_name,
+                                                        del_stats_doc_type, numOfDocs)
+                                                        
+                    dataImported = inputData(es, del_stats_index_name, bulk_data, numOfDocs)
+    
+                    if dataImported:
+                        sys.stderr.write("Stats from file %s saved to ElasticSearch successfully!\n" % json_file)
+                    else:
+                        sys.stderr.write("Stats from file %s could not be saved to ElasticSearch.\n" % json_file)
 
-                bulk_data, numOfDocs = prepareData(plain_df, del_stats_index_name,
-                                                    del_stats_doc_type, numOfDocs)
-                                                    
-                dataImported = inputData(es, del_stats_index_name, bulk_data, numOfDocs)
-
-                if dataImported:
-                    sys.stderr.write("Stats from file %s saved to ElasticSearch successfully!\n" % json_file)
                 else:
-                    sys.stderr.write("Stats from file %s could not be saved to ElasticSearch.\n" % json_file)
+                    sys.stderr.write("Stats file %s empty.\n" % json_file)
 
     else:
         print "A host in which ElasticSearch is running MUST be provided."
