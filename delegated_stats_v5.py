@@ -8,10 +8,7 @@ import sys, getopt
 import numpy as np
 import pandas as pd
 import datetime, time
-import requests
-import json
-import hashlib
-import getpass
+from ElasticSearchImporter import ElasticSearchImporter
    
 # This function computes all the statistics for all the dates included in a given
 # subset from a DataFrame, which contains info about delegations (delegated_subset),
@@ -62,57 +59,6 @@ def computeStatistics(del_handler, stats_filename):
                 for s, status_res_df in res_df.groupby(res_df['status']): 
                     computation_loop(status_res_df, region, r, s, org, stats_filename)
     
-def hashFromColValue(col_value):
-    return hashlib.md5(col_value).hexdigest()
-
-# This function saves a data frame with stats into ElasticSearch
-def saveDFToElasticSearch(plain_df, user, password):
-    es_host = 'localhost'
-    index_name = 'delegated_stats'
-    index_type = 'id'
-    
-    # We create an id that is unique for a certain combination of Geographic Area,
-    # Resource Type, Status and Organization
-    plain_df['multiindex_comb'] = plain_df['GeographicArea'] +\
-                                    plain_df['ResourceType'] +\
-                                    plain_df['Status'] +\
-                                    plain_df['Organization']
-                                    
-    plain_df['index'] = plain_df['multiindex_comb'].apply(hashFromColValue)
-    plain_df['_id'] = plain_df['Date'].astype('str') + '_' + plain_df['index'].astype('str')
-    del plain_df['index']
-    del plain_df['multiindex_comb']
-    # We convert the DataFrame to JSON format    
-    df_as_json = plain_df.to_json(orient='records', lines=True)
-
-    final_json_string = ''
-    # For each line of the generated json, we add the corresponding header line
-    # with meta data
-    for json_document in df_as_json.split('\n'):
-        jdict = json.loads(json_document)
-        # Header line
-        metadata = json.dumps({'index': {'_index': index_name,\
-                                        '_type': index_type,\
-                                        '_id': jdict['_id']}})
-        jdict.pop('_id')
-        final_json_string += metadata + '\n' + json.dumps(jdict) + '\n'
-    
-    # We finally post the generated JSON data to ElasticSearch
-    headers = {'Content-type': 'application/json', 'Accept': 'text/plain'}
-    r = requests.post('http://%s:9200/%s/%s/_bulk' % (es_host, index_name, index_type), data=final_json_string, headers=headers, timeout=60) 
-    
-    if (r.status_code == 401):
-        if user == '' and password == '':
-            print("Authentication needed. Please enter your username and password")
-            user = raw_input("Username: ")
-            password = getpass.getpass("Password: ")
-
-        r = requests.post('http://%s:9200/%s/%s/_bulk' %\
-                            (es_host, index_name, index_type),\
-                            data=final_json_string, headers=headers,\
-                            timeout=60, auth=(user, password)) 
-    
-    return r
 
 def main(argv):    
     DEBUG = False
@@ -123,19 +69,18 @@ def main(argv):
     files_path = ''
     INCREMENTAL = False
     stats_file = ''
-    user = ''
-    password = ''
+    host = ''
     KEEP = False
     
     try:
-        opts, args = getopt.getopt(argv, "hp:D:Ud:eki:u:P:", ["files_path=", "Date=", "del_file=", "stats_file=", "user=", "Password="])
+        opts, args = getopt.getopt(argv, "hp:D:Ud:eki:H:", ["files_path=", "Date=", "del_file=", "stats_file=", "ES_host="])
     except getopt.GetoptError:
-        print 'Usage: delegatd_stats_v5.py -h | -p <files path [-D <Date>] [-U] [-d <delegated file>] [-e] [-k] [-i <stats file>] [-u <ElasticSearch user> -P <ElasticSearch password>]'
+        print 'Usage: delegatd_stats_v5.py -h | -p <files path [-D <Date>] [-U] [-d <delegated file>] [-e] [-k] [-i <stats file>] [-H <ElasticSearch host>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
-            print "This script computes daily statistics from one of the delegated files provided by the RIRs"
-            print 'Usage: delegatd_stats_v5.py -h | -p <files path [-D <Date>] [-U] [-d <delegated file>] [-e] [-k] [-i <stats file>] [-u <ElasticSearch user> -P <ElasticSearch password>]'
+            print "This script computes daily statistics from a delegated file provided by APNIC"
+            print 'Usage: delegatd_stats_v5.py -h | -p <files path [-D <Date>] [-U] [-d <delegated file>] [-e] [-k] [-i <stats file>] [-H <ElasticSearch host>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
             print 'D = Date in format YYYY or YYYYmm or YYYYmmdd. Date for which or until which to compute stats.'
@@ -147,8 +92,7 @@ def main(argv):
             print "k = Keep. Keep downloaded files."
             print "i = Incremental. Compute incremental statistics from existing stats file (CSV)."
             print "If option -i is used, a statistics file MUST be provided."
-            print "u = User to save stats to ElasticSearch."
-            print "P = Password to save to stats to ElasticSearch."
+            print "H = Host. The host in which Elasticsearch is running and into which the computed stats will be inserted."
             sys.exit()
         elif opt == '-D':
             date = arg
@@ -166,10 +110,8 @@ def main(argv):
         elif opt == '-i':
             INCREMENTAL = True
             stats_file = arg
-        elif opt == '-u':
-            user = arg
-        elif opt == '-P':
-            password = arg
+        elif opt == '-H':
+            host = arg
         else:
             assert False, 'Unhandled option'
             
@@ -246,14 +188,35 @@ def main(argv):
         sys.stderr.write("Stats saved to JSON file successfully!\n")
         sys.stderr.write("Files generated:\n{}\nand\n{})\n".format(stats_file, json_filename))
         
-        if user != '' and password != '':
-            r = saveDFToElasticSearch(stats_df, user, password)
-            status_code = r.status_code
-            if status_code == 200:
-                sys.stderr.write("Stats saved to ElasticSearch successfully!\n")
+        if host != '':
+            del_stats_index_name = 'delegated_stats_index'
+            del_stats_doc_type = 'delegated_stats'
+            
+            esImporter = ElasticSearchImporter()
+            es = esImporter.connect(host)
+            numOfDocs = es.count(del_stats_index_name)['count']
+            
+            if INCREMENTAL:
+                plain_df = stats_df[stats_df['Date'] > final_existing_date]
             else:
-                print "Something went wrong when trying to save stats to ElasticSearch.\n"
-
-        
+                plain_df = stats_df
+            
+            plain_df['GeographicArea'] = plain_df['Geographic Area']
+            del plain_df['Geographic Area']
+            plain_df = plain_df.fillna(-1)
+    
+            bulk_data, numOfDocs = esImporter.prepareData(es, plain_df,
+                                                          del_stats_index_name,
+                                                          del_stats_doc_type,
+                                                          numOfDocs)
+                                                
+            dataImported = esImporter.inputData(es, del_stats_index_name,
+                                                bulk_data, numOfDocs)
+    
+            if dataImported:
+                sys.stderr.write("Stats about delegations for the dates {} saved to ElasticSearch successfully!\n".format(dateStr))
+            else:
+                sys.stderr.write("Stats about delegations for the dates {} could not be saved to ElasticSearch.\n".format(dateStr))
+            
 if __name__ == "__main__":
     main(sys.argv[1:])
