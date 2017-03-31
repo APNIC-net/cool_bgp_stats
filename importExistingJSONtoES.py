@@ -31,26 +31,46 @@ def createIndex(es, mapping_dict, index_name):
     es.indices.create(index = index_name, body = request_body, ignore=400)
     es.indices.refresh(index = index_name)
 
-def prepareData(data_for_es, index_name, doc_type, numOfDocs):
+def prepareData(es, data_for_es, index_name, doc_type, numOfDocs):
     bulk_data = []
     
     for index, row in data_for_es.iterrows():
         data_dict = {}
-
+        
         for i in range(len(row)):
             data_dict[data_for_es.columns[i]] = row[i]
 
-        op_dict = {
-                "_op_type": "index",
-                "_index": index_name,
-                "_type": doc_type,
-                "_id": numOfDocs,
-                "_source": data_dict
-                    }  
+        if len(res = es.search(index=index_name, doc_type=doc_type,
+                               body={'query':{
+                                       'bool':{
+                                           'must':[{
+                                               'match':{
+                                                   'ResourceType':data_dict['ResourceType']
+                                                       }}, {
+                                                'match':{
+                                                    'Date':data_dict['Date']
+                                                        }}, {
+                                                'match':{
+                                                    'Organization':data_dict['Organization']
+                                                        }}, {
+                                                'match':{
+                                                    'GeographicArea':data_dict['GeographicArea']
+                                                        }}, {
+                                                'match':{
+                                                    'Status':data_dict['Status']
+                                                        }}]}}})) == 0:
 
-        numOfDocs += 1
+            op_dict = {
+                    "_op_type": "index",
+                    "_index": index_name,
+                    "_type": doc_type,
+                    "_id": numOfDocs,
+                    "_source": data_dict
+                        }  
+    
+            numOfDocs += 1
 
-        bulk_data.append(op_dict)
+            bulk_data.append(op_dict)
 
     return bulk_data, numOfDocs
      
@@ -171,7 +191,7 @@ def main(argv):
                     del plain_df['Geographic Area']
                     plain_df = plain_df.fillna(-1)
     
-                    bulk_data, numOfDocs = prepareData(plain_df, del_stats_index_name,
+                    bulk_data, numOfDocs = prepareData(es, plain_df, del_stats_index_name,
                                                         del_stats_doc_type, numOfDocs)
                                                         
                     dataImported = inputData(es, del_stats_index_name, bulk_data, numOfDocs)
