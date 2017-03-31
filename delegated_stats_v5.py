@@ -192,9 +192,8 @@ def main(argv):
             del_stats_index_name = 'delegated_stats_index'
             del_stats_doc_type = 'delegated_stats'
             
-            esImporter = ElasticSearchImporter()
-            es = esImporter.connect(host)
-            numOfDocs = es.count(del_stats_index_name)['count']
+            esImporter = ElasticSearchImporter(host)
+            numOfDocs = esImporter.ES.count(del_stats_index_name)['count']
             
             if INCREMENTAL:
                 plain_df = stats_df[stats_df['Date'] > final_existing_date]
@@ -205,12 +204,12 @@ def main(argv):
             del plain_df['Geographic Area']
             plain_df = plain_df.fillna(-1)
     
-            bulk_data, numOfDocs = esImporter.prepareData(es, plain_df,
+            bulk_data, numOfDocs = esImporter.prepareData(plain_df,
                                                           del_stats_index_name,
                                                           del_stats_doc_type,
                                                           numOfDocs)
                                                 
-            dataImported = esImporter.inputData(es, del_stats_index_name,
+            dataImported = esImporter.inputData(del_stats_index_name,
                                                 bulk_data, numOfDocs)
     
             if dataImported:
