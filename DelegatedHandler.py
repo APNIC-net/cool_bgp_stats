@@ -20,7 +20,7 @@ class DelegatedHandler:
     delegated_df = pd.DataFrame()
     fullASN_df = pd.DataFrame()    
 
-    def __init__(self, DEBUG, EXTENDED, del_file, date, UNTIL, INCREMENTAL, final_existing_date, KEEP):
+    def __init__(self, DEBUG, EXTENDED, del_file, startDate, endDate, INCREMENTAL, final_existing_date, KEEP):
          
         if EXTENDED:
             download_url = 'ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-extended-latest'
@@ -46,12 +46,14 @@ class DelegatedHandler:
                             'status'
                         ]
         
-        self.getAndTidyData(DEBUG, EXTENDED, download_url, del_file, col_names,\
-                                date, UNTIL, INCREMENTAL, final_existing_date, KEEP)
-        sys.stderr.write("DelegatedHandler instantiated and loaded successfully!\n")
+        dataOK = self.getAndTidyData(DEBUG, EXTENDED, download_url, del_file, col_names,
+                                startDate, endDate, INCREMENTAL, final_existing_date,
+                                KEEP)
+        if dataOK:
+            sys.stderr.write("DelegatedHandler instantiated and loaded successfully!\n")
     
     def getAndTidyData(self, DEBUG, EXTENDED, download_url, del_file, col_names,\
-                        date, UNTIL, INCREMENTAL, final_existing_date, KEEP):
+                        startDate, endDate, INCREMENTAL, final_existing_date, KEEP):
                             
         summary_records = pd.DataFrame()
         AP_regions = ['Eastern Asia', 'Oceania', 'Southern Asia', 'South-Eastern Asia']
@@ -109,44 +111,53 @@ class DelegatedHandler:
         # We filter out the rows corresponding to today as there may be missing
         # delegations.
         # The delegations made today will be considered tomorrow :)
-        delegated_df = delegated_df[delegated_df['date'] < datetime.date.today()]
+        today = datetime.date.today()
+        delegated_df = delegated_df[delegated_df['date'] < today]
         
         
-        if date != '':  
+        if startDate != '':  
             try:
-                year = int(date[0:4])
+                startYear = startDate[0:4]
             except ValueError:
-                year = ''
+                print 'ERROR when parsing start date!\n'
+                return False
             try:
-                month = int(date[4:6])
+                startMonth = startDate[4:6]
             except ValueError:
-                month = ''
+                startDate = datetime.datetime.strptime(startYear, '%Y')
             try:
-                day = int(date[6:8])
+                startDay = startDate[6:8]
+                startDate = datetime.datetime.strptime('{}{}{}'.format(startYear, startMonth, startDay), '%Y%m%d')
             except ValueError:
-                day = ''
-        else:
-            year = ''
-            month = ''
-            day = ''
-        
-        if UNTIL:
-            delegated_df = delegated_df[delegated_df['date'] <= pd.to_datetime(date)]
+                startDate = datetime.datetime.strptime('{}{}'.format(startYear, startMonth), '%Y%m')
             
-        elif year != '':
-            # We take the subset corresponding to the year of interest
-            delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.year) == year]
+            delegated_df = delegated_df[delegated_df['date'] >= startDate]
+
+        todayStr = today.strftime('%Y%m%d')
+
+        if endDate == '':
+            endDate = todayStr
             
-            if month != '':
-                # We take the subset corresponding to the month of interest
-                delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.month) == month]
-    
-            if day != '':
-                # We take the subset corresponding to the day of interest
-                delegated_df = delegated_df[delegated_df['date'].map(lambda x: x.day) == day]        
+        try:
+            endYear = endDate[0:4]
+        except ValueError:
+            print 'ERROR when parsing end date!\n'
+            return False
+        try:
+            endMonth = endDate[4:6]
+        except ValueError:
+            endDate = datetime.datetime.strptime(endYear, '%Y')
+        try:
+            endDay = endDate[6:8]
+            endDate = datetime.datetime.strptime('{}{}{}'.format(endYear, endMonth, endDay), '%Y%m%d')            
+        except ValueError:
+            endDate = datetime.datetime.strptime('{}{}'.format(endYear, endMonth), '%Y%m')
+
+        delegated_df = delegated_df[delegated_df['date'] <= endDate]            
             
         if delegated_df.empty:
-            return pd.DataFrame()
+            print 'Data Frame is empty after aplying filters!\n'
+            return False
             
         if DEBUG:
             specific_subset = delegated_df[(delegated_df['initial_resource'] == '2001:df2:ce00::') | (delegated_df['initial_resource'] == '2001:df2:ca00::') | (delegated_df['initial_resource'] == '2001:df3:5c00::')]
@@ -158,7 +169,8 @@ class DelegatedHandler:
         if INCREMENTAL:
             delegated_df = delegated_df[delegated_df['date'] > pd.to_datetime(final_existing_date)]
             if delegated_df.empty:
-                return pd.DataFrame()
+                print 'Data Frame is empty after aplying filters!\n'
+                return False
             
         delegated_df.ix[pd.isnull(delegated_df.cc), 'cc'] = 'XX'
         CCs = list(set(delegated_df['cc'].values))    
@@ -267,6 +279,8 @@ class DelegatedHandler:
                 os.remove(del_file)
             except OSError:
                 pass
+        
+        return True
         
     # This function returns a DataFrame with all the blocks delegated and all
     # the blocks delegated to an organization summarized as much as possible

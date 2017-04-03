@@ -63,8 +63,8 @@ def computeStatistics(del_handler, stats_filename):
 def main(argv):    
     DEBUG = False
     EXTENDED = False
-    date = ''
-    UNTIL = False
+    startDate = ''
+    endDate = ''
     del_file = ''
     files_path = ''
     INCREMENTAL = False
@@ -73,18 +73,18 @@ def main(argv):
     KEEP = False
     
     try:
-        opts, args = getopt.getopt(argv, "hp:D:Ud:eki:H:", ["files_path=", "Date=", "del_file=", "stats_file=", "ES_host="])
+        opts, args = getopt.getopt(argv, "hp:S:E:d:eki:H:", ["files_path=", "StartDate=", "EndDate=", "del_file=", "stats_file=", "ES_host="])
     except getopt.GetoptError:
-        print 'Usage: delegatd_stats_v5.py -h | -p <files path [-D <Date>] [-U] [-d <delegated file>] [-e] [-k] [-i <stats file>] [-H <ElasticSearch host>]'
+        print 'Usage: delegatd_stats_v5.py -h | -p <files path [-S <Start Date>] [-E <End Date>] [-d <delegated file>] [-e] [-k] [-i <stats file>] [-H <ElasticSearch host>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes daily statistics from a delegated file provided by APNIC"
-            print 'Usage: delegatd_stats_v5.py -h | -p <files path [-D <Date>] [-U] [-d <delegated file>] [-e] [-k] [-i <stats file>] [-H <ElasticSearch host>]'
+            print 'Usage: delegatd_stats_v5.py -h | -p <files path [-S <Start Date>] [-E <End Date>] [-d <delegated file>] [-e] [-k] [-i <stats file>] [-H <ElasticSearch host>]'
             print 'h = Help'
             print "p = Path to folder in which files will be saved. (MANDATORY)"
-            print 'D = Date in format YYYY or YYYYmm or YYYYmmdd. Date for which or until which to compute stats.'
-            print 'U = Until. If the -U option is used the Date provided will be used to filter all the delegations until this date.'
+            print 'S = Start Date in format YYYY or YYYYmm or YYYYmmdd. Start date of the period of time for which to compute stats.'
+            print 'E = End Date in format YYYY or YYYYmm or YYYYmmdd. End date of the period of time for which to compute stats.'
             print 'd = DEBUG mode. Provide path to delegated file. If not in DEBUG mode the latest delegated file will be downloaded from ftp://ftp.apnic.net/pub/stats/apnic'
             print 'e = Use Extended file'
             print "If option -e is used in DEBUG mode, delegated file must be a extended file."
@@ -94,10 +94,10 @@ def main(argv):
             print "If option -i is used, a statistics file MUST be provided."
             print "H = Host. The host in which Elasticsearch is running and into which the computed stats will be inserted."
             sys.exit()
-        elif opt == '-D':
-            date = arg
-        elif opt == '-U':
-            UNTIL = True
+        elif opt == '-S':
+            startDate = arg
+        elif opt == '-E':
+            endDate = arg
         elif opt == '-d':
             DEBUG = True
             del_file = arg
@@ -115,12 +115,12 @@ def main(argv):
         else:
             assert False, 'Unhandled option'
             
-    if date != '' and not (len(date) == 4 or len(date) == 6 or len(date) == 8):
+    if startDate != '' and not (len(startDate) == 4 or len(startDate) == 6 or len(startDate) == 8):
         print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
         sys.exit()
-    
-    if UNTIL and len(date) != 8:
-        print 'If you use the -U option, you MUST provide a full date in format YYYYmmdd'
+
+    if endDate != '' and not (len(endDate) == 4 or len(endDate) == 6 or len(endDate) == 8):
+        print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
         sys.exit()
 
     if DEBUG and del_file == '':
@@ -134,12 +134,12 @@ def main(argv):
             
     today = datetime.date.today().strftime('%Y%m%d')
     
-    if date == '':
-        dateStr = 'AllDates'
-    elif UNTIL:
-        dateStr = 'UNTIL{}'.format(date)
-    else:
-        dateStr = date
+    if endDate == '':
+        endDate = today
+    
+    dateStr = 'UNTIL{}'.format(endDate)
+    if startDate != '':
+        dateStr = 'SINCE{}{}'.format(startDate, dateStr)
     
     if not DEBUG:
         file_name = '%s/delegated_stats_%s' % (files_path, dateStr)
@@ -171,7 +171,7 @@ def main(argv):
         with open(stats_file, 'w') as csv_file:
             csv_file.write('Geographic Area,ResourceType,Status,Organization,Date,NumOfDelegations,NumOfResources,IPCount,IPSpace\n')
         
-    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, date, UNTIL,\
+    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, startDate, endDate,
                                     INCREMENTAL, final_existing_date, KEEP)
         
     if not del_handler.delegated_df.empty:
