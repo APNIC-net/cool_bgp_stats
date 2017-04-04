@@ -981,6 +981,8 @@ def main(argv):
             print "Error when parsing start date.\n"
             print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
             sys.exit()
+    else:
+        startDate_date = ''
 
     today = date.today()
 
