@@ -23,7 +23,6 @@ class BGPDataHandler:
     DEBUG = False
     files_path = ''
     KEEP = False
-    visibilityDB = VisibilityDBHandler()
   
     # STRUCTURES WITH CURRENT ROUTING DATA
     # Radix indexed by routed IPv4 prefix containing the routing data from the
@@ -286,8 +285,10 @@ class BGPDataHandler:
         prefixes, originASes, middleASes, date =\
                         self.getPrefixesASesAndDate(routing_file, isReadable,\
                                                     RIBfile, COMPRESSED)
+        visibilityDB = VisibilityDBHandler(date)
+
         for prefix in prefixes:
-            self.visibilityDB.storePrefixSeen(prefix, date)
+            visibilityDB.storePrefixSeen(prefix, date)
         
         for originAS in originASes:
             if originAS is None or originAS == 'nan':
@@ -299,10 +300,10 @@ class BGPDataHandler:
                 asnList = originAS.replace('{', '').replace('}', '').split(',')
                 for asn in asnList:
                     asn = int(asn)
-                    self.visibilityDB.storeASSeen(asn, True, date)
+                    visibilityDB.storeASSeen(asn, True, date)
             else:
                 originAS = int(originAS)
-                self.visibilityDB.storeASSeen(originAS, True, date)
+                visibilityDB.storeASSeen(originAS, True, date)
                 
         for asn in middleASes:
             if asn is None or asn == 'nan':
@@ -310,11 +311,11 @@ class BGPDataHandler:
             elif '{' in str(asn):
                 asnList = asn.replace('{', '').replace('}', '').split(',')
                 for asn in asnList:
-                    self.visibilityDB.storeASSeen(asn, False, date)
+                    visibilityDB.storeASSeen(asn, False, date)
 
             else:
                 asn = int(asn)
-                self.visibilityDB.storeASSeen(asn, False, date)
+                visibilityDB.storeASSeen(asn, False, date)
 
     
     # This function returns a list of prefixes for which the routing_file has
