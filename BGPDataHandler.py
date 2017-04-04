@@ -698,7 +698,12 @@ class BGPDataHandler:
 
         endDate = datetime.strptime('{}{}{}'.format(endYear, endMonth, endDay), '%Y%m%d').date()
         
-        files_list_filename = '%s/RoutingFiles.txt' % self.files_path
+        dateStr = 'UNTIL{}'.format(endDate)
+        
+        if startDate != '':
+            dateStr = 'SINCE{}{}'.format(startDate, dateStr)
+            
+        files_list_filename = '{}/RoutingFiles_{}.txt'.format(self.files_path, dateStr)
         
         files_list_list = []
         
