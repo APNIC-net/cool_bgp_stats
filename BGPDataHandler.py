@@ -685,7 +685,7 @@ class BGPDataHandler:
             startMonth = startDate[4:6]
             
             if startMonth == '':
-                startDate = datetime.strptime(startYear, '%Y')
+                startDate = datetime.strptime(startYear, '%Y').date()
             else:
                 startDay = startDate[6:8]
 
