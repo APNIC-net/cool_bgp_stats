@@ -13,6 +13,7 @@ import ipaddress
 import numpy as np
 import radix
 import datetime
+from calendar import monthrange
 
 
 class DelegatedHandler:
@@ -116,20 +117,18 @@ class DelegatedHandler:
         
         
         if startDate != '':  
-            try:
-                startYear = startDate[0:4]
-            except ValueError:
-                print 'ERROR when parsing start date!\n'
-                return False
-            try:
-                startMonth = startDate[4:6]
-            except ValueError:
+            startYear = startDate[0:4]
+            startMonth = startDate[4:6]
+            
+            if startMonth == '':
                 startDate = datetime.datetime.strptime(startYear, '%Y')
-            try:
+            else:
                 startDay = startDate[6:8]
-                startDate = datetime.datetime.strptime('{}{}{}'.format(startYear, startMonth, startDay), '%Y%m%d')
-            except ValueError:
-                startDate = datetime.datetime.strptime('{}{}'.format(startYear, startMonth), '%Y%m')
+
+                if startDay == '':
+                    startDate = datetime.datetime.strptime('{}{}'.format(startYear, startMonth), '%Y%m').date()
+                else:
+                    startDate = datetime.datetime.strptime('{}{}{}'.format(startYear, startMonth, startDay), '%Y%m%d').date()
             
             delegated_df = delegated_df[delegated_df['date'] >= startDate]
 
@@ -138,20 +137,16 @@ class DelegatedHandler:
         if endDate == '':
             endDate = todayStr
             
-        try:
-            endYear = endDate[0:4]
-        except ValueError:
-            print 'ERROR when parsing end date!\n'
-            return False
-        try:
-            endMonth = endDate[4:6]
-        except ValueError:
-            endDate = datetime.datetime.strptime(endYear, '%Y')
-        try:
+        endYear = endDate[0:4]
+        endMonth = endDate[4:6]
+        
+        if endMonth == '':
+            endMonth = '12'
+            endDay = monthrange(int(endYear), int(endMonth))[1]
+        else:
             endDay = endDate[6:8]
-            endDate = datetime.datetime.strptime('{}{}{}'.format(endYear, endMonth, endDay), '%Y%m%d')            
-        except ValueError:
-            endDate = datetime.datetime.strptime('{}{}'.format(endYear, endMonth), '%Y%m')
+
+        endDate = datetime.datetime.strptime('{}{}{}'.format(endYear, endMonth, endDay), '%Y%m%d').date()
 
         delegated_df = delegated_df[delegated_df['date'] <= endDate]            
             
