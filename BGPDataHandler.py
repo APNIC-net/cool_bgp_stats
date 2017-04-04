@@ -46,7 +46,7 @@ class BGPDataHandler:
     # Numeric variable with the longest IPv6 prefix length
     ipv6_longest_pref = -1  
     
-    mostRecentDate = ''
+    routingDate = ''
          
     # When we instantiate this class we set a boolean variable specifying
     # whether we will be working on DEBUG mode, we also set the variable with
@@ -67,7 +67,7 @@ class BGPDataHandler:
                                 ASes_originated_prefixes_file,\
                                 ASes_propagated_prefixes_file):
      
-        self.mostRecentDate = date
+        self.routingDate = date
         self.ipv4Prefixes_radix = pickle.load(open(ipv4_prefixes_file, "rb"))
         self.ipv6Prefixes_radix = pickle.load(open(ipv6_prefixes_file, "rb"))
         self.ASes_originated_prefixes_dic = pickle.load(open(ASes_originated_prefixes_file, "rb"))
@@ -75,7 +75,7 @@ class BGPDataHandler:
         self.setLongestPrefixLengths()
         sys.stderr.write("Class data structures were loaded successfully!\n")
         return True
-        
+    
     # This function processes the routing data contained in the files to which
     # the URLs in the urls_file point, and loads the data structures of the class
     # with the results from this processing
@@ -87,7 +87,7 @@ class BGPDataHandler:
                                                 isList=False, containsURLs=True,\
                                                 RIBfiles=RIBfiles, areReadable=READABLE)
                     
-        self.mostRecentDate = date
+        self.routingDate = date
         self.ipv4Prefixes_radix = ipv4Prefixes_radix
         self.ipv6Prefixes_radix = ipv6Prefixes_radix
         self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
@@ -104,7 +104,7 @@ class BGPDataHandler:
 
         sys.stderr.write("Class data structures were loaded successfully!\n")
         return True
-                                                
+
     # This function processes the routing data contained in the routing_file
     # and loads the data structures of the class with the results from this processing                                           
     def loadStructuresFromRoutingFile(self, routing_file, READABLE, RIBfile, COMPRESSED):
@@ -119,7 +119,7 @@ class BGPDataHandler:
                 ipv4_longest_pref, ipv6_longest_pref =\
                                     self.processReadableDF(readable_file_name)
         
-            self.mostRecentDate = date              
+            self.routingDate = date              
             self.ipv4Prefixes_radix = ipv4Prefixes_radix
             self.ipv6Prefixes_radix = ipv6Prefixes_radix
             self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
@@ -140,42 +140,44 @@ class BGPDataHandler:
             sys.stderr.write("Could not process routing file.\n")
             return False
 
-    
+    # Todo lo que tiene que ver con insertar en la BD sacarlo a una función aparte
     # This function processes the routing data contained in the archive folder
     # provided corresponding to dates older than the endDate provided,
     # and loads the data structures of the class and stores the historical info
     # into the database with the results from this processing       
-    def loadStructuresFromArchive(self, archive_folder, extension, startDate,
-                                    endDate, READABLE, RIBfiles, COMPRESSED, STORE):
+    def loadStructuresFromArchive(self, archive_folder, extension, routing_date,
+                                  READABLE, RIBfiles, COMPRESSED):
+                                      
         historical_files = self.getPathsToHistoricalData(archive_folder,
-                                                         extension, startDate,
-                                                         endDate)
+                                                         extension, '', '')
         
         if historical_files == '':
             sys.stderr.write("Archive is empty!\n")
             return False
-
-        mostRecent_routing_file  =\
+        
+        if routing_date == '':
+            routing_file  =\
                         self.getMostRecentFromHistoricalList(historical_files)
-        if not READABLE:
-            mostRecent_readable = self.getReadableFile(mostRecent_routing_file,\
-                                                        False, RIBfiles, COMPRESSED)
         else:
-            mostRecent_readable = mostRecent_routing_file
-
-        if STORE:
-            # In order for the most recent file not to be processed twice,
-            # we store the data from this file into the visibility database
-            # now that we have the readable file available
-            self.storeHistoricalDataFromFile(mostRecent_readable, True, RIBfiles, COMPRESSED)
+            routing_file = self.getSpecificFileFromHistoricalList(historical_files,
+                                                                  routing_date)
+            if routing_file == '':
+                sys.stderr.write("There is no routing file in the archive for the date provided.\n")
+                return False
+            
+        if not READABLE:
+            routing_file_readable = self.getReadableFile(routing_file, False,
+                                                         RIBfiles, COMPRESSED)
+        else:
+            routing_file_readable = routing_file
 
         # We then load the data structures
         date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref =\
-                                self.processReadableDF(mostRecent_readable)
+                                self.processReadableDF(routing_file_readable)
         
-        self.mostRecentDate = date
+        self.routingDate = date
         self.ipv4Prefixes_radix = ipv4Prefixes_radix
         self.ipv6Prefixes_radix = ipv6Prefixes_radix
         self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
@@ -193,16 +195,34 @@ class BGPDataHandler:
 
         sys.stderr.write("Class data structures were loaded successfully!\n")
 
-        if STORE:
-            # Finally, we store the routing data from the rest of the routing files
-            # from the archive, providing the name of the most recent file in order
-            # for it to be skipped.
-            self.storeHistoricalData(historical_files, mostRecent_routing_file, 
-                                     READABLE, RIBfiles, COMPRESSED)
-            sys.stderr.write("Historical data inserted into visibility database successfully!\n")
-        
         return True
-
+        
+    def storeHistoricalDataFromArchive(self, archive_folder, extension,\
+                                        READABLE, RIBfiles, COMPRESSED,\
+                                        startDate, endDate):
+        historical_files = self.getPathsToHistoricalData(archive_folder,
+                                                         extension, startDate,
+                                                         endDate)
+        if historical_files == '':
+            sys.stderr.write("There are no routing files in the archive that meet the criteria (extension and period of time).")
+        else:
+            self.storeHistoricalData(historical_files, READABLE, RIBfiles, COMPRESSED)
+            sys.stderr.write("Historical data inserted into visibility database successfully!\n")
+   
+    # This function returns a path to the routing file from the provided list 
+    # of historical files corresponding to the provided date
+    def getSpecificFileFromHistoricalList(self, historical_files, routing_date):
+        files_list_obj = open(historical_files, 'r')
+        
+        for line in files_list_obj:
+            if not line.startswith('#') and line.strip() != '':
+                date = self.getDateFromFileName(line.strip())
+                
+                if date == routing_date:
+                   return line.strip()
+        
+        return ''
+        
     # This function returns a path to the most recent file in the provided list 
     # of historical files
     def getMostRecentFromHistoricalList(self, historical_files):
@@ -242,16 +262,13 @@ class BGPDataHandler:
     # This function stores the routing data from the files listed in the
     # historical_files file skipping the mostRecent routing file provided,
     # as the data contained in this file has already been stored.
-    def storeHistoricalData(self, historical_files, mostRecent, areReadable,
-                            RIBfiles, COMPRESSED):
+    def storeHistoricalData(self, historical_files, areReadable, RIBfiles, COMPRESSED):
 
         files_list_obj = open(historical_files, 'r')
         
         i = 0
         for line in files_list_obj:
             line = line.strip()
-            if line == mostRecent:
-                continue
                     
             if not line.startswith('#') and line != '':
                  # If we work with several routing files
@@ -262,8 +279,6 @@ class BGPDataHandler:
             i += 1
             if self.DEBUG and i > 1:
                 break
-
-    
                     
     # This function stores the routing data from the routing_file provided
     # into the visibility database
@@ -355,7 +370,7 @@ class BGPDataHandler:
         ASes_propagated_prefixes_dic = dict()
         ipv4_longest_pref = -1
         ipv6_longest_pref = -1
-        mostRecentDate = 0
+        routingDate = 0
         
         i = 0
         for line in files_list:
@@ -395,8 +410,8 @@ class BGPDataHandler:
                         ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
                                 self.processReadableDF(readable_file_name)
                 
-                if date > mostRecentDate:
-                    mostRecentDate = date
+                if date > routingDate:
+                    routingDate = date
                     
                 for prefix in ipv4Prefixes_radix_partial.prefixes():
                     node_partial = ipv4Prefixes_radix_partial.search_exact(prefix)
@@ -445,7 +460,7 @@ class BGPDataHandler:
         if not isList:        
             files_list.close()
         
-        return mostRecentDate, ipv4Prefixes_radix, ipv6Prefixes_radix,\
+        return routingDate, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref
         

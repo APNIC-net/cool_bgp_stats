@@ -18,16 +18,17 @@ import numpy as np
 class RoutingStats:
     
     def __init__(self, files_path, DEBUG, KEEP, COMPUTE, EXTENDED, del_file,\
-                date, UNTIL, INCREMENTAL, final_existing_date, file_name):
+                startDate, endDate, routing_date, INCREMENTAL, final_existing_date,\
+                file_name):
                         
         self.bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP)
         
         if COMPUTE: 
-            self.del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, date,\
-                                                UNTIL, INCREMENTAL,\
+            self.del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file,
+                                                startDate, endDate, INCREMENTAL,
                                                 final_existing_date, KEEP)
     
-            self.db_handler = VisibilityDBHandler()
+            self.db_handler = VisibilityDBHandler(routing_date)
             
             self.ASrels = self.getASrelInfo(serial=2, files_path=files_path, KEEP=KEEP)
                             
@@ -176,7 +177,7 @@ class RoutingStats:
                                 self.lessSpec_variables.values()
                 
             other_data_columns = ['prefix', 'del_date', 'resource_type', 'status',
-                                  'opaque_id', 'cc', 'region', 'mostRecentRoutingData_date']
+                                  'opaque_id', 'cc', 'region', 'routing_date']
             
             self.allAttr_pref = other_data_columns + booleanKeys_pref +\
                             valueKeys_pref + counterKeys_pref

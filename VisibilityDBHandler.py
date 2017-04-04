@@ -24,12 +24,16 @@ class VisibilityDBHandler:
     dbname = 'sofia'
     user = 'postgres'
     host = 'localhost'
+    password = 'q1w2e3r4'
+    routing_date = ''
 
-    def __init__(self):
+    def __init__(self, routing_date):
+        self.routing_date = routing_date
+        
         # Try to connect
         try:
-            self.conn = psycopg2.connect("dbname='{}' user='{}' host='{}'"\
-                                    .format(self.dbname, self.user, self.host))
+            self.conn = psycopg2.connect("dbname='{}' user='{}' password='{}' host='{}'"\
+                                    .format(self.dbname, self.user, self.password, self.host))
             self.conn.autocommit = True
             self.cur = self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             psycopg2.extras.register_inet()
@@ -59,11 +63,11 @@ class VisibilityDBHandler:
             self.conn.rollback()
             # Duplicated tuple not inserted into the Prefixes table.
             return False
-            
+
     def getDateFirstSeen(self, prefix):
         try:
-            self.cur.execute("""select dateSeen from prefixes where prefix <<= %s;""",
-                             (psycopg2.extras.Inet(prefix),))
+            self.cur.execute("""select dateSeen from prefixes where prefix <<= %s and dateSeen < %s;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date))
             rows = self.cur.fetchall()
             return min(rows)['dateseen']
         except:
@@ -73,8 +77,8 @@ class VisibilityDBHandler:
             
     def getDateFirstSeenExact(self, prefix):
         try:
-            self.cur.execute("""select dateSeen from prefixes where prefix = %s;""",
-                             (psycopg2.extras.Inet(prefix),))
+            self.cur.execute("""select dateSeen from prefixes where prefix = %s and dateSeen < %s;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date))
             rows = self.cur.fetchall()
             return min(rows)['dateseen']
         except:
@@ -84,8 +88,8 @@ class VisibilityDBHandler:
             
     def getPeriodsSeenExact(self, prefix):
         try:
-            self.cur.execute("""select dateSeen from prefixes where prefix = %s;""",
-                             (psycopg2.extras.Inet(prefix),))
+            self.cur.execute("""select dateSeen from prefixes where prefix = %s and dateSeen < %s;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date))
             rows = self.cur.fetchall()
             return self.getListOfDateTuples(rows, True)
         except:
@@ -95,8 +99,8 @@ class VisibilityDBHandler:
             
     def getPeriodsSeenGral(self, prefix):
         try:
-            self.cur.execute("""select prefix, dateSeen from prefixes where prefix <<= %s;""",
-                             (psycopg2.extras.Inet(prefix),))
+            self.cur.execute("""select prefix, dateSeen from prefixes where prefix <<= %s and dateSeen < %s;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date))
             rows = self.cur.fetchall()
             return self.getDictOfPrefixDateTuples(rows)
         except:
@@ -106,8 +110,8 @@ class VisibilityDBHandler:
             
     def getTotalDaysSeen(self, prefix):
         try:
-            self.cur.execute("""select count(dateSeen) from prefixes where prefix <<= %s;""",
-                             (psycopg2.extras.Inet(prefix),))
+            self.cur.execute("""select count(dateSeen) from prefixes where prefix <<= %s and dateSeen < %s;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date))
             return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the number of days during which the\
@@ -116,8 +120,8 @@ class VisibilityDBHandler:
                              
     def getTotalDaysSeenExact(self, prefix):
         try:
-            self.cur.execute("""select count(dateSeen) from prefixes where prefix = %s;""",
-                             (psycopg2.extras.Inet(prefix),))
+            self.cur.execute("""select count(dateSeen) from prefixes where prefix = %s and dateSeen < %s;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date))
             return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the number of days during which the\
@@ -126,8 +130,8 @@ class VisibilityDBHandler:
                              
     def getDateLastSeenExact(self, prefix):
         try:
-            self.cur.execute("""select dateSeen from prefixes where prefix = %s;""",
-                             (psycopg2.extras.Inet(prefix),))
+            self.cur.execute("""select dateSeen from prefixes where prefix = %s and dateSeen < %s;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date))
             rows = self.cur.fetchall()
             return max(rows)['dateseen']
         except:
@@ -137,8 +141,8 @@ class VisibilityDBHandler:
             
     def getDateLastSeen(self, prefix):
         try:
-            self.cur.execute("""select dateSeen from prefixes where prefix <<= %s;""",
-                             (psycopg2.extras.Inet(prefix),))
+            self.cur.execute("""select dateSeen from prefixes where prefix <<= %s and dateSeen < %s;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date))
             rows = self.cur.fetchall()
             return max(rows)['dateseen']
         except:
@@ -148,7 +152,7 @@ class VisibilityDBHandler:
         
     def getDateASNFirstSeen(self, asn):
         try:
-            self.cur.execute("""select dateSeen from asns where asn = %s;""", (asn,))
+            self.cur.execute("""select dateSeen from asns where asn = %s and dateSeen < %s;""", (asn, self.routing_date))
             rows = self.cur.fetchall()
             return min(rows)['dateseen']
         except:
@@ -158,7 +162,7 @@ class VisibilityDBHandler:
         
     def getPeriodsASNSeen(self, asn):
         try:
-            self.cur.execute("""select dateSeen from asns where asn = %s;""", (asn,))
+            self.cur.execute("""select dateSeen from asns where asn = %s and dateSeen < %s;""", (asn, self.routing_date))
             rows = self.cur.fetchall()
             return self.getListOfDateTuples(rows, True)
         except:
@@ -168,7 +172,7 @@ class VisibilityDBHandler:
             
     def getTotalDaysASNSeen(self, asn):
         try:
-            self.cur.execute("""select count(*) from (select distinct dateseen from asns where asn = %s) as temp;;""", (asn,))
+            self.cur.execute("""select count(*) from (select distinct dateseen from asns where asn = %s and dateSeen < %s) as temp;;""", (asn, self.routing_date))
             return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the number of days during which the\
@@ -177,7 +181,7 @@ class VisibilityDBHandler:
             
     def getDateASNLastSeen(self, asn):
         try:
-            self.cur.execute("""select dateSeen from asns where asn = %s;""", (asn,))
+            self.cur.execute("""select dateSeen from asns where asn = %s and dateSeen < %s;""", (asn, self.routing_date))
             rows = self.cur.fetchall()
             return max(rows)['dateseen']
         except:

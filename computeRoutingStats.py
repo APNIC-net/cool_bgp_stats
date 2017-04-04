@@ -477,8 +477,6 @@ def writeStatsLineToFile(statsForPrefix, allAttr, stats_filename):
     with open(stats_filename, 'a') as stats_file:
         stats_file.write(line)
 
-# TODO update function so that it receives startDate and endDate and only computes
-# stats for prefixes delegated between those dates
 # Decide which historical data has to be taken into account in this case
 def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_DATA):
     # Obtain a subset of all the delegated prefixes
@@ -499,7 +497,7 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
         statsForPrefix['opaque_id'] = prefix_row['opaque_id']
         statsForPrefix['cc'] = prefix_row['cc']
         statsForPrefix['region'] = prefix_row['region']
-        statsForPrefix['mostRecentRoutingData_date'] = str(routingStatsObj.bgp_handler.mostRecentDate)
+        statsForPrefix['routing_date'] = str(routingStatsObj.bgp_handler.routingDate)
 
         delNetwork = ipaddress.ip_network(unicode(prefix, "utf-8"))
         
@@ -665,10 +663,6 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                 statsForPrefix['maxLevenshteinDistMoreSpec'] = levenshteinDists.max()
             
         writeStatsLineToFile(statsForPrefix, routingStatsObj.allAttr_pref, stats_filename)
-
-# TODO update function so that it receives startDate and endDate and only computes
-# stats for prefixes delegated between those dates
-# Decide which historical data has to be taken into account in this case
         
 # This function determines whether the allocated ASNs are active
 # either as middle AS, origin AS or both
@@ -780,9 +774,7 @@ def main(argv):
     DEBUG = False
     EXTENDED = False
     startDate = ''
-    date = ''
     endDate = ''
-    UNTIL = False
     del_file = ''
     prefixes_stats_file = ''
     ases_stats_file = ''
@@ -799,31 +791,12 @@ def main(argv):
     final_existing_date = ''
     TEMPORAL_DATA = False
     READABLE = True
-    STORE = False
-
-
-##For DEBUG
-#    files_path = '/Users/sofiasilva/BGP_files'
-##    routing_file = '/Users/sofiasilva/BGP_files/2017-03-06.bgprib_20170322.readable'
-#    KEEP = True
-##    RIBfiles = False
-###    DEBUG = True
-##    EXTENDED = True
-###    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_20170324.txt'
-#    archive_folder = '/Users/sofiasilva/BGP_files'
-#    ext = '.readable'
-#    startDate = '20170305'
-#    UNTIL = True
-#    date = '20170310'
-#    READABLE = True
-###    COMPRESSED = True
-#    COMPUTE = False  
     
     try:
-        opts, args = getopt.getopt(argv, "hf:u:r:H:E:I:TNocknsD:Ud:ep:a:4:6:O:P:R:",\
+        opts, args = getopt.getopt(argv, "hf:u:r:H:e:S:E:TNocknd:xp:a:4:6:O:P:R:",\
                                         ["files_path=", "urls_file=", "routing_file=",\
-                                        "Historcial_data_folder=", "Extension=",\
-                                        "InitialDate=", "Date=", "delegated_file=",\
+                                        "Historcial_data_folder=", "extension=",\
+                                        "StartDate=", "EndDate=", "delegated_file=",\
                                         "prefixes_stats_file=", "ases_stats_file=",\
                                         "IPv4_prefixes_ASes_file=",\
                                         "IPv6_prefixes_ASes_file=",\
@@ -831,12 +804,12 @@ def main(argv):
                                         "ASes_Propagated_prefixes_file=",\
                                         "Routing date="])
     except getopt.GetoptError:
-        print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>] [-T] [-N]] [-o] [-c] [-k] [-n] [-s] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>]'
+        print 'Usage: computeRoutingStats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -e <extension>] [-S <Start date>] [-E <End Date>] [-T] [-N] [-o] [-c] [-k] [-n] [-d <delegated file>] [-x] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: routing_stats_prefixesAndASes.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -E <extension> [-I <Initial date>] [-T] [-N]] [-o] [-c] [-k] [-n] [-s] [-D Date [-U]] [-d <delegated file>] [-e] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>]'
+            print 'Usage: computeRoutingStats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -e <extension>] [-S <Start date>] [-E <End Date>] [-T] [-N] [-o] [-c] [-k] [-n] [-d <delegated file>] [-x] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>]'
             print 'h = Help'
             print "f = Path to folder in which Files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -845,22 +818,20 @@ def main(argv):
             print 'r = Use already downloaded Internet Routing data file.'
             print 'If the routing file contains a "show ip bgp" output, the "-o" option must be used to specify this.'
             print "H = Historical data. Instead of processing a single file, process the routing data contained in the archive folder provided."
-            print "E = Extension. If you use the -H option you MUST also use the -E option to provide the extension of the files in the archive you want to work with."
+            print "e = Extension. If you use the -H option you MUST also use the -E option to provide the extension of the files in the archive you want to work with."
             print "If none of the three options -u, -r or -H are provided, the script will try to work with routing data from URLs included ./BGPoutputs.txt"
+            print "S = Start date in format YYYY or YYYYmm or YYYYmmdd. The start date of the period of time during which the considered resources were delegated."
+            print 'E = End date in format YYYY or YYYYmm or YYYYmmdd. The end date of the period of time during which the considered resources were delegated.'
             print "T = Temporal data available. Use this option if there is temporal data available in the visibility database and you want to use it, even if you don't provide the path to the archive."
-            print "I = Initial date. The date since which you want the historical routing data to be considered."
-            print 'D = Date in format YYYY or YYYYmm or YYYYmmdd. Delegation date of the resources for which you want the stats to be computed or or until which (if you use the -U option) you want to consider delegations.'
-            print 'U = Until. If you use the -U option the resources for which you want the statistics to be computed will be filtered so that they have a delegation date before the provided date and the routing data considered corresponds to dates before the provided date.'            
             print "N = Not readable. The routing data provided (in the files to which the URLs file points, in the routing file or in the archive are not in the 'readable' format (BGPdump output))."
             print 'o = The routing data to be processed is in the format of "show ip bgp" outputs.'
             print 'c = Compressed. The files containing routing data are compressed.'
             print 'k = Keep downloaded Internet routing data file.'
-            print 'n = No computation. If this option is used, statistics will not be computed, just the dictionaries with prefixes/origin ASes will be created and saved to disk.'
-            print 's = Store. Store historical data into database.'
+            print 'n = No computation. This option MUST only be used in combination with the -H option. If this option is used, statistics will not be computed and the historical data from the archive will be stored into the database.'
             print 'd = DEBUG mode. Provide path to delegated file. If not in DEBUG mode the latest delegated file will be downloaded from ftp://ftp.apnic.net/pub/stats/apnic'
-            print 'e = Use Extended file'
-            print "If option -e is used in DEBUG mode, delegated file must be a extended file."
-            print "If option -e is not used in DEBUG mode, delegated file must be delegated file not extended."
+            print 'x = Use eXtended file'
+            print "If option -x is used in DEBUG mode, delegated file must be a extended file."
+            print "If option -x is not used in DEBUG mode, delegated file must be delegated file not extended."
             print "p = Compute incremental statistics from existing prefixes stats file (CSV)."
             print "a = Compute incremental statistics from existing ASes stats file (CSV)."
             print "Both the -p and the -a options should be used or none of them should be used."
@@ -894,15 +865,16 @@ def main(argv):
             KEEP = True
         elif opt == '-n':
             COMPUTE = False
-        elif opt == '-s':
-            STORE = True
-        elif opt == '-D':
-            date = arg
-            if date == '':
-                print "If option -D is used, a date MUST be provided."
+        elif opt == '-S':
+            startDate = arg
+            if startDate == '':
+                print "If option -S is used, a start date MUST be provided."
                 sys.exit()
-        elif opt == '-U':
-            UNTIL = True
+        elif opt == '-E':
+            endDate = arg
+            if endDate == '':
+                print "If option -E is used, an end date MUST be provided."
+                sys.exit()
         elif opt == '-d':
             DEBUG = True
             if arg != '':
@@ -911,7 +883,7 @@ def main(argv):
                 print "If you choose to run in DEBUG mode you must provide the path to\
                     a delegated file that has already been downloaded."
                 sys.exit()
-        elif opt == '-e':
+        elif opt == '-x':
             EXTENDED = True
         elif opt == '-f':
             if arg != '':
@@ -963,7 +935,7 @@ def main(argv):
                 sys.exit()
         elif opt == '-R':
             routing_date = arg
-            if date == '':
+            if routing_date == '':
                 print "If option -R is used, a date MUST be provided."
                 sys.exit()
         elif opt == '-H':
@@ -972,16 +944,18 @@ def main(argv):
             else:
                 print "If option -H is used, the path to a folder containing historical BGP data MUST be provided."
                 sys.exit()
-        elif opt == '-E':
+        elif opt == '-e':
             ext = arg
-        elif opt == '-I':
-            startDate = int(arg)
         elif opt == '-T':
             TEMPORAL_DATA = True
         elif opt == '-N':
             READABLE = False
         else:
             assert False, 'Unhandled option'
+    
+    if not COMPUTE and archive_folder == '':
+        print "If you just want historical data to be stored into the database, you MUST provide a path to the archive folder."
+        sys.exit()
             
     if urls_provided and (routing_file != '' or archive_folder != '') or\
         routing_file != '' and (urls_provided or archive_folder != '') or\
@@ -990,39 +964,35 @@ def main(argv):
         print "You MUST NOT use more than one of the -u, -r and -H options."
         sys.exit()
         
-    if date != '' and not (len(date) == 4 or len(date) == 6 or len(date) == 8):
+    if startDate != '' and not (len(startDate) == 4 or len(startDate) == 6 or len(startDate) == 8):
         print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
         sys.exit()
-        
-    if UNTIL and len(date) != 8:
-        print 'If you use the -U option, you MUST provide a full date in format YYYYmmdd'
+
+    if endDate != '' and not (len(endDate) == 4 or len(endDate) == 6 or len(endDate) == 8):
+        print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
         sys.exit()
-        
-#    if UNTIL and archive_folder == '':
-#        print 'If you use the -U option, you MUST also use the -H option and provide the path to the archive folder.'
-#        sys.exit()
+    
+    today = datetime.date.today().strftime('%Y%m%d')
+    
+    if endDate == '':
+        endDate = today
+    
+    if routing_date != '' and int(endDate) > int(routing_date):
+        print 'The routing date provided must be higher than the end of the period of time for the considered delegations.'
+        sys.exit()
         
     # If files_path does not exist, we create it
     if not os.path.exists(files_path):
         os.makedirs(files_path)
         
     if archive_folder != '' and ext == '':
-        print "If you use the -H option you MUST also use the -E option to provide the extension of the files in the archive you want to work with."
+        print "If you use the -H option you MUST also use the -e option to provide the extension of the files in the archive you want to work with."
         sys.exit()
 
-    today = datetime.date.today().strftime('%Y%m%d')
-    
-    dateStr = ''
-    if date == '' and startDate == '':
-        dateStr = 'AllDates'
-    elif startDate != '':
-        dateStr = 'SINCE{}'.format(startDate)
-
-    if UNTIL:
-        dateStr = '{}UNTIL{}'.format(dateStr, date)
-        endDate = date
-    else:
-        dateStr = date
+        
+    dateStr = 'UNTIL{}'.format(endDate)
+    if startDate != '':
+        dateStr = 'SINCE{}{}'.format(startDate, dateStr)
         
     if not DEBUG:
         file_name = '%s/routing_stats_%s' % (files_path, dateStr)
@@ -1058,37 +1028,37 @@ def main(argv):
         print "If not, none of these five options should be used."
         sys.exit()
     
-    routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, COMPUTE, EXTENDED,\
-                                    del_file, date, UNTIL, INCREMENTAL,\
-                                    final_existing_date, file_name)
+    routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, COMPUTE, EXTENDED,
+                                    del_file, startDate, endDate, routing_date,
+                                    INCREMENTAL, final_existing_date, file_name)
     
-    loaded = False 
-        
-    if fromFiles:
-        loaded = routingStatsObj.bgp_handler.loadStructuresFromFiles(routing_date, ipv4_prefixes_file,
-                                ipv6_prefixes_file, ASes_originated_prefixes_file,
-                                ASes_propagated_prefixes_file)
-        if UNTIL and routing_date != date:
-            print "If you use the options -4, -6, -O and -P to provide files with the data structures with routing data, and you use the -U (UNTIL) option, the routing date provided must be the same than the date until which you want the statistics to be computed."
-            sys.exit()
-    else:
-        if routing_file == '' and archive_folder == '':
-            loaded = routingStatsObj.bgp_handler.loadStructuresFromURLSfile(\
-                        urls_file, READABLE, RIBfiles)
-        elif routing_file != '':
-            loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(\
-                        routing_file, READABLE, RIBfiles, COMPRESSED)
-        else: # archive_folder not null
-            loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
-                        archive_folder, ext, startDate, endDate, READABLE, RIBfiles,
-                        COMPRESSED, STORE)
-            TEMPORAL_DATA = True
-    
-    if not loaded:
-        print "Data structures not loaded!\n"
-        sys.exit()
-        
     if COMPUTE:
+        loaded = False 
+            
+        if fromFiles:
+            loaded = routingStatsObj.bgp_handler.loadStructuresFromFiles(routing_date, ipv4_prefixes_file,
+                                    ipv6_prefixes_file, ASes_originated_prefixes_file,
+                                    ASes_propagated_prefixes_file)
+                                    
+        else:
+            if routing_file == '' and archive_folder == '':
+                loaded = routingStatsObj.bgp_handler.loadStructuresFromURLSfile(\
+                            urls_file, READABLE, RIBfiles)
+    
+            elif routing_file != '':
+                loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(\
+                            routing_file, READABLE, RIBfiles, COMPRESSED)
+    
+            else: # archive_folder not null
+                loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
+                            archive_folder, ext, routing_date, READABLE, RIBfiles,
+                            COMPRESSED)
+                TEMPORAL_DATA = True
+        
+        if not loaded:
+            print "Data structures not loaded!\n"
+            sys.exit()
+        
         start_time = time.time()
         computePerPrefixStats(routingStatsObj, prefixes_stats_file, files_path,
                               TEMPORAL_DATA)
@@ -1110,6 +1080,14 @@ def main(argv):
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
 
         routingStatsObj.db_handler.close()
+        
+    else:
+        routingStatsObj.bgp_handler.storeHistoricalDataFromArchive(archive_folder,
+                                                                   ext, READABLE,
+                                                                   RIBfiles,
+                                                                   COMPRESSED,
+                                                                   startDate,
+                                                                   endDate)
         
 if __name__ == "__main__":
     main(sys.argv[1:])
