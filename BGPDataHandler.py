@@ -192,6 +192,12 @@ class BGPDataHandler:
             self.ipv6_longest_pref = 64
 
         sys.stderr.write("Class data structures were loaded successfully!\n")
+           
+        if not self.KEEP:
+            try:
+                os.remove(historical_files)
+            except OSError:
+                pass
 
         return True
         
@@ -207,6 +213,12 @@ class BGPDataHandler:
             self.storeHistoricalData(historical_files, READABLE, RIBfiles, COMPRESSED)
             sys.stderr.write("Historical data inserted into visibility database successfully!\n")
    
+        if not self.KEEP:
+            try:
+                os.remove(historical_files)
+            except OSError:
+                pass
+        
     # This function returns a path to the routing file from the provided list 
     # of historical files corresponding to the provided date
     def getSpecificFileFromHistoricalList(self, historical_files, routing_date):
