@@ -206,10 +206,11 @@ class RoutingStats:
             booleanKeys_ases = ['isDead']
             
             expanded_del_asn_df_columns = ['asn', 'del_date', 'asn_type',
-                                            'opaque_id', 'cc', 'region']        
+                                            'opaque_id', 'cc', 'region']
+            other_ases_data_columns = ['routing_date']
     
-            self.allAttr_ases = expanded_del_asn_df_columns + booleanKeys_ases +\
-                            valueKeys_ases + counterKeys_ases
+            self.allAttr_ases = expanded_del_asn_df_columns + other_ases_data_columns +\
+                                booleanKeys_ases + valueKeys_ases + counterKeys_ases
     
             line = self.allAttr_ases[0]
             

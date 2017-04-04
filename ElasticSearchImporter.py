@@ -4,12 +4,17 @@ Created on Mon Feb 20 13:46:12 2017
 
 @author: sofiasilva
 """
-
-import sys, getopt, os
+import os
+os.chdir(os.path.dirname(os.path.realpath(__file__)))
+import sys, getopt
 import pandas as pd
 from elasticsearch import Elasticsearch
 from elasticsearch import helpers
 from elasticsearch import exceptions
+
+import delStats_ES_properties
+import prefStats_ES_properties
+import ASesStats_ES_properties
 
 class ElasticSearchImporter:
     
@@ -32,34 +37,20 @@ class ElasticSearchImporter:
         self.ES.indices.create(index = index_name, body = request_body, ignore=400)
         self.ES.indices.refresh(index = index_name)
     
-    def prepareData(self, data_for_es, index_name, doc_type, numOfDocs):
+    def prepareData(self, data_for_es, index_name, doc_type, numOfDocs, unique_index):
         bulk_data = []
-        
-        for index, row in data_for_es.iterrows():
+                                                
+        for index, row in data_for_es.iterrows(): 
             data_dict = {}
-            
+            must_list = []
             for i in range(len(row)):
                 data_dict[data_for_es.columns[i]] = row[i]
+                field = data_for_es.columns[i]
+                if field in unique_index:
+                    must_list.append({'match':{field:data_dict[field]}})
     
             if self.ES.count(index=index_name, doc_type=doc_type,
-                                   body={'query':{
-                                           'bool':{
-                                               'must':[{
-                                                   'match':{
-                                                       'ResourceType':data_dict['ResourceType']
-                                                           }}, {
-                                                    'match':{
-                                                        'Date':data_dict['Date']
-                                                            }}, {
-                                                    'match':{
-                                                        'Organization':data_dict['Organization']
-                                                            }}, {
-                                                    'match':{
-                                                        'GeographicArea':data_dict['GeographicArea']
-                                                            }}, {
-                                                    'match':{
-                                                        'Status':data_dict['Status']
-                                                            }}]}}})['count'] == 0:
+                             body={'query':{'bool':{'must':must_list}}})['count'] == 0:
     
                 op_dict = {
                         "_op_type": "index",
@@ -96,78 +87,33 @@ def main(argv):
     host = ''
 #    user = ''
 #    password = ''
-        
-    # Mapping for stats about delegations
-    delStats_mapping = {"_default_" : {
-                            "properties" : {
-                                "del_stat_id" : {
-                                    "type": "integer"
-                                            },
-                                "GeographicArea" : {
-                                    "index" : "analyzed",
-                                    "type": "text",
-                                    "fields": {
-                                        "raw": {
-                                            "type": "keyword"
-                                                }}},
-                                "ResourceType" : {
-                                    "index" : "not_analyzed",
-                                    "type": "text",
-                                    "fields": {
-                                        "raw": {
-                                            "type": "keyword"
-                                                }}},
-                                "Status" : {
-                                    "index" : "not_analyzed",
-                                    "type": "text",
-                                    "fields": {
-                                        "raw": {
-                                            "type": "keyword"
-                                                }}},
-                                "Organization" : {
-                                    "index" : "not_analyzed",
-                                    "type": "text",
-                                    "fields": {
-                                        "raw": {
-                                            "type": "keyword"
-                                                }}},
-                                "Date" : {
-                                    "type": "date",
-                                    "format": "yyyyMMdd"
-                                        },
-                                "NumOfDelegations" : {
-                                    "type" : "integer"
-                                                    },
-                                "NumOfResources" : {
-                                    "type" : "integer"
-                                                    },
-                                "IPCount" : {
-                                    "type" : "long"
-                                            },
-                                "IPSpace" : {
-                                    "type" : "long"
-                                            }
-                                        }
-                                    }
-                                }
-    del_stats_index_name = 'delegated_stats_index'
-    del_stats_doc_type = 'delegated_stats'
-    
+    DELEGATED = False
+            
     try:
-        opts, args = getopt.getopt(argv, "hp:H:", ["files_path=", "host="])
+        opts, args = getopt.getopt(argv, "hDPAp:H:", ["files_path=", "host="])
     except getopt.GetoptError:
-        print 'Usage: importExistingJSONtoES.py -h | -p <files path> -H <Elasticsearch host>'
+        print 'Usage: ElasticSearchImporter.py -h | ( -D | -P | -A ) -p <files path> -H <Elasticsearch host>'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script stores into ElasticSearch the statistics contained in the JSON files in the provided folder."
-            print 'Usage: importExistingJSONtoES.py -h | -p <files path> -H <Elasticsearch host>'
+            print 'Usage: ElasticSearchImporter.py -h | ( -D | -P | -A ) -p <files path> -H <Elasticsearch host>'
             print 'h = Help'
+            print 'D = Delegated. Stats about delegations.'
+            print 'P = Prefixes. Stats about usage of delegated prefixes.'
+            print 'A = ASNs. Stats about usage of Autonomous System Numbers.'
             print "p = Path to folder containing JSON files. (MANDATORY)"
             print "H = Host running Elasticsearch. (MANDATORY)"
 #            print "u = User to save stats to ElasticSearch. (MANDATORY)"
 #            print "P = Password to save to stats to ElasticSearch. (MANDATORY)"
             sys.exit()
+        elif opt == '-D':
+            DELEGATED = True
+            ES_properties = delStats_ES_properties
+        elif opt == '-P':
+            ES_properties = prefStats_ES_properties
+        elif opt == '-A':
+            ES_properties = ASesStats_ES_properties
         elif opt == '-p':
             files_path = arg
         elif opt == '-H':
@@ -181,23 +127,27 @@ def main(argv):
 
     if host != '':
         esImporter = ElasticSearchImporter(host)
-        esImporter.createIndex(delStats_mapping, del_stats_index_name)
-        numOfDocs = esImporter.ES.count(del_stats_index_name)['count']
+        esImporter.createIndex(ES_properties.mapping,
+                               ES_properties.index_name)
+        numOfDocs = esImporter.ES.count(ES_properties.index_name)['count']
                 
         for json_file in os.listdir(files_path):
             if json_file.endswith(".json"):
                 plain_df = pd.read_json('%s/%s' % (files_path, json_file), orient = 'index').reset_index()
                 if len(plain_df) > 0:
-                    plain_df['GeographicArea'] = plain_df['Geographic Area']
-                    del plain_df['Geographic Area']
+                    if DELEGATED:
+                        plain_df['GeographicArea'] = plain_df['Geographic Area']
+                        del plain_df['Geographic Area']
+                        
                     plain_df = plain_df.fillna(-1)
     
                     bulk_data, numOfDocs = esImporter.prepareData(plain_df,
-                                                                  del_stats_index_name,
-                                                                  del_stats_doc_type,
-                                                                  numOfDocs)
+                                                                  ES_properties.index_name,
+                                                                  ES_properties.doc_type,
+                                                                  numOfDocs,
+                                                                  ES_properties.unique_index)
                                                         
-                    dataImported = esImporter.inputData(del_stats_index_name,
+                    dataImported = esImporter.inputData(ES_properties.index_name,
                                                         bulk_data, numOfDocs)
     
                     if dataImported:

@@ -13,10 +13,12 @@ import pandas as pd
 import numpy as np
 import math
 import copy
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from calendar import monthrange
 from time import time
-
+from ElasticSearchImporter import ElasticSearchImporter
+import prefStats_ES_properties
+import ASesStats_ES_properties
     
 # Function that computes the Levenshtein distance between two AS paths
 # From https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
@@ -685,6 +687,7 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
         statsForAS['region'] = expanded_del_asns_df.ix[i]['region']
         del_date = expanded_del_asns_df.ix[i]['date'].to_pydatetime().date()
         statsForAS['del_date'] = del_date
+        statsForAS['routing_date'] = str(routingStatsObj.bgp_handler.routingDate)
         statsForAS['numOfUpstreams'] = len(routingStatsObj.ASrels[(routingStatsObj.ASrels['rel_type'] == 'P2C')\
                                             & (routingStatsObj.ASrels['AS2'] == asn)])
 
@@ -791,25 +794,27 @@ def main(argv):
     final_existing_date = ''
     TEMPORAL_DATA = False
     READABLE = True
+    es_host = ''
     
     try:
-        opts, args = getopt.getopt(argv, "hf:u:r:H:e:S:E:TNocknd:xp:a:4:6:O:P:R:",\
-                                        ["files_path=", "urls_file=", "routing_file=",\
-                                        "Historcial_data_folder=", "extension=",\
-                                        "StartDate=", "EndDate=", "delegated_file=",\
-                                        "prefixes_stats_file=", "ases_stats_file=",\
-                                        "IPv4_prefixes_ASes_file=",\
-                                        "IPv6_prefixes_ASes_file=",\
-                                        "ASes_Originated_prefixes_file=",\
-                                        "ASes_Propagated_prefixes_file=",\
-                                        "Routing date="])
+        opts, args = getopt.getopt(argv, "hf:u:r:H:e:S:E:TNocknd:xp:a:4:6:O:P:R:D:",
+                                        ["files_path=", "urls_file=", "routing_file=",
+                                        "Historcial_data_folder=", "extension=",
+                                        "StartDate=", "EndDate=", "delegated_file=",
+                                        "prefixes_stats_file=", "ases_stats_file=",
+                                        "IPv4_prefixes_ASes_file=",
+                                        "IPv6_prefixes_ASes_file=",
+                                        "ASes_Originated_prefixes_file=",
+                                        "ASes_Propagated_prefixes_file=",
+                                        "Routing date=",
+                                        "ElasticsearchDB_host="])
     except getopt.GetoptError:
-        print 'Usage: computeRoutingStats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -e <extension>] [-S <Start date>] [-E <End Date>] [-T] [-N] [-o] [-c] [-k] [-n] [-d <delegated file>] [-x] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>]'
+        print 'Usage: computeRoutingStats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -e <extension>] [-S <Start date>] [-E <End Date>] [-T] [-N] [-o] [-c] [-k] [-n] [-d <delegated file>] [-x] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>] [-D <Elasticsearch Database host>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: computeRoutingStats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -e <extension>] [-S <Start date>] [-E <End Date>] [-T] [-N] [-o] [-c] [-k] [-n] [-d <delegated file>] [-x] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>]'
+            print 'Usage: computeRoutingStats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -e <extension>] [-S <Start date>] [-E <End Date>] [-T] [-N] [-o] [-c] [-k] [-n] [-d <delegated file>] [-x] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>] [-D <Elasticsearch Database host>]'
             print 'h = Help'
             print "f = Path to folder in which Files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -841,9 +846,11 @@ def main(argv):
             print "O = ASes_Originated_prefixes file. Path to pickle file containing ASes_Originated_prefixes dictionary."
             print "P = ASes_Propagated_prefixes file. Path to pickle file containing ASes_Propagated_prefixes dictionary."
             print "R = Routing data Date in format YYYYmmdd. Date for which routing stats will be computed."
+            print "If a routing date is not provided, statistics for the day before today will be computed."
             print "If you use the options -4, -6, -O and -P you MUST provide the date for the routing data in these files."
             print "If you want to work with BGP data from files, the five options -4, -6, -O, -P and -R must be used."
             print "If not, none of these five options should be used."
+            print "D = Elasticsearch Database host. Host running Elasticsearch into which computed stats will be stored."
             sys.exit()
         elif opt == '-u':
             if arg != '':
@@ -952,6 +959,8 @@ def main(argv):
             TEMPORAL_DATA = True
         elif opt == '-N':
             READABLE = False
+        elif opt == '-D':
+            es_host = arg
         else:
             assert False, 'Unhandled option'
     
@@ -1012,7 +1021,11 @@ def main(argv):
             print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
             sys.exit()
     
-    if routing_date != '' and endDate_date > routing_date:
+    # If a routing date is not provided, stats are computed for the day before today
+    if routing_date == '':
+        routing_date = today - timedelta(1)
+    
+    if endDate_date > routing_date:
         print 'The routing date provided must be higher than the end of the period of time for the considered delegations.'
         sys.exit()
         
@@ -1025,9 +1038,12 @@ def main(argv):
         sys.exit()
 
         
-    dateStr = 'UNTIL{}'.format(endDate)
+    dateStr = 'Delegated_BEFORE{}'.format(endDate)
+
     if startDate != '':
-        dateStr = 'SINCE{}{}'.format(startDate, dateStr)
+        dateStr = 'Delegated_AFTER{}{}'.format(startDate, dateStr)
+    
+    dateStr = '{}_AsOf{}'.format(dateStr, routing_date)
         
     if not DEBUG:
         file_name = '%s/routing_stats_%s' % (files_path, dateStr)
@@ -1109,6 +1125,29 @@ def main(argv):
         sys.stderr.write("Files generated:\n{}\nand\n{})\n".format(prefixes_stats_file,
                                                         prefixes_json_filename))
         
+        if es_host != '':
+            esImporter = ElasticSearchImporter(es_host)
+            esImporter.createIndex(prefStats_ES_properties.mapping,
+                                   prefStats_ES_properties.index_name)
+            numOfDocs = esImporter.ES.count(prefStats_ES_properties.index_name)['count']
+
+            prefixes_stats_df = prefixes_stats_df.fillna(-1)
+            
+            bulk_data, numOfDocs = esImporter.prepareData(prefixes_stats_df,
+                                                          prefStats_ES_properties.index_name,
+                                                          prefStats_ES_properties.doc_type,
+                                                          numOfDocs,
+                                                          prefStats_ES_properties.unique_index)
+                                                
+            dataImported = esImporter.inputData(prefStats_ES_properties.index_name,
+                                                bulk_data, numOfDocs)
+    
+            if dataImported:
+                sys.stderr.write("Stats about usage of prefixes delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
+            else:
+                sys.stderr.write("Stats about usage of prefixes delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
+            
+        
         start_time = time()
         computeASesStats(routingStatsObj, ases_stats_file, TEMPORAL_DATA)
         end_time = time()
@@ -1116,7 +1155,35 @@ def main(argv):
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
 
         routingStatsObj.db_handler.close()
+
+        ases_stats_df = pd.read_csv(ases_stats_file, sep = ',')
+        ases_json_filename = '{}_ases.json'.format(file_name)
+        ases_stats_df.to_json(ases_json_filename, orient='index')
+        sys.stderr.write("ASes stats saved to JSON file successfully!\n")
+        sys.stderr.write("Files generated:\n{}\nand\n{})\n".format(ases_stats_file,
+                                                                    ases_json_filename))
         
+        if es_host != '':
+            esImporter.createIndex(ASesStats_ES_properties.mapping,
+                                   ASesStats_ES_properties.index_name)
+            numOfDocs = esImporter.ES.count(ASesStats_ES_properties.index_name)['count']
+
+            ases_stats_df = ases_stats_df.fillna(-1)
+            
+            bulk_data, numOfDocs = esImporter.prepareData(ases_stats_df,
+                                                          ASesStats_ES_properties.index_name,
+                                                          ASesStats_ES_properties.doc_type,
+                                                          numOfDocs,
+                                                          ASesStats_ES_properties.unique_index)
+                                                
+            dataImported = esImporter.inputData(ASesStats_ES_properties.index_name,
+                                                bulk_data, numOfDocs)
+    
+            if dataImported:
+                sys.stderr.write("Stats about usage of ASNs delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
+            else:
+                sys.stderr.write("Stats about usage of ASNs delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
+                    
     else:
         routingStatsObj.bgp_handler.storeHistoricalDataFromArchive(archive_folder,
                                                                    ext, READABLE,

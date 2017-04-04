@@ -11,6 +11,8 @@ from datetime import date, datetime
 from calendar import monthrange
 from time import time
 from ElasticSearchImporter import ElasticSearchImporter
+import delStats_ES_properties
+
    
 # This function computes all the statistics for all the dates included in a given
 # subset from a DataFrame, which contains info about delegations (delegated_subset),
@@ -228,12 +230,9 @@ def main(argv):
         sys.stderr.write("Stats saved to JSON file successfully!\n")
         sys.stderr.write("Files generated:\n{}\nand\n{})\n".format(stats_file, json_filename))
         
-        if host != '':
-            del_stats_index_name = 'delegated_stats_index'
-            del_stats_doc_type = 'delegated_stats'
-            
+        if host != '':  
             esImporter = ElasticSearchImporter(host)
-            numOfDocs = esImporter.ES.count(del_stats_index_name)['count']
+            numOfDocs = esImporter.ES.count(delStats_ES_properties.index_name)['count']
             
             if INCREMENTAL:
                 plain_df = stats_df[datetime.datetime.strptime(stats_df['Date'], '%Y%m%d') > final_existing_date]
@@ -245,11 +244,11 @@ def main(argv):
             plain_df = plain_df.fillna(-1)
     
             bulk_data, numOfDocs = esImporter.prepareData(plain_df,
-                                                          del_stats_index_name,
-                                                          del_stats_doc_type,
+                                                          delStats_ES_properties.index_name,
+                                                          delStats_ES_properties.doc_type,
                                                           numOfDocs)
                                                 
-            dataImported = esImporter.inputData(del_stats_index_name,
+            dataImported = esImporter.inputData(delStats_ES_properties.index_name,
                                                 bulk_data, numOfDocs)
     
             if dataImported:

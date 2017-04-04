@@ -233,8 +233,11 @@ class BGPDataHandler:
     # This function returns a path to the routing file from the files in the
     # archive corresponding to the provided date
     def getSpecificFileFromArchive(self, archive_folder, extension, routing_date):
+        # We have to add 1 to the day of the provided date as the files in the
+        # archive contain routing data corresponding to the day before to the
+        # date specified in the file name.
         routing_folder = '{}/{}/{}/{}'.format(archive_folder, routing_date.year,
-                                                routing_date.month, routing_date.day)
+                                                routing_date.month, routing_date.day+1)
         
         for item in os.listdir(routing_folder):
             if item.endswith(extension):
@@ -252,7 +255,10 @@ class BGPDataHandler:
             if not line.startswith('#') and line.strip() != '':
                 date = self.getDateFromFileName(line.strip())
                 
-                if date == routing_date:
+                # We have to add 1 daye to the provided date as the files in the
+                # archive contain routing data corresponding to the day before to the
+                # date specified in the file name.
+                if date == routing_date + timedelta(1):
                    return line.strip()
         
         return ''
