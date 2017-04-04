@@ -182,7 +182,7 @@ def main(argv):
         sys.stderr.write("Stats computed successfully!\n")
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
 
-        stats_df = pd.read_csv(stats_file, sep = ',')
+        stats_df = pd.read_csv(stats_file, sep = ',', parse_dates=['Date'])
         json_filename = '{}.json'.format(file_name)
         stats_df.to_json(json_filename, orient='index')
         sys.stderr.write("Stats saved to JSON file successfully!\n")
