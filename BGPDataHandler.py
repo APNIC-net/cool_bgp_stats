@@ -9,7 +9,8 @@ from get_file import get_file
 import bgp_rib
 import pickle
 import radix
-import datetime, calendar
+from calendar import monthrange, timegm
+from datetime import datetime, date, timedelta
 import pandas as pd
 import ipaddress
 from VisibilityDBHandler import VisibilityDBHandler
@@ -139,11 +140,9 @@ class BGPDataHandler:
             sys.stderr.write("Could not process routing file.\n")
             return False
 
-    # Todo lo que tiene que ver con insertar en la BD sacarlo a una función aparte
-    # This function processes the routing data contained in the archive folder
-    # provided corresponding to dates older than the endDate provided,
-    # and loads the data structures of the class and stores the historical info
-    # into the database with the results from this processing       
+    # This function loads the data structures of the class with the routing
+    # data contained in the archive folder corresponding to the routing
+    # date provided or to the most recent date present in the archive
     def loadStructuresFromArchive(self, archive_folder, extension, routing_date,
                                   READABLE, RIBfiles, COMPRESSED):
                                       
@@ -227,12 +226,12 @@ class BGPDataHandler:
     def getMostRecentFromHistoricalList(self, historical_files):
         files_list_obj = open(historical_files, 'r')
 
-        mostRecentDate = 0
+        mostRecentDate = datetime.strptime('1970', '%Y').date()
         mostRecentFile = ''
         
         for line in files_list_obj:
             if not line.startswith('#') and line.strip() != '':
-                date = self.getDateFromFileName(line.strip())
+                date = datetime.strptime(self.getDateFromFileName(line.strip()), '%Y%m%d').date()
                 
                 if date > mostRecentDate:
                     # We add 1 to the endDate because the files in the archive
@@ -250,12 +249,12 @@ class BGPDataHandler:
                     filename)
                     
         if len(dates) > 0:
-            date = int(dates[0][0:4]+dates[0][5:7]+dates[0][8:10])
+            date = dates[0][0:4]+dates[0][5:7]+dates[0][8:10]
         else:
             dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]',\
                         filename)
             if len(dates) > 0:
-                date = int(dates[0])
+                date = dates[0]
         return date
     
     # This function stores the routing data from the files listed in the
@@ -346,7 +345,7 @@ class BGPDataHandler:
         if self.DEBUG:
             bgp_df = bgp_df[0:10]
             
-        date = datetime.datetime.utcfromtimestamp(bgp_df['timestamp'].tolist()[0]).strftime('%Y%m%d')
+        date = datetime.utcfromtimestamp(bgp_df['timestamp'].tolist()[0]).strftime('%Y%m%d')
         
         # To get the origin ASes and middle ASes we split the ASpath column
         paths_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
@@ -371,7 +370,7 @@ class BGPDataHandler:
         ASes_propagated_prefixes_dic = dict()
         ipv4_longest_pref = -1
         ipv6_longest_pref = -1
-        routingDate = 0
+        routingDate = datetime.strptime('1970', '%Y').date()
         
         i = 0
         for line in files_list:
@@ -477,7 +476,7 @@ class BGPDataHandler:
             date = bgp_entry[8]
 #           date_part = str(date)[0:8]
 #           time_part = str(date)[8:12]
-            timestamp = calendar.timegm(datetime.datetime.strptime(date, "%Y%m%d%H%M").timetuple())
+            timestamp = timegm(datetime.strptime(date, "%Y%m%d%H%M").timetuple())
             next_hop = bgp_entry[2]
             prefix = bgp_entry[0]
             as_path = bgp_entry[6]
@@ -539,7 +538,7 @@ class BGPDataHandler:
                 bgp_df = bgp_df[0:10]
 
              # We add a column to the Data Frame with the corresponding date
-            bgp_df['date'] = bgp_df.apply(lambda row: datetime.datetime.utcfromtimestamp(row['timestamp']).strftime('%Y%m%d'), axis=1)
+            bgp_df['date'] = bgp_df.apply(lambda row: datetime.utcfromtimestamp(row['timestamp']).strftime('%Y%m%d'), axis=1)
             date = max(bgp_df['date'])
             
             ASpath_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
@@ -669,6 +668,36 @@ class BGPDataHandler:
     # in the archive folder
     # It returns the path to the created file
     def getPathsToHistoricalData(self, archive_folder, extension, startDate, endDate):
+        if startDate != '':  
+            startYear = startDate[0:4]
+            startMonth = startDate[4:6]
+            
+            if startMonth == '':
+                startDate = datetime.strptime(startYear, '%Y')
+            else:
+                startDay = startDate[6:8]
+
+                if startDay == '':
+                    startDate = datetime.strptime('{}{}'.format(startYear, startMonth), '%Y%m').date()
+                else:
+                    startDate = datetime.strptime('{}{}{}'.format(startYear, startMonth, startDay), '%Y%m%d').date()
+
+        today = date.today().strftime('%Y%m%d')
+
+        if endDate == '':
+            endDate = today
+            
+        endYear = endDate[0:4]
+        endMonth = endDate[4:6]
+        
+        if endMonth == '':
+            endMonth = '12'
+            endDay = monthrange(int(endYear), int(endMonth))[1]
+        else:
+            endDay = endDate[6:8]
+
+        endDate = datetime.strptime('{}{}{}'.format(endYear, endMonth, endDay), '%Y%m%d').date()
+        
         files_list_filename = '%s/RoutingFiles.txt' % self.files_path
         
         files_list_list = []
@@ -676,9 +705,9 @@ class BGPDataHandler:
         for root, subdirs, files in os.walk(archive_folder):
             for filename in files:
                 if filename.endswith(extension):
-                    file_date = self.getDateFromFileName(filename)
-                    if (endDate != '' and file_date <= int(endDate)+1 or endDate == '') and\
-                        (startDate != '' and file_date > int(startDate) or startDate == ''):
+                    file_date = datetime.strptime(str(self.getDateFromFileName(filename)), '%Y%m%d').date()
+                    if (endDate != '' and file_date <= endDate + timedelta(1) or endDate == '') and\
+                        (startDate != '' and file_date > startDate or startDate == ''):
                         files_list_list.append(os.path.join(root, filename))
         
         if len(files_list_list) == 0:
@@ -694,7 +723,7 @@ class BGPDataHandler:
 
     # This function saves the data structures of the class to pickle files
     def saveDataToFiles(self):
-        today = datetime.date.today().strftime('%Y%m%d')
+        today = date.today().strftime('%Y%m%d')
         
         ipv4_radix_file_name = '%s/ipv4Prefixes_%s.pkl' % (self.files_path, today)
         with open(ipv4_radix_file_name, 'wb') as f:
