@@ -182,7 +182,7 @@ def main(argv):
         sys.stderr.write("Stats computed successfully!\n")
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
 
-        stats_df = pd.read_csv(stats_file, sep = ',', parse_dates=['Date'])
+        stats_df = pd.read_csv(stats_file, sep = ',')
         json_filename = '{}.json'.format(file_name)
         stats_df.to_json(json_filename, orient='index')
         sys.stderr.write("Stats saved to JSON file successfully!\n")
@@ -196,7 +196,7 @@ def main(argv):
             numOfDocs = esImporter.ES.count(del_stats_index_name)['count']
             
             if INCREMENTAL:
-                plain_df = stats_df[stats_df['Date'] > final_existing_date]
+                plain_df = stats_df[datetime.datetime.strptime(stats_df['Date'], '%Y%m%d') > final_existing_date]
             else:
                 plain_df = stats_df
             
