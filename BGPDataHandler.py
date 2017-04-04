@@ -701,12 +701,13 @@ class BGPDataHandler:
             
         endYear = endDate[0:4]
         endMonth = endDate[4:6]
-        
+        endDay = endDate[6:8]
+
         if endMonth == '':
             endMonth = '12'
-            endDay = monthrange(int(endYear), int(endMonth))[1]
-        else:
-            endDay = endDate[6:8]
+
+        if endDay == '':
+            endDay = monthrange(int(endYear), int(endMonth))[1]            
 
         endDate = datetime.strptime('{}{}{}'.format(endYear, endMonth, endDay), '%Y%m%d').date()
         
