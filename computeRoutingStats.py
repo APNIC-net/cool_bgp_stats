@@ -996,7 +996,7 @@ def main(argv):
     today = date.today()
 
     if endDate == '':
-        endDate_date = today
+        endDate_date = today - timedelta(1)
     else:
         if len(endDate) == 4:
             endYear = endDate
