@@ -11,11 +11,11 @@ from OrgHeuristics import OrgHeuristics
 import ipaddress
 import pandas as pd
 import numpy as np
-import datetime, time
 import math
 import copy
-
-
+from datetime import date, datetime
+from calendar import monthrange
+from time import time
 
     
 # Function that computes the Levenshtein distance between two AS paths
@@ -78,7 +78,7 @@ def weighted_avg_and_std(values, weights):
 def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first_seen_intact):
     prefix = str(network)
     # History of Visibility (Visibility Evoluntion in Time) computation
-    today = datetime.date.today()
+    today = date.today()
     daysUsable = (today-statsForPrefix['del_date']).days + 1
     
     # Intact Allocation History of Visibility
@@ -671,7 +671,7 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
 # (BGP announcements for which the AS appears in the middle of the AS path)
 # * a numeric variable (numOfPrefixesOriginated) specifying the number of prefixes originated by the AS
 def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
-    today = datetime.date.today()
+    today = date.today()
     expanded_del_asns_df = routingStatsObj.del_handler.getExpandedASNsDF() 
         
     for i in expanded_del_asns_df.index:
@@ -840,7 +840,8 @@ def main(argv):
             print "6 = IPv6 prefixes file. Path to pickle file containing IPv6 prefixes Radix."
             print "O = ASes_Originated_prefixes file. Path to pickle file containing ASes_Originated_prefixes dictionary."
             print "P = ASes_Propagated_prefixes file. Path to pickle file containing ASes_Propagated_prefixes dictionary."
-            print "R = Routing data Date. If you use the options -4, -6, -O and -P you must provide the date for the routing data in these files."
+            print "R = Routing data Date in format YYYYmmdd. Date for which routing stats will be computed."
+            print "If you use the options -4, -6, -O and -P you MUST provide the date for the routing data in these files."
             print "If you want to work with BGP data from files, the five options -4, -6, -O, -P and -R must be used."
             print "If not, none of these five options should be used."
             sys.exit()
@@ -934,9 +935,10 @@ def main(argv):
                 print "If option -O is used, the path to a pickle file containing ASes_Propagated_prefixes dictionary MUST be provided."
                 sys.exit()
         elif opt == '-R':
-            routing_date = arg
-            if routing_date == '':
-                print "If option -R is used, a date MUST be provided."
+            try:
+                routing_date = datetime.strptime(arg, '%Y%m%d').date()
+            except ValueError:
+                print "If option -R is used, a date in format YYYYmmdd MUST be provided."
                 sys.exit()
         elif opt == '-H':
             if arg != '':
@@ -964,20 +966,51 @@ def main(argv):
         print "You MUST NOT use more than one of the -u, -r and -H options."
         sys.exit()
         
-    if startDate != '' and not (len(startDate) == 4 or len(startDate) == 6 or len(startDate) == 8):
-        print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
-        sys.exit()
+    if startDate != '':
+        try:
+            if len(startDate) == 4:
+                startDate_date = datetime.strptime(startDate, '%Y').date()
+            elif len(startDate) == 6:
+                startDate_date = datetime.strptime(startDate, '%Y%m').date()
+            elif len(startDate) == 8:
+                startDate_date = datetime.strptime(startDate, '%Y%m%d').date()
+            else:
+                print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
+                sys.exit()
+        except ValueError:
+            print "Error when parsing start date.\n"
+            print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
+            sys.exit()
 
-    if endDate != '' and not (len(endDate) == 4 or len(endDate) == 6 or len(endDate) == 8):
-        print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
-        sys.exit()
-    
-    today = datetime.date.today().strftime('%Y%m%d')
-    
+    today = date.today()
+
     if endDate == '':
-        endDate = today
+        endDate_date = today
+    else:
+        if len(endDate) == 4:
+            endYear = endDate
+            endMonth = '12'
+            endDay = monthrange(int(endYear), int(endMonth))[1]
+        elif len(endDate) == 6:
+            endYear = endDate[0:4]
+            endMonth = endDate[4:6]
+            endDay = monthrange(int(endYear), int(endMonth))[1]
+        elif len(endDate) == 8:
+            endYear = endDate[0:4]
+            endMonth = endDate[4:6]
+            endDay = endDate[6:8]
+        else:
+            print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
+            sys.exit()
+
+        try:  
+            endDate_date = datetime.strptime('{}{}{}'.format(endYear, endMonth, endDay), '%Y%m%d').date()   
+        except ValueError:
+            print "Error when parsing end date.\n"
+            print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
+            sys.exit()
     
-    if routing_date != '' and int(endDate) > int(routing_date):
+    if routing_date != '' and endDate_date > routing_date:
         print 'The routing date provided must be higher than the end of the period of time for the considered delegations.'
         sys.exit()
         
@@ -1029,8 +1062,9 @@ def main(argv):
         sys.exit()
     
     routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, COMPUTE, EXTENDED,
-                                    del_file, startDate, endDate, routing_date,
-                                    INCREMENTAL, final_existing_date, file_name)
+                                    del_file, startDate_date, endDate_date,
+                                    routing_date, INCREMENTAL,
+                                    final_existing_date, file_name)
     
     if COMPUTE:
         loaded = False 
@@ -1059,10 +1093,10 @@ def main(argv):
             print "Data structures not loaded!\n"
             sys.exit()
         
-        start_time = time.time()
+        start_time = time()
         computePerPrefixStats(routingStatsObj, prefixes_stats_file, files_path,
                               TEMPORAL_DATA)
-        end_time = time.time()
+        end_time = time()
         sys.stderr.write("Stats for prefixes computed successfully!\n")
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
 
@@ -1073,9 +1107,9 @@ def main(argv):
         sys.stderr.write("Files generated:\n{}\nand\n{})\n".format(prefixes_stats_file,
                                                         prefixes_json_filename))
         
-        start_time = time.time()
+        start_time = time()
         computeASesStats(routingStatsObj, ases_stats_file, TEMPORAL_DATA)
-        end_time = time.time()
+        end_time = time()
         sys.stderr.write("Stats for ASes computed successfully!\n")
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
 
@@ -1086,8 +1120,8 @@ def main(argv):
                                                                    ext, READABLE,
                                                                    RIBfiles,
                                                                    COMPRESSED,
-                                                                   startDate,
-                                                                   endDate)
+                                                                   startDate_date,
+                                                                   endDate_date)
         
 if __name__ == "__main__":
     main(sys.argv[1:])

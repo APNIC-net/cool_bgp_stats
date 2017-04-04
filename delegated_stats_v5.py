@@ -7,7 +7,9 @@ from DelegatedHandler import DelegatedHandler
 import sys, getopt
 import numpy as np
 import pandas as pd
-import datetime, time
+from datetime import date, datetime
+from calendar import monthrange
+from time import time
 from ElasticSearchImporter import ElasticSearchImporter
    
 # This function computes all the statistics for all the dates included in a given
@@ -26,21 +28,21 @@ def computation_loop(delegated_subset, a, r, s, o, stats_filename):
     res_counts = date_groups['ResourceCount'].agg(np.sum)
     space_counts = date_groups['SpaceCount'].agg(np.sum)
 
-    for date, delsInDate in date_groups:
+    for date_item, delsInDate in date_groups:
         numOfDelegations = len(delsInDate['OriginalIndex'].unique())
         if r == 'ipv4' or r == 'ipv6':
             numOfResources = len(delsInDate)
-            IPCount = res_counts[date]
-            IPSpace = space_counts[date]
+            IPCount = res_counts[date_item]
+            IPSpace = space_counts[date_item]
         else: # r == 'asn'
-            numOfResources = res_counts[date]
+            numOfResources = res_counts[date_item]
             # IPCount and IPSpace do not make sense for r = 'asn'
             IPCount = ''
             IPSpace = ''
         
         with open(stats_filename, 'a') as stats_file:
             #Geographic Area,ResourceType,Status,Organization,Date,NumOfDelegations,NumOfResources,IPCount,IPSpace
-            stats_file.write('{},{},{},{},{},{},{},{},{}\n'.format(a, r, s, o, date, numOfDelegations, numOfResources, IPCount, IPSpace))
+            stats_file.write('{},{},{},{},{},{},{},{},{}\n'.format(a, r, s, o, date_item, numOfDelegations, numOfResources, IPCount, IPSpace))
 
     
     
@@ -115,13 +117,50 @@ def main(argv):
         else:
             assert False, 'Unhandled option'
             
-    if startDate != '' and not (len(startDate) == 4 or len(startDate) == 6 or len(startDate) == 8):
-        print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
-        sys.exit()
+    if startDate != '':
+        try:
+            if len(startDate) == 4:
+                startDate_date = datetime.strptime(startDate, '%Y').date()
+            elif len(startDate) == 6:
+                startDate_date = datetime.strptime(startDate, '%Y%m').date()
+            elif len(startDate) == 8:
+                startDate_date = datetime.strptime(startDate, '%Y%m%d').date()
+            else:
+                print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
+                sys.exit()
+        except ValueError:
+            print "Error when parsing start date.\n"
+            print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
+            sys.exit()
 
-    if endDate != '' and not (len(endDate) == 4 or len(endDate) == 6 or len(endDate) == 8):
-        print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
-        sys.exit()
+    today = date.today()
+
+    if endDate == '':
+        endDate_date = today
+    else:
+        if len(endDate) == 4:
+            endYear = endDate
+            endMonth = '12'
+            endDay = monthrange(int(endYear), int(endMonth))[1]
+        elif len(endDate) == 6:
+            endYear = endDate[0:4]
+            endMonth = endDate[4:6]
+            endDay = monthrange(int(endYear), int(endMonth))[1]
+        elif len(endDate) == 8:
+            endYear = endDate[0:4]
+            endMonth = endDate[4:6]
+            endDay = endDate[6:8]
+        else:
+            print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
+            sys.exit()
+           
+        try:
+            endDate_date = datetime.strptime('{}{}{}'.format(endYear, endMonth, endDay), '%Y%m%d').date()   
+        except ValueError:
+            print "Error when parsing end date.\n"
+            print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
+            sys.exit()
+    
 
     if DEBUG and del_file == '':
         print "If you choose to run in DEBUG mode you must provide the path to\
@@ -171,14 +210,15 @@ def main(argv):
         with open(stats_file, 'w') as csv_file:
             csv_file.write('Geographic Area,ResourceType,Status,Organization,Date,NumOfDelegations,NumOfResources,IPCount,IPSpace\n')
         
-    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, startDate, endDate,
-                                    INCREMENTAL, final_existing_date, KEEP)
+    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, startDate_date,
+                                   endDate_date, INCREMENTAL,
+                                   final_existing_date, KEEP)
         
     if not del_handler.delegated_df.empty:
-        start_time = time.time()
+        start_time = time()
         computeStatistics(del_handler, stats_file)       
 
-        end_time = time.time()
+        end_time = time()
         sys.stderr.write("Stats computed successfully!\n")
         sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
 

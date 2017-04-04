@@ -9,7 +9,7 @@ from get_file import get_file
 import bgp_rib
 import pickle
 import radix
-from calendar import monthrange, timegm
+from calendar import timegm
 from datetime import datetime, date, timedelta
 import pandas as pd
 import ipaddress
@@ -145,23 +145,34 @@ class BGPDataHandler:
     # date provided or to the most recent date present in the archive
     def loadStructuresFromArchive(self, archive_folder, extension, routing_date,
                                   READABLE, RIBfiles, COMPRESSED):
-                                      
-        historical_files = self.getPathsToHistoricalData(archive_folder,
+     
+        if routing_date == '':
+            historical_files = self.getPathsToHistoricalData(archive_folder,
                                                          extension, '', '')
         
-        if historical_files == '':
-            sys.stderr.write("Archive is empty!\n")
-            return False
-        
-        if routing_date == '':
+            if historical_files == '':
+                sys.stderr.write("Archive is empty!\n")
+                return False
+
             routing_file  =\
                         self.getMostRecentFromHistoricalList(historical_files)
         else:
-            routing_file = self.getSpecificFileFromHistoricalList(historical_files,
-                                                                  routing_date)
+            routing_file = self.getSpecificFileFromArchive(archive_folder,
+                                                           extension,
+                                                           routing_date)
             if routing_file == '':
-                sys.stderr.write("There is no routing file in the archive for the date provided.\n")
-                return False
+                historical_files = self.getPathsToHistoricalData(archive_folder,
+                                                         extension, '', '')
+        
+                if historical_files == '':
+                    sys.stderr.write("Archive is empty!\n")
+                    return False
+
+                routing_file = self.getSpecificFileFromHistoricalList(historical_files,
+                                                                  routing_date)
+                if routing_file == '':
+                    sys.stderr.write("There is no routing file in the archive for the date provided.\n")
+                    return False
             
         if not READABLE:
             routing_file_readable = self.getReadableFile(routing_file, False,
@@ -218,6 +229,19 @@ class BGPDataHandler:
                 os.remove(historical_files)
             except OSError:
                 pass
+    
+    # This function returns a path to the routing file from the files in the
+    # archive corresponding to the provided date
+    def getSpecificFileFromArchive(self, archive_folder, extension, routing_date):
+        routing_folder = '{}/{}/{}/{}'.format(archive_folder, routing_date.year,
+                                                routing_date.month, routing_date.day)
+        
+        for item in os.listdir(routing_folder):
+            if item.endswith(extension):
+                return os.path.join(routing_folder, item)
+        
+        return ''
+        
         
     # This function returns a path to the routing file from the provided list 
     # of historical files corresponding to the provided date
@@ -243,7 +267,7 @@ class BGPDataHandler:
         
         for line in files_list_obj:
             if not line.startswith('#') and line.strip() != '':
-                date = datetime.strptime(self.getDateFromFileName(line.strip()), '%Y%m%d').date()
+                date = self.getDateFromFileName(line.strip())
                 
                 if date > mostRecentDate:
                     # We add 1 to the endDate because the files in the archive
@@ -267,7 +291,7 @@ class BGPDataHandler:
                         filename)
             if len(dates) > 0:
                 date = dates[0]
-        return date
+        return datetime.strptime(date, '%Y%m%d')
     
     # This function stores the routing data from the files listed in the
     # historical_files file skipping the mostRecent routing file provided,
@@ -680,37 +704,6 @@ class BGPDataHandler:
     # in the archive folder
     # It returns the path to the created file
     def getPathsToHistoricalData(self, archive_folder, extension, startDate, endDate):
-        if startDate != '':  
-            startYear = startDate[0:4]
-            startMonth = startDate[4:6]
-            
-            if startMonth == '':
-                startDate = datetime.strptime(startYear, '%Y').date()
-            else:
-                startDay = startDate[6:8]
-
-                if startDay == '':
-                    startDate = datetime.strptime('{}{}'.format(startYear, startMonth), '%Y%m').date()
-                else:
-                    startDate = datetime.strptime('{}{}{}'.format(startYear, startMonth, startDay), '%Y%m%d').date()
-
-        today = date.today().strftime('%Y%m%d')
-
-        if endDate == '':
-            endDate = today
-            
-        endYear = endDate[0:4]
-        endMonth = endDate[4:6]
-        endDay = endDate[6:8]
-
-        if endMonth == '':
-            endMonth = '12'
-
-        if endDay == '':
-            endDay = monthrange(int(endYear), int(endMonth))[1]            
-
-        endDate = datetime.strptime('{}{}{}'.format(endYear, endMonth, endDay), '%Y%m%d').date()
-        
         dateStr = 'UNTIL{}'.format(endDate)
         
         if startDate != '':
@@ -723,7 +716,7 @@ class BGPDataHandler:
         for root, subdirs, files in os.walk(archive_folder):
             for filename in files:
                 if filename.endswith(extension):
-                    file_date = datetime.strptime(str(self.getDateFromFileName(filename)), '%Y%m%d').date()
+                    file_date = self.getDateFromFileName(filename)
                     if (endDate != '' and file_date <= endDate + timedelta(1) or endDate == '') and\
                         (startDate != '' and file_date > startDate or startDate == ''):
                         files_list_list.append(os.path.join(root, filename))

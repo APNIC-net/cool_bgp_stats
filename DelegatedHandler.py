@@ -13,8 +13,6 @@ import ipaddress
 import numpy as np
 import radix
 import datetime
-from calendar import monthrange
-
 
 class DelegatedHandler:
 
@@ -117,37 +115,11 @@ class DelegatedHandler:
         
         
         if startDate != '':  
-            startYear = startDate[0:4]
-            startMonth = startDate[4:6]
-            
-            if startMonth == '':
-                startDate = datetime.datetime.strptime(startYear, '%Y')
-            else:
-                startDay = startDate[6:8]
-
-                if startDay == '':
-                    startDate = datetime.datetime.strptime('{}{}'.format(startYear, startMonth), '%Y%m').date()
-                else:
-                    startDate = datetime.datetime.strptime('{}{}{}'.format(startYear, startMonth, startDay), '%Y%m%d').date()
-            
             delegated_df = delegated_df[delegated_df['date'] >= startDate]
-
-        todayStr = today.strftime('%Y%m%d')
-
-        if endDate == '':
-            endDate = todayStr
-            
-        endYear = endDate[0:4]
-        endMonth = endDate[4:6]
         
-        if endMonth == '':
-            endMonth = '12'
-            endDay = monthrange(int(endYear), int(endMonth))[1]
-        else:
-            endDay = endDate[6:8]
-
-        endDate = datetime.datetime.strptime('{}{}{}'.format(endYear, endMonth, endDay), '%Y%m%d').date()
-
+        # endDate will never be null. The script that instantiates this class
+        # assigns the date of today to endDate if an endDate is not provided
+        # by the user.
         delegated_df = delegated_df[delegated_df['date'] <= endDate]            
             
         if delegated_df.empty:
