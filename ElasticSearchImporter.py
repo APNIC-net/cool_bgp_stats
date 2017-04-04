@@ -41,7 +41,7 @@ class ElasticSearchImporter:
             for i in range(len(row)):
                 data_dict[data_for_es.columns[i]] = row[i]
     
-            if len(self.ES.search(index=index_name, doc_type=doc_type,
+            if self.ES.count(index=index_name, doc_type=doc_type,
                                    body={'query':{
                                            'bool':{
                                                'must':[{
@@ -59,7 +59,7 @@ class ElasticSearchImporter:
                                                             }}, {
                                                     'match':{
                                                         'Status':data_dict['Status']
-                                                            }}]}}})) == 0:
+                                                            }}]}}})['count'] == 0:
     
                 op_dict = {
                         "_op_type": "index",
