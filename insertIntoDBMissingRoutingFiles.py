@@ -31,8 +31,10 @@ extension = 'bgprib.mrt'
 bgprib_files_list = []
 for root, subdirs, files in os.walk(archive_folder):
     for filename in files:
-        if filename.endswith(extension) and filename.split('.')[0] not in readable_files_dates:
+        date = filename.split('.')[0]
+        if filename.endswith(extension) and date not in readable_files_dates:
             bgprib_files_list.append(os.path.join(root, filename))
+            readable_files_dates.append(date)
 
 DEBUG = False
 files_path = '/home/sofia/BGP_stats_files/historical_files2'
