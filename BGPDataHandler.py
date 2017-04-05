@@ -179,9 +179,10 @@ class BGPDataHandler:
         date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref  =\
-                        self.processMultipleFiles(files_list=routing_files,\
-                                                isList=True, containsURLs=False,\
-                                                RIBfiles=RIBfiles, areReadable=READABLE)
+                        self.processMultipleFiles(files_list=routing_files,
+                                                isList=True, containsURLs=False,
+                                                RIBfiles=RIBfiles, areReadable=READABLE,
+                                                COMPRESSED)
                     
         self.routingDate = date
         self.ipv4Prefixes_radix = ipv4Prefixes_radix
