@@ -85,8 +85,7 @@ class VisibilityDBHandler:
             rows = self.cur.fetchall()
             return min(rows)['dateseen']
         except:
-            sys.stderr.write("Unable to get the date the prefix {} or any of its\
-                            fragments were first seen.\n".format(prefix))
+            sys.stderr.write("Unable to get the date the prefix {} or any of its fragments were first seen.\n".format(prefix))
             return None
             
     def getDateFirstSeenExact(self, prefix):
@@ -107,8 +106,7 @@ class VisibilityDBHandler:
             rows = self.cur.fetchall()
             return self.getListOfDateTuples(rows, True)
         except:
-            sys.stderr.write("Unable to get the periods during which the prefix\
-                            {} was seen.\n".format(prefix))
+            sys.stderr.write("Unable to get the periods during which the prefix {} was seen.\n".format(prefix))
             return []
             
     def getPeriodsSeenGral(self, prefix):
@@ -118,8 +116,7 @@ class VisibilityDBHandler:
             rows = self.cur.fetchall()
             return self.getDictOfPrefixDateTuples(rows)
         except:
-            sys.stderr.write("Unable to get the periods during which the prefix\
-                            {} and its fragments were seen.\n".format(prefix))
+            sys.stderr.write("Unable to get the periods during which the prefix {} and its fragments were seen.\n".format(prefix))
             return dict()
             
     def getTotalDaysSeen(self, prefix):
@@ -128,8 +125,7 @@ class VisibilityDBHandler:
                              (psycopg2.extras.Inet(prefix), self.routing_date))
             return self.cur.fetchone()[0]
         except:
-            sys.stderr.write("Unable to get the number of days during which the\
-                            prefix {} or its fragments were seen.\n".format(prefix))
+            sys.stderr.write("Unable to get the number of days during which the prefix {} or its fragments were seen.\n".format(prefix))
             return -1
                              
     def getTotalDaysSeenExact(self, prefix):
@@ -138,8 +134,7 @@ class VisibilityDBHandler:
                              (psycopg2.extras.Inet(prefix), self.routing_date))
             return self.cur.fetchone()[0]
         except:
-            sys.stderr.write("Unable to get the number of days during which the\
-                            prefix {} was seen.\n".format(prefix))
+            sys.stderr.write("Unable to get the number of days during which the prefix {} was seen.\n".format(prefix))
             return -1
                              
     def getDateLastSeenExact(self, prefix):
@@ -160,8 +155,7 @@ class VisibilityDBHandler:
             rows = self.cur.fetchall()
             return max(rows)['dateseen']
         except:
-            sys.stderr.write("Unable to get the date the prefix {} or any of its\
-                            fragments were last seen.\n".format(prefix))
+            sys.stderr.write("Unable to get the date the prefix {} or any of its fragments were last seen.\n".format(prefix))
             return None
         
     def getDateASNFirstSeen(self, asn):
@@ -180,8 +174,7 @@ class VisibilityDBHandler:
             rows = self.cur.fetchall()
             return self.getListOfDateTuples(rows, True)
         except:
-            sys.stderr.write("Unable to get the periods during which the ASN\
-                            {} was seen.\n".format(asn))
+            sys.stderr.write("Unable to get the periods during which the ASN {} was seen.\n".format(asn))
             return []
             
     def getTotalDaysASNSeen(self, asn):
@@ -189,8 +182,7 @@ class VisibilityDBHandler:
             self.cur.execute("""select count(*) from (select distinct dateseen from asns where asn = %s and dateSeen < %s) as temp;;""", (asn, self.routing_date))
             return self.cur.fetchone()[0]
         except:
-            sys.stderr.write("Unable to get the number of days during which the\
-                            ASN {} was seen.\n".format(asn))
+            sys.stderr.write("Unable to get the number of days during which the ASN {} was seen.\n".format(asn))
             return -1
             
     def getDateASNLastSeen(self, asn):

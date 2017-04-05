@@ -382,8 +382,8 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
                     # block is a customer of any of the origin ASes
                     # of the covering prefix                       
                     for coveringPrefOriginAS in coveringPrefOriginASes:
-                        if len(routingStatsObj.ASrels[(routingStatsObj.ASrels['AS1'] == coveringPrefOriginAS) &\
-                                (routingStatsObj.ASrels['AS2'] == blockOriginAS) &\
+                        if len(routingStatsObj.ASrels[(long(routingStatsObj.ASrels['AS1']) == long(coveringPrefOriginAS)) &\
+                                (long(routingStatsObj.ASrels['AS2']) == long(blockOriginAS)) &\
                                 (routingStatsObj.ASrels['rel_type'] == 'P2C')]):
 
                                 for coveringPrefASpath in coveringPrefASpaths:
@@ -419,13 +419,13 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
                 blockOriginASesCustomers = set()
                 for blockOriginAS in blockOriginASes:
                     blockOriginASesCustomers.\
-                        union(routingStatsObj.ASrels[(routingStatsObj.ASrels['AS1'] == blockOriginAS) &\
+                        union(routingStatsObj.ASrels[(long(routingStatsObj.ASrels['AS1']) == long(blockOriginAS)) &\
                                 (routingStatsObj.ASrels['rel_type'] == 'P2C')]['AS2'].tolist())
                 
                 coveringPrefOriginASesCustomers = set()
                 for coveringPrefOriginAS in coveringPrefOriginASes:
                     coveringPrefOriginASesCustomers.\
-                        union(routingStatsObj.ASrels[(routingStatsObj.ASrels['AS1'] == coveringPrefOriginAS) &\
+                        union(routingStatsObj.ASrels[(long(routingStatsObj.ASrels['AS1']) == long(coveringPrefOriginAS)) &\
                                 (routingStatsObj.ASrels['rel_type'] == 'P2C')]['AS2'].tolist())
                 
                 commonCustomers = blockOriginASesCustomers.\
@@ -433,7 +433,7 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
                 if len(commonCustomers) > 0:
                     for commonCustomer in commonCustomers:
                         correspondingOriginASes =\
-                            set(routingStatsObj.ASrels[(routingStatsObj.ASrels['AS2'] == commonCustomer) &\
+                            set(routingStatsObj.ASrels[(long(routingStatsObj.ASrels['AS2']) == long(commonCustomer)) &\
                                 (routingStatsObj.ASrels['rel_type'] == 'P2C')]['AS1'].tolist()).\
                                 intersection(blockOriginASes)
                         for correspondingOriginAS in correspondingOriginASes:
@@ -689,7 +689,7 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
         statsForAS['del_date'] = del_date
         statsForAS['routing_date'] = str(routingStatsObj.bgp_handler.routingDate)
         statsForAS['numOfUpstreams'] = len(routingStatsObj.ASrels[(routingStatsObj.ASrels['rel_type'] == 'P2C')\
-                                            & (routingStatsObj.ASrels['AS2'] == asn)])
+                                            & (long(routingStatsObj.ASrels['AS2']) == long(asn))])
 
         try:
             statsForAS['numOfPrefixesOriginated_curr'] =\
@@ -1105,7 +1105,6 @@ def main(argv):
                 loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
                             archive_folder, ext, routing_date, READABLE, RIBfiles,
                             COMPRESSED)
-                TEMPORAL_DATA = True
         
         if not loaded:
             print "Data structures not loaded!\n"
@@ -1185,12 +1184,32 @@ def main(argv):
                 sys.stderr.write("Stats about usage of ASNs delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
                     
     else:
-        routingStatsObj.bgp_handler.storeHistoricalDataFromArchive(archive_folder,
-                                                                   ext, READABLE,
-                                                                   RIBfiles,
-                                                                   COMPRESSED,
-                                                                   startDate_date,
-                                                                   endDate_date)
+        if startDate == endDate:
+            routing_files = routingStatsObj.bgp_handler.getSpecificFilesFromArchive(\
+                                                        archive_folder, 'bgprib.mrt',
+                                                        startDate)
+            if len(routing_files) == 0:
+                routing_files = routingStatsObj.bgp_handler.getSpecificFilesFromArchive(\
+                                                        archive_folder, 'dmp.gz',
+                                                        startDate)
+                if len(routing_files) == 0:
+                    sys.stderr.write("No routing file for the date provided was found in the archive.\n")
+                
+                else:
+                    for routing_file in routing_files:
+                        routingStatsObj.bgp_handler.storeHistoricalDataFromFile(\
+                                                    routing_file, False, False, True)
+            else:
+                for routing_file in routing_files:
+                    routingStatsObj.bgp_handler.storeHistoricalDataFromFile(\
+                                                    routing_file, False, True, False)
+        else:
+            routingStatsObj.bgp_handler.storeHistoricalDataFromArchive(archive_folder,
+                                                                       ext, READABLE,
+                                                                       RIBfiles,
+                                                                       COMPRESSED,
+                                                                       startDate_date,
+                                                                       endDate_date)
         
 if __name__ == "__main__":
     main(sys.argv[1:])

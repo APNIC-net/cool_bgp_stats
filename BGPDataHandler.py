@@ -156,13 +156,13 @@ class BGPDataHandler:
                 sys.stderr.write("Archive is empty!\n")
                 return False
 
-            routing_file  =\
-                        self.getMostRecentFromHistoricalList(historical_files)
+            routing_files  =\
+                        self.getMostRecentsFromHistoricalList(historical_files)
         else:
-            routing_file = self.getSpecificFileFromArchive(archive_folder,
-                                                           extension,
-                                                           routing_date)
-            if routing_file == '':
+            routing_files = self.getSpecificFilesFromArchive(archive_folder,
+                                                             extension,
+                                                             routing_date)
+            if len(routing_files) == 0:
                 historical_files = self.getPathsToHistoricalData(archive_folder,
                                                          extension, '', '')
         
@@ -170,30 +170,24 @@ class BGPDataHandler:
                     sys.stderr.write("Archive is empty!\n")
                     return False
 
-                routing_file = self.getSpecificFileFromHistoricalList(historical_files,
-                                                                  routing_date)
-                if routing_file == '':
+                routing_files = self.getSpecificFilesFromHistoricalList(historical_files,
+                                                                        routing_date)
+                if len(routing_files) == 0:
                     sys.stderr.write("There is no routing file in the archive for the date provided.\n")
                     return False
-            
-        if not READABLE:
-            routing_file_readable = self.getReadableFile(routing_file, False,
-                                                         RIBfiles, COMPRESSED)
-        else:
-            routing_file_readable = routing_file
-
-        # We then load the data structures
+                    
         date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
-            ipv4_longest_pref, ipv6_longest_pref =\
-                                self.processReadableDF(routing_file_readable)
-        
+            ipv4_longest_pref, ipv6_longest_pref  =\
+                        self.processMultipleFiles(files_list=routing_files,\
+                                                isList=True, containsURLs=False,\
+                                                RIBfiles=RIBfiles, areReadable=READABLE)
+                    
         self.routingDate = date
         self.ipv4Prefixes_radix = ipv4Prefixes_radix
         self.ipv6Prefixes_radix = ipv6Prefixes_radix
         self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
         self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
-            
         
         if ipv4_longest_pref != -1:
             self.ipv4_longest_pref = ipv4_longest_pref
@@ -205,14 +199,15 @@ class BGPDataHandler:
             self.ipv6_longest_pref = 64
 
         sys.stderr.write("Class data structures were loaded successfully!\n")
-           
+
         if not self.KEEP:
             try:
                 os.remove(historical_files)
             except OSError:
                 pass
-
+            
         return True
+        
         
     def storeHistoricalDataFromArchive(self, archive_folder, extension,\
                                         READABLE, RIBfiles, COMPRESSED,\
@@ -233,9 +228,9 @@ class BGPDataHandler:
             except OSError:
                 pass
     
-    # This function returns a path to the routing file from the files in the
-    # archive corresponding to the provided date
-    def getSpecificFileFromArchive(self, archive_folder, extension, routing_date):
+    # This function returns a list of paths to the routing files from the files
+    # in the archive corresponding to the provided date
+    def getSpecificFilesFromArchive(self, archive_folder, extension, routing_date):
         month = str(routing_date.month)
         if len(month) == 1:
             month = '0{}'.format(month)
@@ -249,21 +244,23 @@ class BGPDataHandler:
         
         routing_folder = '{}/{}/{}/{}'.format(archive_folder, routing_date.year,
                                                 month, day)
+        routing_files = []
         try:
             for item in os.listdir(routing_folder):
                 if item.endswith(extension):
-                    return os.path.join(routing_folder, item)
+                    routing_files.append(os.path.join(routing_folder, item))
         except OSError:
-            return ''
-            
-        return ''
+            return []
+        
+        return routing_files
         
         
     # This function returns a path to the routing file from the provided list 
     # of historical files corresponding to the provided date
-    def getSpecificFileFromHistoricalList(self, historical_files, routing_date):
+    def getSpecificFilesFromHistoricalList(self, historical_files, routing_date):
         files_list_obj = open(historical_files, 'r')
         
+        routing_files = []
         for line in files_list_obj:
             if not line.startswith('#') and line.strip() != '':
                 date = self.getDateFromFileName(line.strip())
@@ -272,9 +269,9 @@ class BGPDataHandler:
                 # archive contain routing data corresponding to the day before to the
                 # date specified in the file name.
                 if date == routing_date + timedelta(1):
-                   return line.strip()
+                   routing_files.append(line.strip())
         
-        return ''
+        return routing_files
         
     # This function returns a path to the most recent file in the provided list 
     # of historical files
@@ -282,7 +279,7 @@ class BGPDataHandler:
         files_list_obj = open(historical_files, 'r')
 
         mostRecentDate = datetime.strptime('1970', '%Y').date()
-        mostRecentFile = ''
+        mostRecentFiles = []
         
         for line in files_list_obj:
             if not line.startswith('#') and line.strip() != '':
@@ -293,9 +290,11 @@ class BGPDataHandler:
                     # have routing data for the day before of the date in the
                     # name of the file
                     mostRecentDate = date
-                    mostRecentFile = line.strip()
+                    mostRecentFiles = [line.strip()]
+                elif date == mostRecentDate:
+                    mostRecentFiles.append(line.strip())
         
-        return mostRecentFile
+        return mostRecentFiles
         
     def getDateFromFileName(self, filename):
         date = ''
