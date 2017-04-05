@@ -146,6 +146,8 @@ class BGPDataHandler:
     def loadStructuresFromArchive(self, archive_folder, extension, routing_date,
                                   READABLE, RIBfiles, COMPRESSED):
      
+        historical_files = ''
+        
         if routing_date == '':
             historical_files = self.getPathsToHistoricalData(archive_folder,
                                                          extension, '', '')
@@ -221,7 +223,8 @@ class BGPDataHandler:
         if historical_files == '':
             sys.stderr.write("There are no routing files in the archive that meet the criteria (extension and period of time).")
         else:
-            self.storeHistoricalData(historical_files, READABLE, RIBfiles, COMPRESSED)
+            self.storeHistoricalData(historical_files, False, READABLE, RIBfiles,
+                                     COMPRESSED)
             sys.stderr.write("Historical data inserted into visibility database successfully!\n")
    
         if not self.KEEP:
@@ -312,9 +315,13 @@ class BGPDataHandler:
     # This function stores the routing data from the files listed in the
     # historical_files file skipping the mostRecent routing file provided,
     # as the data contained in this file has already been stored.
-    def storeHistoricalData(self, historical_files, areReadable, RIBfiles, COMPRESSED):
+    def storeHistoricalData(self, historical_files, isList, areReadable,
+                            RIBfiles, COMPRESSED):
 
-        files_list_obj = open(historical_files, 'r')
+        if not isList:
+            files_list_obj = open(historical_files, 'r')
+        else:
+            files_list_obj = historical_files
         
         i = 0
         for line in files_list_obj:
