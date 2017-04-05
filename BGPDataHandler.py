@@ -307,7 +307,7 @@ class BGPDataHandler:
                         filename)
             if len(dates) > 0:
                 date = dates[0]
-        return datetime.strptime(date, '%Y%m%d')
+        return datetime.strptime(date, '%Y%m%d').date()
     
     # This function stores the routing data from the files listed in the
     # historical_files file skipping the mostRecent routing file provided,
