@@ -598,7 +598,7 @@ class BGPDataHandler:
                 bgp_df = bgp_df[0:10]
 
              # We add a column to the Data Frame with the corresponding date
-            bgp_df['date'] = bgp_df.apply(lambda row: datetime.utcfromtimestamp(row['timestamp']).strftime('%Y%m%d'), axis=1)
+            bgp_df['date'] = bgp_df.apply(lambda row: datetime.utcfromtimestamp(row['timestamp']), axis=1)
             date = max(bgp_df['date'])
             
             ASpath_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
