@@ -4,6 +4,9 @@ Created on Thu Mar 23 09:47:06 2017
 
 @author: sofiasilva
 """
+import os
+os.chdir(os.path.dirname(os.path.realpath(__file__)))
+from iter_file import IteratorFile
 import sys, datetime
 import psycopg2
 import psycopg2.extras
@@ -34,7 +37,6 @@ class VisibilityDBHandler:
         try:
             self.conn = psycopg2.connect("dbname='{}' user='{}' password='{}' host='{}'"\
                                     .format(self.dbname, self.user, self.password, self.host))
-            self.conn.autocommit = True
             self.cur = self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             psycopg2.extras.register_inet()
         except:
@@ -48,21 +50,33 @@ class VisibilityDBHandler:
         try:
             self.cur.execute("""INSERT INTO prefixes VALUES (%s, %s)""",
                              (prefix, date))
+            self.conn.commit()
             return True
         except psycopg2.IntegrityError:
             self.conn.rollback()
             # Duplicated tuple not inserted into the Prefixes table.
             return False
+
+    def storeListOfPrefixesSeen(self, prefix_list, date):
+        tuplesToInsert = zip(prefix_list, [date]*len(prefix_list))
+        f = IteratorFile(("{}\t{}".format(x[0], x[1]) for x in tuplesToInsert))
+        self.cur.copy_from(f, 'prefixes', columns=('prefix', 'dateseen'))
             
     def storeASSeen(self, asn, isOriginAS, date):
         try:
             self.cur.execute("""INSERT INTO asns VALUES (%s, %s, %s)""",
                              (asn, isOriginAS, date))
+            self.conn.commit()
             return True
         except psycopg2.IntegrityError:
             self.conn.rollback()
             # Duplicated tuple not inserted into the Prefixes table.
             return False
+    
+    def storeListOfASesSeen(self, asnsList, areOriginASes, date):
+        tuplesToInsert = zip(asnsList, [areOriginASes]*len(asnsList), [date]*len(asnsList))
+        f = IteratorFile(("{}\t{}\t{}".format(x[0], x[1], x[2]) for x in tuplesToInsert))
+        self.cur.copy_from(f, 'asns', columns=('asn', 'isorigin', 'dateseen'))
 
     def getDateFirstSeen(self, prefix):
         try:

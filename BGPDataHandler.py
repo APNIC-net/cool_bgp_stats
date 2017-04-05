@@ -338,9 +338,9 @@ class BGPDataHandler:
                                                     RIBfile, COMPRESSED)
         visibilityDB = VisibilityDBHandler(date)
 
-        for prefix in prefixes:
-            visibilityDB.storePrefixSeen(prefix, date)
+        visibilityDB.storeListOfPrefixesSeen(prefixes, date)
         
+        cleanOriginASes = []
         for originAS in originASes:
             if originAS is None or originAS == 'nan':
                 continue
@@ -350,23 +350,26 @@ class BGPDataHandler:
                 # (leaving the brackets out) and consider each AS separately.
                 asnList = originAS.replace('{', '').replace('}', '').split(',')
                 for asn in asnList:
-                    asn = int(asn)
-                    visibilityDB.storeASSeen(asn, True, date)
+                    cleanOriginASes.append(asn)
             else:
-                originAS = int(originAS)
-                visibilityDB.storeASSeen(originAS, True, date)
+                cleanOriginASes.append(originAS)
                 
-        for asn in middleASes:
-            if asn is None or asn == 'nan':
-                continue
-            elif '{' in str(asn):
-                asnList = asn.replace('{', '').replace('}', '').split(',')
-                for asn in asnList:
-                    visibilityDB.storeASSeen(asn, False, date)
+        visibilityDB.storeListOfASesSeen(cleanOriginASes, True, date)
 
+        cleanMiddleASes = []                
+        for middleAS in middleASes:
+            if middleAS is None or middleAS == 'nan':
+                continue
+            elif '{' in str(middleAS):
+                asnList = middleAS.replace('{', '').replace('}', '').split(',')
+                for asn in asnList:
+                    cleanMiddleASes.append(asn)
             else:
-                asn = int(asn)
-                visibilityDB.storeASSeen(asn, False, date)
+                cleanMiddleASes.append(middleAS)
+        
+        visibilityDB.storeListOfASesSeen(cleanMiddleASes, False, date)
+        
+        visibilityDB.close()
 
     
     # This function returns a list of prefixes for which the routing_file has
