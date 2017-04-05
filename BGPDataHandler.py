@@ -348,26 +348,24 @@ class BGPDataHandler:
                 # If the asn field contains a bracket ({}), there is an as-set
                 # in first place in the AS path, therefore, we split it
                 # (leaving the brackets out) and consider each AS separately.
-                asnList = originAS.replace('{', '').replace('}', '').split(',')
-                for asn in asnList:
-                    cleanOriginASes.append(asn)
+                cleanOriginASes.extend(originAS.replace('{', '').replace('}', '').split(','))
+
             else:
                 cleanOriginASes.append(originAS)
                 
-        visibilityDB.storeListOfASesSeen(cleanOriginASes, True, date)
+        visibilityDB.storeListOfASesSeen(list(set(cleanOriginASes)), True, date)
 
         cleanMiddleASes = []                
         for middleAS in middleASes:
             if middleAS is None or middleAS == 'nan':
                 continue
             elif '{' in str(middleAS):
-                asnList = middleAS.replace('{', '').replace('}', '').split(',')
-                for asn in asnList:
-                    cleanMiddleASes.append(asn)
+                cleanMiddleASes.extend(middleAS.replace('{', '').replace('}', '').split(','))
+
             else:
                 cleanMiddleASes.append(middleAS)
         
-        visibilityDB.storeListOfASesSeen(cleanMiddleASes, False, date)
+        visibilityDB.storeListOfASesSeen(list(set(cleanMiddleASes)), False, date)
         
         visibilityDB.close()
 

@@ -1,4 +1,5 @@
 # From https://gist.github.com/jsheedy/ed81cdf18190183b3b7d
+# Updated by Sofia Silva Berenguer (sofia.silvab@gmail.com)
 
 import io
 import sys
@@ -15,7 +16,7 @@ class IteratorFile(io.TextIOBase):
 
         try:
             while self._f.tell() < length:
-                self._f.write(next(self._it) + "\n")
+                self._f.write(unicode(next(self._it) + "\n", 'utf-8'))
                 
         except StopIteration as e:
             # soak up StopIteration. this block is not necessary because
