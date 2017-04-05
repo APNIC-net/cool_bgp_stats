@@ -182,7 +182,7 @@ class BGPDataHandler:
                         self.processMultipleFiles(files_list=routing_files,
                                                 isList=True, containsURLs=False,
                                                 RIBfiles=RIBfiles, areReadable=READABLE,
-                                                COMPRESSED)
+                                                COMPRESSED=COMPRESSED)
                     
         self.routingDate = date
         self.ipv4Prefixes_radix = ipv4Prefixes_radix
