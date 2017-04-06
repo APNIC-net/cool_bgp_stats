@@ -262,10 +262,10 @@ def computeNetworkUsageLatency(prefix, statsForPrefix, db_handler):
 def getASNOpaqueID(asn, del_handler):
     asn_del = del_handler.fullASN_df
     
-    opaque_id = asn_del[(pd.to_numeric(asn_del['initial_resource']) <= int(asn)) &\
+    opaque_id = asn_del[(pd.to_numeric(asn_del['initial_resource']) <= long(asn)) &\
                             (pd.to_numeric(asn_del['initial_resource'])+\
                             pd.to_numeric(asn_del['count/prefLen'])>\
-                            int(asn))]['opaque_id'].get_values()
+                            long(asn))]['opaque_id'].get_values()
     if len(opaque_id) == 1:
         return opaque_id[0]
     # There can not be more than one result in the ASN DataFrame,
@@ -376,14 +376,14 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
         else:
             if len(blockASpaths) == 1:
                 if len(blockOriginASes) == 1:
-                    blockOriginAS = int(blockOriginASes.pop())
+                    blockOriginAS = long(blockOriginASes.pop())
 
                     # We check whether the origin AS of the
                     # block is a customer of any of the origin ASes
                     # of the covering prefix                       
                     for coveringPrefOriginAS in coveringPrefOriginASes:
-                        if len(routingStatsObj.ASrels[(long(routingStatsObj.ASrels['AS1']) == long(coveringPrefOriginAS)) &\
-                                (long(routingStatsObj.ASrels['AS2']) == long(blockOriginAS)) &\
+                        if len(routingStatsObj.ASrels[(routingStatsObj.ASrels['AS1'] == long(coveringPrefOriginAS)) &\
+                                (routingStatsObj.ASrels['AS2'] == blockOriginAS) &\
                                 (routingStatsObj.ASrels['rel_type'] == 'P2C')]):
 
                                 for coveringPrefASpath in coveringPrefASpaths:
@@ -419,13 +419,13 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
                 blockOriginASesCustomers = set()
                 for blockOriginAS in blockOriginASes:
                     blockOriginASesCustomers.\
-                        union(routingStatsObj.ASrels[(long(routingStatsObj.ASrels['AS1']) == long(blockOriginAS)) &\
+                        union(routingStatsObj.ASrels[(routingStatsObj.ASrels['AS1'] == long(blockOriginAS)) &\
                                 (routingStatsObj.ASrels['rel_type'] == 'P2C')]['AS2'].tolist())
                 
                 coveringPrefOriginASesCustomers = set()
                 for coveringPrefOriginAS in coveringPrefOriginASes:
                     coveringPrefOriginASesCustomers.\
-                        union(routingStatsObj.ASrels[(long(routingStatsObj.ASrels['AS1']) == long(coveringPrefOriginAS)) &\
+                        union(routingStatsObj.ASrels[(routingStatsObj.ASrels['AS1'] == long(coveringPrefOriginAS)) &\
                                 (routingStatsObj.ASrels['rel_type'] == 'P2C')]['AS2'].tolist())
                 
                 commonCustomers = blockOriginASesCustomers.\
@@ -433,7 +433,7 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
                 if len(commonCustomers) > 0:
                     for commonCustomer in commonCustomers:
                         correspondingOriginASes =\
-                            set(routingStatsObj.ASrels[(long(routingStatsObj.ASrels['AS2']) == long(commonCustomer)) &\
+                            set(routingStatsObj.ASrels[(routingStatsObj.ASrels['AS2'] == long(commonCustomer)) &\
                                 (routingStatsObj.ASrels['rel_type'] == 'P2C')]['AS1'].tolist()).\
                                 intersection(blockOriginASes)
                         for correspondingOriginAS in correspondingOriginASes:
@@ -679,7 +679,7 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
     for i in expanded_del_asns_df.index:
         statsForAS = routingStatsObj.def_dict_ases.copy()
         
-        asn = int(expanded_del_asns_df.ix[i]['initial_resource'])
+        asn = long(expanded_del_asns_df.ix[i]['initial_resource'])
         statsForAS['asn'] = asn
         statsForAS['asn_type'] = expanded_del_asns_df.ix[i]['status']
         statsForAS['opaque_id'] = expanded_del_asns_df.ix[i]['opaque_id']
@@ -689,7 +689,7 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
         statsForAS['del_date'] = del_date
         statsForAS['routing_date'] = str(routingStatsObj.bgp_handler.routingDate)
         statsForAS['numOfUpstreams'] = len(routingStatsObj.ASrels[(routingStatsObj.ASrels['rel_type'] == 'P2C')\
-                                            & (long(routingStatsObj.ASrels['AS2']) == long(asn))])
+                                            & (routingStatsObj.ASrels['AS2'] == long(asn))])
 
         try:
             statsForAS['numOfPrefixesOriginated_curr'] =\
