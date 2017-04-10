@@ -83,6 +83,39 @@ mapping = {"_default_" : {
                                 'noRootMSIncompl' : {
                                     "type" : "boolean"
                                                     },
+                                'isLonely' : {
+                                    "type" : "boolean"
+                                                    },
+                                'isSOSP' : {
+                                    "type" : "boolean"
+                                                    },
+                                'isDODP1' : {
+                                    "type" : "boolean"
+                                                    },
+                                'isDODP2'  : {
+                                    "type" : "boolean"
+                                                    },
+                                'isDODP3' : {
+                                    "type" : "boolean"
+                                                    },
+                                'isCoveredLevel2plus' : {
+                                    "type" : "boolean"
+                                                    },
+                                'isDOSP' : {
+                                    "type" : "boolean"
+                                                    },
+                                'isCoveredLevel1' : {
+                                    "type" : "boolean"
+                                                    },
+                                'isSODP2' : {
+                                    "type" : "boolean"
+                                                    },
+                                'isCovering' : {
+                                    "type" : "boolean"
+                                                    },
+                                'isSODP1' : {
+                                    "type" : "boolean"
+                                                    },
                                 'UsageLatencyGral' : {
                                     "type" : "integer"
                                                     },
@@ -189,6 +222,18 @@ mapping = {"_default_" : {
                                     "type" : "float"
                                                     },
                                 'maxASPathLengthGral' : {
+                                    "type" : "float"
+                                                    },
+                                'avgLevenshteinDistPrefix' : {
+                                    "type" : "float"
+                                                    },
+                                'stdLevenshteinDistPrefix' : {
+                                    "type" : "float"
+                                                    },
+                                'minLevenshteinDistPrefix' : {
+                                    "type" : "float"
+                                                    },
+                                'maxLevenshteinDistPrefix' : {
                                     "type" : "float"
                                                     },
                                 'avgLevenshteinDistMoreSpec' : {

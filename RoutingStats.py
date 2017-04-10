@@ -117,11 +117,25 @@ class RoutingStats:
             # SOSP or SODP in [1]. Prefixes classified as Delegated in [2] are those
             # classified as DOSP or DODP in [1].     
             
-            booleanKeys_pref = ['isRoutedIntact', 'isDead', 'isDeadIntact',
+            booleanGralKeys_pref = ['isRoutedIntact', 'isDead', 'isDeadIntact',
                                 'originatedByDiffOrg', 'hasFragmentsOriginatedByDiffOrg',\
                                 'hasLessSpecificsOriginatedByDiffOrg', 'onlyRoot', 'rootMSCompl',
                                 'rootMSIncompl', 'noRootMSCompl', 'noRootMSIncompl']
-                                           
+            
+            self.prefix_variables = {'DODP1': 'isDODP1',
+                                       'DODP2': 'isDODP2',
+                                       'DODP3': 'isDODP3',
+                                       'DOSP': 'isDOSP',
+                                       'SODP1': 'isSODP1',
+                                       'SODP2': 'isSODP2',
+                                       'SOSP': 'isSOSP',
+                                       'coveredLevel1': 'isCoveredLevel1',
+                                       'coveredLevel2plus': 'isCoveredLevel2plus',
+                                       'covering': 'isCovering',
+                                       'lonely': 'isLonely'}
+                                       
+            booleanKeys_pref = booleanGralKeys_pref + self.prefix_variables.values()
+            
             valueKeys_pref = ['UsageLatencyGral', 'UsageLatencyIntact',
                               'relUsedTimeIntact', 'avgRelUsedTimeGral',
                               'effectiveUsageIntact', 'avgEffectiveUsageGral',
@@ -139,7 +153,9 @@ class RoutingStats:
                               'stdNumOfASPathsGral', 'minNumOfASPathsGral',
                               'maxNumOfASPathsGral', 'avgASPathLengthGral',
                               'stdASPathLengthGral', 'minASPathLengthGral',
-                              'maxASPathLengthGral', 'avgLevenshteinDistMoreSpec',
+                              'maxASPathLengthGral', 'avgLevenshteinDistPrefix',
+                              'stdLevenshteinDistPrefix', 'minLevenshteinDistPrefix',
+                              'maxLevenshteinDistPrefix', 'avgLevenshteinDistMoreSpec',
                               'stdLevenshteinDistMoreSpec', 'minLevenshteinDistMoreSpec',
                               'maxLevenshteinDistMoreSpec', 'avgLevenshteinDistLessSpec',
                               'stdLevenshteinDistLessSpec', 'minLevenshteinDistLessSpec',
@@ -147,7 +163,7 @@ class RoutingStats:
                               
             gralCounterKeys_pref = ['numOfOriginASesIntact', 'numOfASPathsIntact',
                                 'numOfLessSpecificsRouted', 'numOfMoreSpecificsRouted']
-    
+                                       
             self.moreSpec_variables = {'DODP1': 'numOfDODP1MoreSpec',
                                        'DODP2': 'numOfDODP2MoreSpec',
                                        'DODP3': 'numOfDODP3MoreSpec',

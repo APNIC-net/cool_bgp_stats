@@ -312,14 +312,39 @@ def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, del_handler):
 # These classes are taken from those defined in [1]
 # The corresponding variables in the statsForPrefix dictionary are incremented
 # to keep track of the number of prefixes in each class.
-def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
-                                        diffOrg_var, levenshteinDists,\
-                                        routingStatsObj, files_path):
+def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
+                                        variables, diffOrg_var, numsOfOriginASesGral,
+                                        numsOfASPathsGral, ASPathLengthsGral,
+                                        levenshteinDists, routingStatsObj, files_path):
     
     routedNetwork = ipaddress.ip_network(unicode(routedPrefix, "utf-8"))
 
     blockOriginASes = routingStatsObj.bgp_handler.getOriginASesForBlock(routedNetwork)
     blockASpaths = routingStatsObj.bgp_handler.getASpathsForBlock(routedNetwork)
+    
+    if isDelegated:
+        statsForPrefix['numOfOriginASesIntact'] = len(blockOriginASes)
+        statsForPrefix['numOfASPathsIntact'] = len(blockASpaths)
+        
+        ASpathsLengths = []
+        for path in blockASpaths:
+            ASpathsLengths.append(len(path.split()))
+            
+        ASpathsLengths = np.array(ASpathsLengths)
+        statsForPrefix['avgASPathLengthIntact'] = ASpathsLengths.mean()
+        statsForPrefix['stdASPathLengthIntact'] = ASpathsLengths.std()
+        statsForPrefix['minASPathLengthIntact'] = ASpathsLengths.min()
+        statsForPrefix['maxASPathLengthIntact'] = ASpathsLengths.max()
+    else:
+        if numsOfOriginASesGral is not None:
+            numsOfOriginASesGral.append(len(blockOriginASes))
+        
+        if numsOfASPathsGral is not None:
+            numsOfASPathsGral.append(len(blockASpaths))
+            
+        if ASPathLengthsGral is not None:
+            for path in blockASpaths:
+                ASPathLengthsGral.append(len(path.split()))
         
     # If the delegated prefix is not already marked as having fragments being
     # announced by an AS delegated to an organization different from the
@@ -341,9 +366,15 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
     # the block is a covered prefix
     if len(net_less_specifics) > 0:        
         if len(net_less_specifics) == 1:
-            statsForPrefix[variables['coveredLevel1']] += 1
+            if isDelegated:
+                statsForPrefix[variables['coveredLevel1']] = True
+            else:
+                statsForPrefix[variables['coveredLevel1']] += 1
         else:
-            statsForPrefix[variables['coveredLevel2plus']] += 1
+            if isDelegated:
+                statsForPrefix[variables['coveredLevel2plus']] = True
+            else:
+                statsForPrefix[variables['coveredLevel2plus']] += 1
 
         # We classify the covered prefix based on its AS paths
         # relative to those of its corresponding covering prefix
@@ -358,9 +389,15 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
         if len(blockOriginASes.intersection(coveringPrefOriginASes)) > 0:
             if len(blockASpaths) == 1:
                 if blockASpaths.issubset(coveringPrefASpaths):
-                    statsForPrefix[variables['SOSP']] += 1
+                    if isDelegated:
+                        statsForPrefix[variables['SOSP']] = True
+                    else:
+                        statsForPrefix[variables['SOSP']] += 1
                 else:
-                    statsForPrefix[variables['SODP2']] += 1
+                    if isDelegated:
+                        statsForPrefix[variables['SODP2']] = True
+                    else:
+                        statsForPrefix[variables['SODP2']] += 1
                     
                     levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
                                                                     coveringPrefASpaths))
@@ -368,7 +405,10 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
             else: # len(blockASpaths) >= 2
                 if len(coveringPrefASpaths.intersection(blockASpaths)) > 0 and\
                     len(blockASpaths.difference(coveringPrefASpaths)) > 0:
-                    statsForPrefix[variables['SODP1']] += 1
+                    if isDelegated:
+                        statsForPrefix[variables['SODP1']] = True
+                    else:
+                        statsForPrefix[variables['SODP1']] += 1
                     
                     levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
                                                                     coveringPrefASpaths))
@@ -391,14 +431,20 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
                                         blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
                                         
                                         if blockASpath_woOrigin == coveringPrefASpath:
-                                            statsForPrefix[variables['DOSP']] += 1
+                                            if isDelegated:
+                                                statsForPrefix[variables['DOSP']] = True
+                                            else:
+                                                statsForPrefix[variables['DOSP']] += 1
                                             break
                                 else:
                                     continue
                                 break
                                 
                 if not blockASpaths.issubset(coveringPrefASpaths):
-                    statsForPrefix[variables['DODP1']] += 1
+                    if isDelegated:
+                        statsForPrefix[variables['DODP1']] = True
+                    else:
+                        statsForPrefix[variables['DODP1']] += 1
                     
                     levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
                                                                     coveringPrefASpaths))
@@ -410,7 +456,10 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
                 
                 if len(coveringPrefASpaths.intersection(blockASpaths_woOrigin)) > 0 and\
                     len(blockASpaths_woOrigin.difference(coveringPrefASpaths)) > 0:
-                    statsForPrefix[variables['DODP2']] += 1
+                    if isDelegated:
+                        statsForPrefix[variables['DODP2']] = True
+                    else:
+                        statsForPrefix[variables['DODP2']] += 1
                     
                     levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
                                                                     coveringPrefASpaths))
@@ -438,7 +487,11 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
                                 intersection(blockOriginASes)
                         for correspondingOriginAS in correspondingOriginASes:
                             if len(routingStatsObj.bgp_handler.ASes_originated_prefixes_dic[correspondingOriginAS]) >= 2:
-                                statsForPrefix[variables['DODP3']] += 1
+                                if isDelegated:
+                                    statsForPrefix[variables['DODP3']] = True
+                                else:
+                                    statsForPrefix[variables['DODP3']] += 1
+                                    
                                 levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
                                                                 coveringPrefASpaths))
                                 break
@@ -456,18 +509,23 @@ def classifyPrefixAndUpdateVariables(routedPrefix, statsForPrefix, variables,\
             # the block is a Lonely prefix
             # • Lonely: a prefix that does not overlap
             # with any other prefix.
-            statsForPrefix[variables['lonely']] += 1
+            if isDelegated:
+                statsForPrefix[variables['lonely']] = True
+            else:
+                statsForPrefix[variables['lonely']] += 1
+                
         elif (routedPrefix not in net_more_specifics and len(net_more_specifics) > 0)\
             or (routedPrefix in net_more_specifics and len(net_more_specifics) > 1):
         # If there are more specific blocks being routed apart from
         # the block itself, taking into account we are under the case
         # of the block not having less specific blocks being routed,
-            # The block is a Covering prefix  
-            statsForPrefix[variables['covering']] += 1
+            # The block is a Covering prefix
+            if isDelegated:
+                statsForPrefix[variables['covering']] = True
+            else:
+                statsForPrefix[variables['covering']] += 1
 
     
-        
-
 def writeStatsLineToFile(statsForPrefix, allAttr, stats_filename):
     line = statsForPrefix[allAttr[0]]
         
@@ -513,17 +571,26 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
         less_specifics = routingStatsObj.bgp_handler.getRoutedParentAndGrandparents(delNetwork)
         more_specifics = routingStatsObj.bgp_handler.getRoutedChildren(delNetwork)
         
+        statsForPrefix['numOfLessSpecificsRouted'] = len(less_specifics)
+        statsForPrefix['numOfMoreSpecificsRouted'] = len(more_specifics)
+        
+        if len(less_specifics) == 0 and len(more_specifics) == 0:
+            statsForPrefix['currentVisibility'] = 0
+            
         if len(less_specifics) > 0:
             statsForPrefix['currentVisibility'] = 100
-            statsForPrefix['numOfLessSpecificsRouted'] = len(less_specifics)
             
             levenshteinDists = []
             for lessSpec in less_specifics:
-                classifyPrefixAndUpdateVariables(lessSpec, statsForPrefix,
+                # For less specific prefixes we are not interested in the number
+                # of origin ASes, the number of AS paths or the AS paths lengths,
+                # that's why we use None for the parameters corresponding to the
+                # lists for those values
+                classifyPrefixAndUpdateVariables(lessSpec, False, statsForPrefix,
                                                  routingStatsObj.lessSpec_variables,
                                                  'hasLessSpecificsOriginatedByDiffOrg',
-                                                 levenshteinDists, routingStatsObj,
-                                                 files_path)
+                                                 None, None, None, levenshteinDists,
+                                                 routingStatsObj, files_path)
             
             if len(levenshteinDists) > 0:
                 levenshteinDists = np.array(levenshteinDists)
@@ -534,20 +601,29 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
             
             
         if len(more_specifics) > 0:
-            statsForPrefix['numOfMoreSpecificsRouted'] = len(more_specifics)
-
             more_specifics_wo_prefix = copy.copy(more_specifics)
 
             if prefix in more_specifics:
+                levenshteinDists = []
+                # For the delegated prefix it doesn't make sense to have a list
+                # of numbers of Origin ASes, numbers of AS paths or AS paths
+                # lengths to compute average, standard deviation, minimum and
+                # maximum because it is a single prefix,
+                # that's why we use None for the parameters corresponding to the
+                # lists for those values
+                classifyPrefixAndUpdateVariables(prefix, True, statsForPrefix,
+                                                 routingStatsObj.prefix_variables,
+                                                 'originatedByDiffOrg', None,
+                                                 None, None, levenshteinDists,
+                                                 routingStatsObj, files_path)
                 
-                blockOriginASes = routingStatsObj.bgp_handler.getOriginASesForBlock(delNetwork)
-                statsForPrefix['numOfOriginASesIntact'] = len(blockOriginASes)
-                
-                statsForPrefix['originatedByDiffOrg'] = not checkIfSameOrg(\
-                                                                prefix,\
-                                                                blockOriginASes,\
-                                                                statsForPrefix['opaque_id'],\
-                                                                routingStatsObj.del_handler)
+                if len(levenshteinDists) > 0:
+                    levenshteinDists = np.array(levenshteinDists)
+                    statsForPrefix['avgLevenshteinDistPrefix'] = levenshteinDists.mean()
+                    statsForPrefix['stdLevenshteinDistPrefix'] = levenshteinDists.std()
+                    statsForPrefix['minLevenshteinDistPrefix'] = levenshteinDists.min()
+                    statsForPrefix['maxLevenshteinDistPrefix'] = levenshteinDists.max()
+            
                 more_specifics_wo_prefix.remove(prefix)
 
                 statsForPrefix['isRoutedIntact'] = True
@@ -555,20 +631,6 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                 
                 if len(more_specifics) == 1 and len(less_specifics) == 0:
                     statsForPrefix['onlyRoot'] = True
-                
-                # We get the set of AS paths for the block
-                blockASpaths = routingStatsObj.bgp_handler.getASpathsForBlock(delNetwork)
-                statsForPrefix['numOfASPathsIntact'] = len(blockASpaths)
-                
-                ASpathsLengths = []
-                for path in blockASpaths:
-                    ASpathsLengths.append(len(path.split()))
-                    
-                ASpathsLengths = np.array(ASpathsLengths)
-                statsForPrefix['avgASPathLengthIntact'] = ASpathsLengths.mean()
-                statsForPrefix['stdASPathLengthIntact'] = ASpathsLengths.std()
-                statsForPrefix['minASPathLengthIntact'] = ASpathsLengths.min()
-                statsForPrefix['maxASPathLengthIntact'] = ASpathsLengths.max()
 
                 if len(more_specifics) > 1:    
                     aggr_more_spec = [ipaddr for ipaddr in
@@ -622,15 +684,21 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
             
             numsOfOriginASesGral = []
             numsOfASPathsGral = []
-            ASPathLengthsGral = []                
-            for fragment in more_specifics:
-                fragmentNetwork = ipaddress.ip_network(unicode(fragment, "utf-8"))
-                numsOfOriginASesGral.append(len(routingStatsObj.bgp_handler.getOriginASesForBlock(fragmentNetwork)))
-                fragmentASpaths = routingStatsObj.bgp_handler.getASpathsForBlock(fragmentNetwork)
-                numsOfASPathsGral.append(len(fragmentASpaths))
-                for asPath in fragmentASpaths:
-                    ASPathLengthsGral.append(len(asPath.split()))
-            
+            ASPathLengthsGral = [] 
+            levenshteinDists = []
+            for moreSpec in more_specifics:
+                if moreSpec != prefix:
+                    classifyPrefixAndUpdateVariables(moreSpec, False,
+                                                     statsForPrefix,
+                                                     routingStatsObj.moreSpec_variables,
+                                                     'hasFragmentsOriginatedByDiffOrg',
+                                                     numsOfOriginASesGral,
+                                                     numsOfASPathsGral,
+                                                     ASPathLengthsGral,
+                                                     levenshteinDists,
+                                                     routingStatsObj,
+                                                     files_path)
+                                                     
             numsOfOriginASesGral = np.array(numsOfOriginASesGral)
             statsForPrefix['avgNumOfOriginASesGral'] = numsOfOriginASesGral.mean()
             statsForPrefix['stdNumOfOriginASesGral'] = numsOfOriginASesGral.std()
@@ -648,14 +716,6 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
             statsForPrefix['stdASPathLengthGral'] = ASPathLengthsGral.std()
             statsForPrefix['minASPathLengthGral'] = ASPathLengthsGral.min()
             statsForPrefix['maxASPathLengthGral'] = ASPathLengthsGral.max()
-        
-            levenshteinDists = []
-            for moreSpec in more_specifics:
-                classifyPrefixAndUpdateVariables(moreSpec, statsForPrefix,
-                                                 routingStatsObj.moreSpec_variables,
-                                                 'hasFragmentsOriginatedByDiffOrg',
-                                                 levenshteinDists, routingStatsObj,
-                                                 files_path)
 
             if len(levenshteinDists) > 0:
                 levenshteinDists = np.array(levenshteinDists)
