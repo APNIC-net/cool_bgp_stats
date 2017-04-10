@@ -172,6 +172,7 @@ class BGPDataHandler:
 
                 routing_files = self.getSpecificFilesFromHistoricalList(historical_files,
                                                                         routing_date)
+                                                                        
                 if len(routing_files) == 0:
                     sys.stderr.write("There is no routing file in the archive for the date provided.\n")
                     return False
@@ -356,7 +357,8 @@ class BGPDataHandler:
                 # in first place in the AS path, therefore, we split it
                 # (leaving the brackets out) and consider each AS separately.
                 cleanOriginASes.extend(originAS.replace('{', '').replace('}', '').split(','))
-
+            elif '(' in str(originAS):
+                cleanOriginASes.extend(originAS.replace('(', '').replace(')', '').split(','))
             else:
                 cleanOriginASes.append(originAS)
                 
@@ -368,7 +370,8 @@ class BGPDataHandler:
                 continue
             elif '{' in str(middleAS):
                 cleanMiddleASes.extend(middleAS.replace('{', '').replace('}', '').split(','))
-
+            elif '(' in str(middleAS):
+                cleanMiddleASes.extend(middleAS.replace('(', '').replace(')', '').split(','))
             else:
                 cleanMiddleASes.append(middleAS)
         
@@ -638,6 +641,16 @@ class BGPDataHandler:
                                     ASes_propagated_prefixes_dic[asn].union(prefixes)
                             else:
                                 ASes_propagated_prefixes_dic[asn] = prefixes
+                    elif '(' in str(asn):
+                        asnList = asn.replace('(', '').replace(')', '').split(',')
+                        for asn in asnList:
+                            asn = int(asn)
+                            prefixes = set(middleASes_subset['prefix'].tolist())
+                            if asn in ASes_propagated_prefixes_dic.keys():
+                                ASes_propagated_prefixes_dic[asn] =\
+                                    ASes_propagated_prefixes_dic[asn].union(prefixes)
+                            else:
+                                ASes_propagated_prefixes_dic[asn] = prefixes
                     else:
                         asn = int(asn)
                         prefixes = set(middleASes_subset['prefix'].tolist())
@@ -655,6 +668,11 @@ class BGPDataHandler:
                     # in first place in the AS path, therefore, we split it
                     # (leaving the brackets out) and consider each AS separately.
                     asnList = originAS.replace('{', '').replace('}', '').split(',')
+                    for originAS in asnList:
+                        originAS = int(originAS)
+                        ASes_originated_prefixes_dic[originAS] = set(originAS_subset['prefix'])
+                elif '(' in str(originAS):
+                    asnList = originAS.replace('(', '').replace(')', '').split(',')
                     for originAS in asnList:
                         originAS = int(originAS)
                         ASes_originated_prefixes_dic[originAS] = set(originAS_subset['prefix'])

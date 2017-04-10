@@ -210,7 +210,7 @@ def main(argv):
         stats_file = '{}.csv'.format(file_name)
         final_existing_date = ''
         with open(stats_file, 'w') as csv_file:
-            csv_file.write('Geographic Area,ResourceType,Status,Organization,Date,NumOfDelegations,NumOfResources,IPCount,IPSpace\n')
+            csv_file.write('GeographicArea,ResourceType,Status,Organization,Date,NumOfDelegations,NumOfResources,IPCount,IPSpace\n')
         
     del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, startDate_date,
                                    endDate_date, INCREMENTAL,
@@ -239,8 +239,12 @@ def main(argv):
             else:
                 plain_df = stats_df
             
-            plain_df['GeographicArea'] = plain_df['Geographic Area']
-            del plain_df['Geographic Area']
+            try:
+                plain_df['GeographicArea'] = plain_df['Geographic Area']
+                del plain_df['Geographic Area']
+            except KeyError:
+                pass
+            
             plain_df = plain_df.fillna(-1)
     
             bulk_data, numOfDocs = esImporter.prepareData(plain_df,
