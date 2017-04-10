@@ -5,13 +5,6 @@ Created on Wed Apr  5 11:50:52 2017
 @author: sofiasilva
 """
 
-"""
-Hacer walk de /data/wattle/bgplog buscando todos los archivos bgprib y comparar con lo que tengo en ~/BGP_stats_files/historical_files. Sacar listado de los que no están en historical_files (subset 1)
-
-Hacer otro walk buscando .dmp.gz (subset 2)
-
-cargar en la DB subset 1 y subset 2
-"""
 import os
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from BGPDataHandler import BGPDataHandler
@@ -20,6 +13,10 @@ from BGPDataHandler import BGPDataHandler
 # Dates of readable files already inserted into the Visibility DB
 readable_files_dates = []
 for readable_file in os.listdir('/home/sofia/BGP_stats_files/historical_files'):
+    if readable_file.endswith('readable'):
+        readable_files_dates.append(readable_file.split('.')[0])
+
+for readable_file in os.listdir('/home/sofia/BGP_stats_files/historical_files2'):
     if readable_file.endswith('readable'):
         readable_files_dates.append(readable_file.split('.')[0])
         
