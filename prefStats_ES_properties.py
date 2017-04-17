@@ -50,6 +50,14 @@ mapping = {"_default_" : {
                                     "type": "date",
                                     "format": "yyyyMMdd"
                                         },
+                                "lastSeen" : {
+                                    "type": "date",
+                                    "format": "yyyyMMdd"
+                                        },
+                                "lastSeenIntact" : {
+                                    "type": "date",
+                                    "format": "yyyyMMdd"
+                                        },
                                 "isRoutedIntact" : {
                                     "type" : "boolean"
                                                     },
@@ -188,40 +196,76 @@ mapping = {"_default_" : {
                                 'minASPathLengthIntact' : {
                                     "type" : "float"
                                                     },
-                                'avgNumOfOriginASesGral' : {
+                                'avgNumOfOriginASesMoreSpec' : {
                                     "type" : "float"
                                                     },
-                                'stdNumOfOriginASesGral' : {
+                                'stdNumOfOriginASesMoreSpec' : {
                                     "type" : "float"
                                                     },
-                                'minNumOfOriginASesGral' : {
+                                'minNumOfOriginASesMoreSpec' : {
                                     "type" : "float"
                                                     },
-                                'maxNumOfOriginASesGral' : {
+                                'maxNumOfOriginASesMoreSpec' : {
                                     "type" : "float"
                                                     },
-                                'avgNumOfASPathsGral' : {
+                                'avgNumOfASPathsMoreSpec' : {
                                     "type" : "float"
                                                     },
-                                'stdNumOfASPathsGral' : {
+                                'stdNumOfASPathsMoreSpec' : {
                                     "type" : "float"
                                                     },
-                                'minNumOfASPathsGral' : {
+                                'minNumOfASPathsMoreSpec' : {
                                     "type" : "float"
                                                     },
-                                'maxNumOfASPathsGral' : {
+                                'maxNumOfASPathsMoreSpec' : {
                                     "type" : "float"
                                                     },
-                                'avgASPathLengthGral' : {
+                                'avgASPathLengthMoreSpec' : {
                                     "type" : "float"
                                                     },
-                                'stdASPathLengthGral' : {
+                                'stdASPathLengthMoreSpec' : {
                                     "type" : "float"
                                                     },
-                                'minASPathLengthGral' : {
+                                'minASPathLengthMoreSpec' : {
                                     "type" : "float"
                                                     },
-                                'maxASPathLengthGral' : {
+                                'maxASPathLengthMoreSpec' : {
+                                    "type" : "float"
+                                                    },
+                                'avgNumOfOriginASesLessSpec' : {
+                                    "type" : "float"
+                                                    },
+                                'stdNumOfOriginASesLessSpec' : {
+                                    "type" : "float"
+                                                    },
+                                'minNumOfOriginASesLessSpec' : {
+                                    "type" : "float"
+                                                    },
+                                'maxNumOfOriginASesLessSpec' : {
+                                    "type" : "float"
+                                                    },
+                                'avgNumOfASPathsLessSpec' : {
+                                    "type" : "float"
+                                                    },
+                                'stdNumOfASPathsLessSpec' : {
+                                    "type" : "float"
+                                                    },
+                                'minNumOfASPathsLessSpec' : {
+                                    "type" : "float"
+                                                    },
+                                'maxNumOfASPathsLessSpec' : {
+                                    "type" : "float"
+                                                    },
+                                'avgASPathLengthLessSpec' : {
+                                    "type" : "float"
+                                                    },
+                                'stdASPathLengthLessSpec' : {
+                                    "type" : "float"
+                                                    },
+                                'minASPathLengthLessSpec' : {
+                                    "type" : "float"
+                                                    },
+                                'maxASPathLengthLessSpec' : {
                                     "type" : "float"
                                                     },
                                 'avgLevenshteinDistPrefix' : {

@@ -43,6 +43,10 @@ mapping = {"_default_" : {
                                     "type": "date",
                                     "format": "yyyyMMdd"
                                         },
+                                "lastSeen" : {
+                                    "type": "date",
+                                    "format": "yyyyMMdd"
+                                        },
                                 'isDead' : {
                                     "type" : "boolean"
                                                     },
@@ -70,10 +74,10 @@ mapping = {"_default_" : {
                                 'minPeriodLength' : {
                                     "type" : "float"
                                                     },
-                                'numOfPrefixesOriginated_curr' : {
+                                'numOfPrefixesOriginated' : {
                                     "type" : "integer"
                                                     },
-                                'numOfPrefixesPropagated_curr' : {
+                                'numOfPrefixesPropagated' : {
                                     "type" : "integer"
                                                     }
                                         }
