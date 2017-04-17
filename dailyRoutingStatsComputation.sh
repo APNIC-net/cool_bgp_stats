@@ -21,4 +21,6 @@ archive_folder=$3
 extension=$4
 es_host=$5
 
-python $pythonScript -f $stats_folder -H $archive_folder -e $extension -N -x -D $es_host
+yesterday=$(date +%Y%m%d -d "yesterday")
+python $pythonScript -f /home/sofia/BGP_stats_files -H $archive_folder -e $extension -S $yesterday -E $yesterday -n
+python $pythonScript -f $stats_folder -H $archive_folder -e $extension -N -T -x -D $es_host
