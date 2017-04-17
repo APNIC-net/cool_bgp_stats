@@ -11,6 +11,7 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from BGPDataHandler import BGPDataHandler
 from DelegatedHandler import DelegatedHandler
 from VisibilityDBHandler import VisibilityDBHandler
+from OrgHeuristics import OrgHeuristics
 from get_file import get_file
 import pandas as pd
 import numpy as np
@@ -29,6 +30,8 @@ class RoutingStats:
                                                 final_existing_date, KEEP)
     
             self.db_handler = VisibilityDBHandler(routing_date)
+            
+            self.orgHeuristics = OrgHeuristics(files_path)
             
             self.ASrels = self.getASrelInfo(serial=2, files_path=files_path, KEEP=KEEP)
                             
@@ -147,19 +150,25 @@ class RoutingStats:
                               'avgVisibility', 'stdVisibility', 'maxVisibility',
                               'minVisibility', 'avgASPathLengthIntact',
                               'stdASPathLengthIntact', 'maxASPathLengthIntact',
-                              'minASPathLengthIntact', 'avgNumOfOriginASesGral',
-                              'stdNumOfOriginASesGral', 'minNumOfOriginASesGral',
-                              'maxNumOfOriginASesGral', 'avgNumOfASPathsGral',
-                              'stdNumOfASPathsGral', 'minNumOfASPathsGral',
-                              'maxNumOfASPathsGral', 'avgASPathLengthGral',
-                              'stdASPathLengthGral', 'minASPathLengthGral',
-                              'maxASPathLengthGral', 'avgLevenshteinDistPrefix',
-                              'stdLevenshteinDistPrefix', 'minLevenshteinDistPrefix',
-                              'maxLevenshteinDistPrefix', 'avgLevenshteinDistMoreSpec',
-                              'stdLevenshteinDistMoreSpec', 'minLevenshteinDistMoreSpec',
-                              'maxLevenshteinDistMoreSpec', 'avgLevenshteinDistLessSpec',
-                              'stdLevenshteinDistLessSpec', 'minLevenshteinDistLessSpec',
-                              'maxLevenshteinDistLessSpec', 'currentVisibility']
+                              'minASPathLengthIntact', 'avgNumOfOriginASesMoreSpec',
+                              'stdNumOfOriginASesMoreSpec', 'minNumOfOriginASesMoreSpec',
+                              'maxNumOfOriginASesMoreSpec', 'avgNumOfASPathsMoreSpec',
+                              'stdNumOfASPathsMoreSpec', 'minNumOfASPathsMoreSpec',
+                              'maxNumOfASPathsMoreSpec', 'avgASPathLengthMoreSpec',
+                              'stdASPathLengthMoreSpec', 'minASPathLengthMoreSpec',
+                              'avgNumOfOriginASesLessSpec', 'stdNumOfOriginASesLessSpec',
+                              'minNumOfOriginASesLessSpec', 'maxNumOfOriginASesLessSpec',
+                              'avgNumOfASPathsLessSpec', 'stdNumOfASPathsLessSpec',
+                              'minNumOfASPathsLessSpec', 'maxNumOfASPathsLessSpec',
+                              'avgASPathLengthLessSpec', 'stdASPathLengthLessSpec',
+                              'minASPathLengthLessSpec', 'maxASPathLengthLessSpec',
+                              'avgLevenshteinDistPrefix', 'stdLevenshteinDistPrefix',
+                              'minLevenshteinDistPrefix', 'maxLevenshteinDistPrefix',
+                              'avgLevenshteinDistMoreSpec','stdLevenshteinDistMoreSpec',
+                              'minLevenshteinDistMoreSpec', 'maxLevenshteinDistMoreSpec',
+                              'avgLevenshteinDistLessSpec', 'stdLevenshteinDistLessSpec',
+                              'minLevenshteinDistLessSpec', 'maxLevenshteinDistLessSpec',
+                              'currentVisibility']
                               
             gralCounterKeys_pref = ['numOfOriginASesIntact', 'numOfASPathsIntact',
                                 'numOfLessSpecificsRouted', 'numOfMoreSpecificsRouted']
@@ -193,7 +202,8 @@ class RoutingStats:
                                 self.lessSpec_variables.values()
                 
             other_data_columns = ['prefix', 'del_date', 'resource_type', 'status',
-                                  'opaque_id', 'cc', 'region', 'routing_date']
+                                  'opaque_id', 'cc', 'region', 'routing_date',
+                                  'lastSeen', 'lastSeenIntact']
             
             self.allAttr_pref = other_data_columns + booleanKeys_pref +\
                             valueKeys_pref + counterKeys_pref
@@ -217,13 +227,13 @@ class RoutingStats:
                                 'timeFragmentation', 'avgPeriodLength', 'stdPeriodLength',
                                 'minPeriodLength', 'maxPeriodLength']
     
-            counterKeys_ases = ['numOfPrefixesOriginated_curr',
-                                'numOfPrefixesPropagated_curr']
+            counterKeys_ases = ['numOfPrefixesOriginated',
+                                'numOfPrefixesPropagated']
             booleanKeys_ases = ['isDead']
             
             expanded_del_asn_df_columns = ['asn', 'del_date', 'asn_type',
                                             'opaque_id', 'cc', 'region']
-            other_ases_data_columns = ['routing_date']
+            other_ases_data_columns = ['routing_date', 'lastSeen']
     
             self.allAttr_ases = expanded_del_asn_df_columns + other_ases_data_columns +\
                                 booleanKeys_ases + valueKeys_ases + counterKeys_ases

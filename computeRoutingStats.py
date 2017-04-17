@@ -7,7 +7,6 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 #Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from RoutingStats import RoutingStats
-from OrgHeuristics import OrgHeuristics
 import ipaddress
 import pandas as pd
 import numpy as np
@@ -91,6 +90,7 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
     
     if numOfPeriods > 0:
         last_seen_intact = db_handler.getDateLastSeenExact(prefix)
+        statsForPrefix['lastSeenIntact'] = last_seen_intact
         statsForPrefix['isDeadIntact'] = ((today-last_seen_intact).days > 365)
         daysUsed = (last_seen_intact-first_seen_intact).days + 1
         daysSeen = db_handler.getTotalDaysSeenExact(prefix)
@@ -230,7 +230,8 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
             statsForPrefix['stdVisibility'] = weightedStdVisibility
             statsForPrefix['minVisibility'] = np.min(visibilities)
             statsForPrefix['maxVisibility'] = np.max(visibilities)
-                                    
+        
+            statsForPrefix['lastSeen'] = last_seen
             statsForPrefix['isDead'] = ((today-last_seen).days > 365)
 
 def computeNetworkUsageLatency(prefix, statsForPrefix, db_handler): 
@@ -274,7 +275,7 @@ def getASNOpaqueID(asn, del_handler):
     else:
         return 'UNKNOWN'
         
-def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, del_handler):
+def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, del_handler, orgHeuristics):
     nirs_opaque_ids = ['A91A7381', 'A9186214', 'A9162E3D', 'A918EDB2',
                        'A9149F3E', 'A91BDB29', 'A91A560A']
                        
@@ -284,7 +285,7 @@ def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, del_handler):
         originASorg = getASNOpaqueID(blockOriginAS, del_handler)
         if prefix_org in nirs_opaque_ids or\
             originASorg in nirs_opaque_ids:
-                sameOrgs = OrgHeuristics.checkIfSameOrg(routedPrefix, blockOriginAS)
+                sameOrgs = orgHeuristics.checkIfSameOrg(routedPrefix, blockOriginAS)
         elif originASorg == 'UNKNOWN':
             # If we get an UNKNOWN organization for the AS it means the AS
             # was not delegated by APNIC, therefore, it cannot be the same
@@ -313,8 +314,8 @@ def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, del_handler):
 # The corresponding variables in the statsForPrefix dictionary are incremented
 # to keep track of the number of prefixes in each class.
 def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
-                                        variables, diffOrg_var, numsOfOriginASesGral,
-                                        numsOfASPathsGral, ASPathLengthsGral,
+                                        variables, diffOrg_var, numsOfOriginASesList,
+                                        numsOfASPathsList, ASPathLengthsList,
                                         levenshteinDists, routingStatsObj, files_path):
     
     routedNetwork = ipaddress.ip_network(unicode(routedPrefix, "utf-8"))
@@ -336,15 +337,15 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
         statsForPrefix['minASPathLengthIntact'] = ASpathsLengths.min()
         statsForPrefix['maxASPathLengthIntact'] = ASpathsLengths.max()
     else:
-        if numsOfOriginASesGral is not None:
-            numsOfOriginASesGral.append(len(blockOriginASes))
+        if numsOfOriginASesList is not None:
+            numsOfOriginASesList.append(len(blockOriginASes))
         
-        if numsOfASPathsGral is not None:
-            numsOfASPathsGral.append(len(blockASpaths))
+        if numsOfASPathsList is not None:
+            numsOfASPathsList.append(len(blockASpaths))
             
-        if ASPathLengthsGral is not None:
+        if ASPathLengthsList is not None:
             for path in blockASpaths:
-                ASPathLengthsGral.append(len(path.split()))
+                ASPathLengthsList.append(len(path.split()))
         
     # If the delegated prefix is not already marked as having fragments being
     # announced by an AS delegated to an organization different from the
@@ -352,11 +353,12 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
     if not statsForPrefix[diffOrg_var]:
         # We check if the routed prefix  (fragment of the delegated prefix)
         # and all its origin ASes were delegated to the same organization
-        statsForPrefix[diffOrg_var] = not checkIfSameOrg(routedPrefix,\
-                                                                    blockOriginASes,\
-                                                                    statsForPrefix['opaque_id'],\
-                                                                    routingStatsObj.del_handler)
-                
+        statsForPrefix[diffOrg_var] = not checkIfSameOrg(routedPrefix,
+                                                            blockOriginASes,
+                                                            statsForPrefix['opaque_id'],
+                                                            routingStatsObj.del_handler,
+                                                            routingStatsObj.orgHeuristics)
+        
                     
     # Find routed blocks related to the prefix of interest 
     net_less_specifics = routingStatsObj.bgp_handler.getRoutedParentAndGrandparents(routedNetwork)
@@ -580,6 +582,9 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
         if len(less_specifics) > 0:
             statsForPrefix['currentVisibility'] = 100
             
+            numsOfOriginASesLessSpec = []
+            numsOfASPathsLessSpec = []
+            ASPathLengthsLessSpec = []
             levenshteinDists = []
             for lessSpec in less_specifics:
                 # For less specific prefixes we are not interested in the number
@@ -589,9 +594,30 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                 classifyPrefixAndUpdateVariables(lessSpec, False, statsForPrefix,
                                                  routingStatsObj.lessSpec_variables,
                                                  'hasLessSpecificsOriginatedByDiffOrg',
-                                                 None, None, None, levenshteinDists,
+                                                 numsOfOriginASesLessSpec,
+                                                 numsOfASPathsLessSpec,
+                                                 ASPathLengthsLessSpec,
+                                                 levenshteinDists,
                                                  routingStatsObj, files_path)
             
+            numsOfOriginASesLessSpec = np.array(numsOfOriginASesLessSpec)
+            statsForPrefix['avgNumOfOriginASesLessSpec'] = numsOfOriginASesLessSpec.mean()
+            statsForPrefix['stdNumOfOriginASesLessSpec'] = numsOfOriginASesLessSpec.std()
+            statsForPrefix['minNumOfOriginASesLessSpec'] = numsOfOriginASesLessSpec.min()
+            statsForPrefix['maxNumOfOriginASesLessSpec'] = numsOfOriginASesLessSpec.max()
+
+            numsOfASPathsLessSpec = np.array(numsOfASPathsLessSpec)
+            statsForPrefix['avgNumOfASPathsLessSpec'] = numsOfASPathsLessSpec.mean()
+            statsForPrefix['stdNumOfASPathsLessSpec'] = numsOfASPathsLessSpec.std()
+            statsForPrefix['minNumOfASPathsLessSpec'] = numsOfASPathsLessSpec.min()
+            statsForPrefix['maxNumOfASPathsLessSpec'] = numsOfASPathsLessSpec.max()
+
+            ASPathLengthsLessSpec = np.array(ASPathLengthsLessSpec)
+            statsForPrefix['avgASPathLengthLessSpec'] = ASPathLengthsLessSpec.mean()
+            statsForPrefix['stdASPathLengthLessSpec'] = ASPathLengthsLessSpec.std()
+            statsForPrefix['minASPathLengthLessSpec'] = ASPathLengthsLessSpec.min()
+            statsForPrefix['maxASPathLengthLessSpec'] = ASPathLengthsLessSpec.max()
+
             if len(levenshteinDists) > 0:
                 levenshteinDists = np.array(levenshteinDists)
                 statsForPrefix['avgLevenshteinDistLessSpec'] = levenshteinDists.mean()
@@ -682,9 +708,9 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                     # together, they do not cover the complete root prefix.
                     statsForPrefix['noRootMSIncompl'] = True
             
-            numsOfOriginASesGral = []
-            numsOfASPathsGral = []
-            ASPathLengthsGral = [] 
+            numsOfOriginASesMoreSpec = []
+            numsOfASPathsMoreSpec = []
+            ASPathLengthsMoreSpec = [] 
             levenshteinDists = []
             for moreSpec in more_specifics:
                 if moreSpec != prefix:
@@ -692,30 +718,30 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                                                      statsForPrefix,
                                                      routingStatsObj.moreSpec_variables,
                                                      'hasFragmentsOriginatedByDiffOrg',
-                                                     numsOfOriginASesGral,
-                                                     numsOfASPathsGral,
-                                                     ASPathLengthsGral,
+                                                     numsOfOriginASesMoreSpec,
+                                                     numsOfASPathsMoreSpec,
+                                                     ASPathLengthsMoreSpec,
                                                      levenshteinDists,
                                                      routingStatsObj,
                                                      files_path)
                                                      
-            numsOfOriginASesGral = np.array(numsOfOriginASesGral)
-            statsForPrefix['avgNumOfOriginASesGral'] = numsOfOriginASesGral.mean()
-            statsForPrefix['stdNumOfOriginASesGral'] = numsOfOriginASesGral.std()
-            statsForPrefix['minNumOfOriginASesGral'] = numsOfOriginASesGral.min()
-            statsForPrefix['maxNumOfOriginASesGral'] = numsOfOriginASesGral.max()
+            numsOfOriginASesMoreSpec = np.array(numsOfOriginASesMoreSpec)
+            statsForPrefix['avgNumOfOriginASesMoreSpec'] = numsOfOriginASesMoreSpec.mean()
+            statsForPrefix['stdNumOfOriginASesMoreSpec'] = numsOfOriginASesMoreSpec.std()
+            statsForPrefix['minNumOfOriginASesMoreSpec'] = numsOfOriginASesMoreSpec.min()
+            statsForPrefix['maxNumOfOriginASesMoreSpec'] = numsOfOriginASesMoreSpec.max()
 
-            numsOfASPathsGral = np.array(numsOfASPathsGral)
-            statsForPrefix['avgNumOfASPathsGral'] = numsOfASPathsGral.mean()
-            statsForPrefix['stdNumOfASPathsGral'] = numsOfASPathsGral.std()
-            statsForPrefix['minNumOfASPathsGral'] = numsOfASPathsGral.min()
-            statsForPrefix['maxNumOfASPathsGral'] = numsOfASPathsGral.max()
+            numsOfASPathsMoreSpec = np.array(numsOfASPathsMoreSpec)
+            statsForPrefix['avgNumOfASPathsMoreSpec'] = numsOfASPathsMoreSpec.mean()
+            statsForPrefix['stdNumOfASPathsMoreSpec'] = numsOfASPathsMoreSpec.std()
+            statsForPrefix['minNumOfASPathsMoreSpec'] = numsOfASPathsMoreSpec.min()
+            statsForPrefix['maxNumOfASPathsMoreSpec'] = numsOfASPathsMoreSpec.max()
 
-            ASPathLengthsGral = np.array(ASPathLengthsGral)
-            statsForPrefix['avgASPathLengthGral'] = ASPathLengthsGral.mean()
-            statsForPrefix['stdASPathLengthGral'] = ASPathLengthsGral.std()
-            statsForPrefix['minASPathLengthGral'] = ASPathLengthsGral.min()
-            statsForPrefix['maxASPathLengthGral'] = ASPathLengthsGral.max()
+            ASPathLengthsMoreSpec = np.array(ASPathLengthsMoreSpec)
+            statsForPrefix['avgASPathLengthMoreSpec'] = ASPathLengthsMoreSpec.mean()
+            statsForPrefix['stdASPathLengthMoreSpec'] = ASPathLengthsMoreSpec.std()
+            statsForPrefix['minASPathLengthMoreSpec'] = ASPathLengthsMoreSpec.min()
+            statsForPrefix['maxASPathLengthMoreSpec'] = ASPathLengthsMoreSpec.max()
 
             if len(levenshteinDists) > 0:
                 levenshteinDists = np.array(levenshteinDists)
@@ -752,16 +778,16 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
                                             & (routingStatsObj.ASrels['AS2'] == long(asn))])
 
         try:
-            statsForAS['numOfPrefixesOriginated_curr'] =\
+            statsForAS['numOfPrefixesOriginated'] =\
                                 len(routingStatsObj.bgp_handler.ASes_originated_prefixes_dic[asn])
         except KeyError:
-            statsForAS['numOfPrefixesOriginated_curr'] = 0
+            statsForAS['numOfPrefixesOriginated'] = 0
        
         try:
-            statsForAS['numOfPrefixesPropagated_curr'] =\
+            statsForAS['numOfPrefixesPropagated'] =\
                                 len(routingStatsObj.bgp_handler.ASes_propagated_prefixes_dic[asn])
         except KeyError:
-            statsForAS['numOfPrefixesPropagated_curr'] = 0
+            statsForAS['numOfPrefixesPropagated'] = 0
                 
         if TEMPORAL_DATA:
             daysUsable = (today-del_date).days + 1
@@ -783,6 +809,7 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
                 
             if numOfPeriods > 0:
                 last_seen = routingStatsObj.db_handler.getDateASNLastSeen(asn)
+                statsForAS['lastSeen'] = last_seen
                 statsForAS['isDead'] = ((today-last_seen).days > 365)
                 
                 daysUsed = (last_seen-first_seen).days + 1
