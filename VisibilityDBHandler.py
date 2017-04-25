@@ -60,6 +60,8 @@ class VisibilityDBHandler:
         tuplesToInsert = zip(prefix_list, [date]*len(prefix_list))
         f = IteratorFile(("{}\t{}".format(x[0], x[1]) for x in tuplesToInsert))
         self.cur.copy_from(f, 'prefixes', columns=('prefix', 'dateseen'))
+        self.conn.commit()
+
             
     def storeASSeen(self, asn, isOriginAS, date):
         try:
@@ -76,6 +78,7 @@ class VisibilityDBHandler:
         tuplesToInsert = zip(asnsList, [areOriginASes]*len(asnsList), [date]*len(asnsList))
         f = IteratorFile(("{}\t{}\t{}".format(x[0], x[1], x[2]) for x in tuplesToInsert))
         self.cur.copy_from(f, 'asns', columns=('asn', 'isorigin', 'dateseen'))
+        self.conn.commit()
 
     def getDateFirstSeen(self, prefix):
         try:
