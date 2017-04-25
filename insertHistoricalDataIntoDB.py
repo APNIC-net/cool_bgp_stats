@@ -91,7 +91,7 @@ def main(argv):
     
     archive_folder = '/data/wattle/bgplog'
 
-    readables_path = '/home/sofia/BGP_files/hist_part{}'.format(proc_num)
+    readables_path = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
 
     DEBUG = False
     files_path = readables_path
