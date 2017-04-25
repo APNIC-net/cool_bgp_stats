@@ -320,7 +320,8 @@ class BGPDataHandler:
                             RIBfiles, COMPRESSED):
 
         if not isList:
-            files_list_obj = open(historical_files, 'r')
+            with open(historical_files, 'r') as hist:
+                files_list_obj = hist.readlines()
         else:
             files_list_obj = historical_files
         
@@ -346,8 +347,16 @@ class BGPDataHandler:
                                                     RIBfile, COMPRESSED)
         visibilityDB = VisibilityDBHandler(date)
 
-        visibilityDB.storeListOfPrefixesSeen(prefixes, date)
+        prefixesInDBForDate = visibilityDB.getPrefixCountForDate(date)
+    
+        if prefixesInDBForDate != 0 and prefixesInDBForDate != len(prefixes):
+            visibilityDB.dropPrefixesForDate(date)
         
+        prefixesInDBForDate = visibilityDB.getPrefixCountForDate(date)
+
+        if prefixesInDBForDate == 0:
+            visibilityDB.storeListOfPrefixesSeen(prefixes, date)
+            
         cleanOriginASes = []
         for originAS in originASes:
             if originAS is None or originAS == 'nan':
@@ -361,8 +370,18 @@ class BGPDataHandler:
                 cleanOriginASes.extend(originAS.replace('(', '').replace(')', '').split(','))
             else:
                 cleanOriginASes.append(originAS)
+        
+        cleanOriginASes = list(set(cleanOriginASes))
                 
-        visibilityDB.storeListOfASesSeen(list(set(cleanOriginASes)), True, date)
+        originASesInDBForDate = visibilityDB.getOriginASCountForDate(date)
+        
+        if originASesInDBForDate != 0 and originASesInDBForDate != len(cleanOriginASes):
+            visibilityDB.dropOriginASesForDate(date)
+
+        originASesInDBForDate = visibilityDB.getOriginASCountForDate(date)
+            
+        if originASesInDBForDate == 0:
+            visibilityDB.storeListOfASesSeen(cleanOriginASes, True, date)
 
         cleanMiddleASes = []                
         for middleAS in middleASes:
@@ -375,7 +394,17 @@ class BGPDataHandler:
             else:
                 cleanMiddleASes.append(middleAS)
         
-        visibilityDB.storeListOfASesSeen(list(set(cleanMiddleASes)), False, date)
+        cleanMiddleASes = list(set(cleanMiddleASes))
+        
+        middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(date)
+        
+        if middleASesInDBForDate != 0 and middleASesInDBForDate != len(cleanMiddleASes):
+            visibilityDB.dropMiddleASesForDate(date)
+
+        middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(date)
+            
+        if middleASesInDBForDate == 0:
+            visibilityDB.storeListOfASesSeen(cleanMiddleASes, False, date)
         
         visibilityDB.close()
 
@@ -720,23 +749,25 @@ class BGPDataHandler:
             output.close()
             
             source = output_file 
-            
+                
         # If the routing file is a RIB file, we process it using BGPdump
         if RIBfile:            
             readable_file_name = '%s/%s.readable' % (self.files_path, os.path.splitext(source_filename)[0])
 
-            cmd = shlex.split('%s -m -O %s %s' % (bgpdump, readable_file_name, source))
-            #        cmd = shlex.split('bgpdump -m -O %s %s' % (readable_file_name, routing_file))   
-    
-            #  BGPDUMP
-            #  -m         one-line per entry with unix timestamps
-            #  -O <file>  output to <file> instead of STDOUT
-    
-            subprocess.call(cmd)
+            if not os.path.exists(readable_file_name):
+                cmd = shlex.split('%s -m -O %s %s' % (bgpdump, readable_file_name, source))
+                #        cmd = shlex.split('bgpdump -m -O %s %s' % (readable_file_name, routing_file))   
         
+                #  BGPDUMP
+                #  -m         one-line per entry with unix timestamps
+                #  -O <file>  output to <file> instead of STDOUT
+        
+                subprocess.call(cmd)
+            
+            
         # If the file contains the output of the 'show ip bgp' command,
         # we convert it to the same format used by BGPdump for its outputs
-        else:
+        elif not os.path.exists(readable_file_name):
             readable_file_name = self.convertBGPoutput(source)
 
         return readable_file_name

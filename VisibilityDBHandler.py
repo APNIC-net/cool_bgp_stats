@@ -27,7 +27,6 @@ class VisibilityDBHandler:
     dbname = 'sofia'
     user = 'postgres'
     host = 'localhost'
-    password = 'q1w2e3r4'
     routing_date = ''
 
     def __init__(self, routing_date):
@@ -35,8 +34,8 @@ class VisibilityDBHandler:
         
         # Try to connect
         try:
-            self.conn = psycopg2.connect("dbname='{}' user='{}' password='{}' host='{}'"\
-                                    .format(self.dbname, self.user, self.password, self.host))
+            self.conn = psycopg2.connect("dbname='{}' user='{}' host='{}'"\
+                                    .format(self.dbname, self.user, self.host))
             self.cur = self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             psycopg2.extras.register_inet()
         except:
@@ -193,7 +192,61 @@ class VisibilityDBHandler:
         except:
             sys.stderr.write("Unable to get the date the ASN {} was last seen.\n".format(asn))
             return None
+    
+    def getPrefixCountForDate(self, date):
+        try:
+            self.cur.execute("""select count(*) from prefixes where dateSeen = %s;""", (date,))
+            return self.cur.fetchone()[0]
+        except:
+            sys.stderr.write("Unable to get the number of prefixes seen on {}".format(date))
+            return -1
+            
+    def getOriginASCountForDate(self, date):
+        try:
+            self.cur.execute("""select count(*) from asns where isorigin = %s and dateSeen = %s;""", (True, date))
+            return self.cur.fetchone()[0]
+        except:
+            sys.stderr.write("Unable to get the number of origin ASes seen on {}".format(date))
+            return -1        
+    
+    def getMiddleASCountForDate(self, date):
+        try:
+            self.cur.execute("""select count(*) from asns where isorigin = %s and dateSeen = %s;""", (False, date))
+            return self.cur.fetchone()[0]
+        except:
+            sys.stderr.write("Unable to get the number of middle ASes seen on {}".format(date))
+            return -1
+    
+    def dropPrefixesForDate(self, date):
+        try:
+            self.cur.execute("""DELETE FROM prefixes WHERE dateseen = %s""",
+                             (date,))
+            self.conn.commit()
+            return True
+        except (Exception, psycopg2.DatabaseError) as error:
+            print(error)
+            return False
 
+    def dropOriginASesForDate(self, date):
+        try:
+            self.cur.execute("""DELETE FROM asns WHERE isorigin = %s and  dateseen = %s""",
+                             (True, date))
+            self.conn.commit()
+            return True
+        except (Exception, psycopg2.DatabaseError) as error:
+            print(error)
+            return False
+
+    def dropMiddleASesForDate(self, date):
+        try:
+            self.cur.execute("""DELETE FROM asns WHERE isorigin = %s and  dateseen = %s""",
+                             (False, date))
+            self.conn.commit()
+            return True
+        except (Exception, psycopg2.DatabaseError) as error:
+            print(error)
+            return False
+            
     @staticmethod    
     def getListOfDateTuples(datesList, isDict):
         periodsList = []
