@@ -200,8 +200,8 @@ def main(argv):
     DEBUG = False
     
     #For DEBUG
-    DEBUG = True
-    files_path = '/Users/sofiasilva/Downloads'
+#    DEBUG = True
+#    files_path = '/Users/sofiasilva/Downloads'
     
     try:
         opts, args = getopt.getopt(argv, 'hf:D', ['files_path='])
@@ -217,12 +217,14 @@ def main(argv):
             print "f = Path to folder in which files will be saved. (MANDATORY)"
             print "D = DEBUG. If this option is used bulk WHOIS files will not be downloaded."
             print "In DEBUG mode the bulk WHOIS files: apnic.db.inetnum, apnic.db.inet6num, apnic.db.aut-num, apnic.db.mntner and apnic.db.irt MUST be already present in the files_path folder."
+            sys.exit()
         elif opt == '-f':
             files_path = os.path.abspath(arg)
         elif opt == '-D':
             DEBUG = True
         else:
             assert False, 'Unhandled option'
+            sys.exit()
                         
     BulkWHOISParser(files_path, DEBUG)
 
