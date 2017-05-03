@@ -108,7 +108,15 @@ class OrgHeuristics:
                     'phones': [],
                     'mail_domain': 'sixxs.net'
                     }
-                }  
+                }
+    
+    scoresDict = {'itemnames': {'score': 100, 'similarity_threshold': 0.8},
+                  'remarks/descr': {'score': 50, 'similarity_threshold': 0.6},
+                  'phones': {'score': 50, 'similarity_threshold': 0.99},
+                  'emails': {'score': 50, 'similarity_threshold': 0.99},
+                  'admin/tech': {'score': 50, 'similarity_threshold': 0.99},
+                  'mntners': {'score': 50, 'similarity_threshold': 0.99},
+                  'irts': {'score': 50, 'similarity_threshold': 0.99}}
 
     def __init__(self, files_path):
         self.bulkWHOIS_data = {'inetnum' : {'file' : '{}/apnic.db.inetnum.pkl'.format(files_path)},
@@ -122,7 +130,7 @@ class OrgHeuristics:
                 self.bulkWHOIS_data[item]['data'] =\
                     pickle.load(open(self.bulkWHOIS_data[item]['file'], "rb"))
             except IOError:
-                sys.stderr.write(IOError.message)
+                print 'IOError. Probably file {} does not exist. Aborting.\n'.format(self.bulkWHOIS_data[item]['file'])
                 sys.exit()
         
         self.ipv4_prefixes_data_file = '{}/ipv4_prefixes_filtered_WHOISdata.pkl'.format(files_path)
@@ -261,18 +269,9 @@ class OrgHeuristics:
         
         return (matching_score >= 100)
     
-    def comparePrefASNField(self, pref_field, asn_field, field_name):
-        # TODO Debug and adjust these values
-        scoresDict = {'itemnames': {'score': 100, 'similarity_threshold': 0.8},
-                      'remarks/descr': {'score': 50, 'similarity_threshold': 0.6},
-                      'phones': {'score': 50, 'similarity_threshold': 1},
-                      'emails': {'score': 50, 'similarity_threshold': 1},
-                      'admin/tech': {'score': 50, 'similarity_threshold': 1},
-                      'mntners': {'score': 50, 'similarity_threshold': 1},
-                      'irts': {'score': 50, 'similarity_threshold': 1}}
-        
-        if self.similar(pref_field, asn_field) > scoresDict[field_name]['similarity_threshold']:
-            return scoresDict[field_name]['score']
+    def comparePrefASNField(self, pref_field, asn_field, field_name):               
+        if self.similar(pref_field, asn_field) > self.scoresDict[field_name]['similarity_threshold']:
+            return self.scoresDict[field_name]['score']
         else:
             return 0
     
@@ -341,24 +340,24 @@ class OrgHeuristics:
         if 'mnt-irt' in data_dict:
             for irt in data_dict['mnt-irt']:
                 if self.isIRTofInterest(irt):
-                    filtered_data_dict['irts'].append(irt)
+                    filtered_data_dict['irts'].add(irt)
                     
                     irt_data = self.bulkWHOIS_data['irt']['data'][irt]
                     for key in irt_data:
                         if key in ['admin-c', 'tech-c']:
                             for value in irt_data[key]:
                                 if not self.isNIRContact(value):
-                                    filtered_data_dict['admin/tech'].append(value)
+                                    filtered_data_dict['admin/tech'].add(value)
                         
                         elif key in ['fax-no', 'phone']:
                             for value in irt_data[key]:
                                 if not self.isNIRPhone(value):
-                                    filtered_data_dict['phones'].append(value)
+                                    filtered_data_dict['phones'].add(value)
         
                         elif key == 'remarks':
                             for value in irt_data[key]:
                                 if not self.isSimilarToNIRRemarkDescr(value):
-                                    filtered_data_dict['remarks/descr'].append(value)
+                                    filtered_data_dict['remarks/descr'].add(value)
 
         return filtered_data_dict
         
@@ -367,19 +366,19 @@ class OrgHeuristics:
             if mntner_type in data_dict:
                 for mntner in data_dict[mntner_type]:
                     if self.isMntnerOfInterest(mntner):
-                        filtered_data_dict['mntners'].append(mntner)
+                        filtered_data_dict['mntners'].add(mntner)
                         
                         mntner_data = self.bulkWHOIS_data['mntner']['data'][mntner]
                         for key in mntner_data:
                             if key in ['admin-c', 'tech-c']:
                                 for value in mntner_data[key]:
                                     if not self.isNIRContact(value):
-                                        filtered_data_dict['admin/tech'].append(value)
+                                        filtered_data_dict['admin/tech'].add(value)
                             
                             elif key in ['descr', 'remarks']:
                                 for value in mntner_data[key]:
                                     if not self.isSimilarToNIRRemarkDescr(value):
-                                        filtered_data_dict['remarks/descr'].append(value)
+                                        filtered_data_dict['remarks/descr'].add(value)
                             
         return filtered_data_dict
         
@@ -388,10 +387,10 @@ class OrgHeuristics:
             if contact_type in data_dict:
                 for contact in data_dict[contact_type]:
                     if not self.isNIRContact(contact):
-                        filtered_data_dict['admin/tech'].append(contact)
+                        filtered_data_dict['admin/tech'].add(contact)
 
         return filtered_data_dict
-    
+            
     def querySIXXSwhois(self, resource, filtered_data_dict):
         # Most info from SiXXs' whois is related to them and not to the
         # organization that actually uses the IPv6 prefix, therefore it is not
@@ -405,10 +404,10 @@ class OrgHeuristics:
                 line_content = line.split(':')[1].strip()
             if 'phone:' in line:
                 if not self.isNIRPhone(line_content):
-                    filtered_data_dict['phones'].append(line_content)
+                    filtered_data_dict['phones'].add(line_content)
             elif 'e-mail:' in line:
                 if not self.isNIREmail(line_content):
-                    filtered_data_dict['emails'].append(line_content)
+                    filtered_data_dict['emails'].add(line_content)
         
         return filtered_data_dict
 
@@ -428,19 +427,19 @@ class OrgHeuristics:
                     net_name = line.split(']')[1].lstrip()
 
                     if not self.isNIRName(net_name):
-                        filtered_data_dict['itemnames'].append(net_name)
+                        filtered_data_dict['itemnames'].add(net_name)
             else:
                 if 'AS Name' in line:
                     as_name = line.split(']')[1].lstrip()
 
                     if not self.isNIRName(as_name):
-                        filtered_data_dict['itemnames'].append(as_name)
+                        filtered_data_dict['itemnames'].add(as_name)
 
             if 'Organization' in line:
                 org_name = line.split(']')[1].lstrip()
 
                 if not self.isSimilarToNIRRemarkDescr(org_name):
-                    filtered_data_dict['remarks/descr'].append(org_name)
+                    filtered_data_dict['remarks/descr'].add(org_name)
 
         return filtered_data_dict
         
@@ -488,19 +487,19 @@ class OrgHeuristics:
                 email = content
                 
         if org_name != '' and not self.isSimilarToNIRRemarkDescr(org_name):
-            filtered_data_dict['remarks/descr'].append(org_name) 
+            filtered_data_dict['remarks/descr'].add(org_name) 
         
         if serv_name != '' and not self.isNIRName(serv_name):
-            filtered_data_dict['itemnames'].append(serv_name)
+            filtered_data_dict['itemnames'].add(serv_name)
         
         if as_name != '' and not self.isNIRName(as_name):
-            filtered_data_dict['itemnames'].append(as_name)
+            filtered_data_dict['itemnames'].add(as_name)
         
         if phone != '' and not self.isNIRPhone(phone):
-            filtered_data_dict['phones'].append(phone)
+            filtered_data_dict['phones'].add(phone)
     
         if email != '' and not self.isNIREmail(email):
-            filtered_data_dict['emails'].append(email)
+            filtered_data_dict['emails'].add(email)
 
         return filtered_data_dict
     
@@ -508,7 +507,7 @@ class OrgHeuristics:
         if 'remarks' in data_dict:
             for remark in data_dict['remarks']:
                 if not self.isSimilarToNIRRemarkDescr(remark):
-                    filtered_data_dict['remarks/descr'].append(remark)
+                    filtered_data_dict['remarks/descr'].add(remark)
                     
                 if 'whois.nic.ad.jp' in remark:
                     filtered_data_dict = self.queryJPNICwhois(resource,
@@ -527,7 +526,7 @@ class OrgHeuristics:
         if 'descr' in data_dict:      
             for descr in data_dict['descr']:
                 if not self.isSimilarToNIRRemarkDescr(descr):
-                    filtered_data_dict['remarks/descr'].append(descr)
+                    filtered_data_dict['remarks/descr'].add(descr)
 
         return filtered_data_dict
         
@@ -540,29 +539,29 @@ class OrgHeuristics:
         if data_field in data_dict:
             for name in data_dict[data_field]:
                 if not self.isNIRName(name):
-                    filtered_data_dict['itemnames'].append(name)
+                    filtered_data_dict['itemnames'].add(name)
         
         return filtered_data_dict
     
     def getDataOfInterest(self, resource, isNetwork, data_dict):
         filtered_data = dict()
         
-        filtered_data['itemnames'] = []
+        filtered_data['itemnames'] = set()
         filtered_data = self.filterNames(data_dict, filtered_data, isNetwork)
  
-        filtered_data['phones'] = []
-        filtered_data['emails'] = []
-        filtered_data['remarks/descr'] = []
+        filtered_data['phones'] = set()
+        filtered_data['emails'] = set()
+        filtered_data['remarks/descr'] = set()
         filtered_data = self.filterRemarksDescr(data_dict, filtered_data,
                                                 resource, isNetwork)        
 
-        filtered_data['admin/tech'] = []
+        filtered_data['admin/tech'] = set()
         filtered_data = self.filterContacts(data_dict, filtered_data)
                     
-        filtered_data['mntners'] = []
+        filtered_data['mntners'] = set()
         filtered_data = self.filterMntners(data_dict, filtered_data)
     
-        filtered_data['irts'] = []
+        filtered_data['irts'] = set()
         filtered_data = self.filterIRTs(data_dict, filtered_data)
     
         return filtered_data
@@ -581,6 +580,7 @@ class OrgHeuristics:
             pickle.dump(self.alreadyClassified, f, pickle.HIGHEST_PROTOCOL)
 
 
+#org_h = OrgHeuristics('/Users/sofiasilva/Downloads')
 org_h = OrgHeuristics('/home/sofia/BGP_stats_files')
 
 correctResults = 0
@@ -594,7 +594,15 @@ sameOrgPairs = [['1.0.64.0/18', '18144'],
                 ['103.15.226.0/24', '136052'],
                 ['45.121.52.0/22', '63530'],
                 ['103.52.223.0/24', '133961'],
-                ['43.255.12.0/22', '131584']]
+                ['43.255.12.0/22', '131584'],
+                ['103.84.212.0/22', '136317'],
+                ['103.86.180.0/22', '136284'],
+                ['103.86.190.0/24', '136413'],
+                ['103.86.191.0/24', '136414'],
+                ['2400:c740::/32', '136416'],
+                ['103.86.196.0/22', '18109'],
+                ['103.87.24.0/22', '136287'],
+                ['103.87.28.0/22', '136288']]
 
 for sameOrg_pair in sameOrgPairs:
     result = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
@@ -607,7 +615,15 @@ for sameOrg_pair in sameOrgPairs:
             f.write('{}|{}\n'.format(sameOrg_pair[0], sameOrg_pair[1]))
     
 diffOrgPairs = [['211.190.231.0/24', '38660'],
-                ['103.205.100.0/22', '135900']]
+                ['103.205.100.0/22', '135900'],
+                ['103.84.212.0/22', '136290'],
+                ['103.86.180.0/22', '136372'],
+                ['103.86.190.0/24', '131491'],
+                ['103.86.191.0/24', '136370'],
+                ['2400:c740::/32', '136427'],
+                ['103.86.196.0/22', '136091'],
+                ['103.87.24.0/22', '45566'],
+                ['103.87.28.0/22', '136433']]
 
 for diffOrg_pair in diffOrgPairs:
     result = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
@@ -619,6 +635,14 @@ for diffOrg_pair in diffOrgPairs:
         with open(falsePos_file, 'a') as f:
             f.write('{}|{}\n'.format(diffOrg_pair[0], diffOrg_pair[1]))
 
-print 'Correct results: {}\n'.format(correctResults)
-print 'False positives: {}\n'.format(falsePositives)
-print 'False Negatives: {}\n'.format(falseNegatives)
+print 'Correct results: {}%\n'.format(float(correctResults)/(len(sameOrgPairs)+len(diffOrgPairs)))
+print 'False positives: {}%\n'.format(float(falsePositives)/(len(sameOrgPairs)+len(diffOrgPairs)))
+print 'False Negatives: {}%\n'.format(float(falseNegatives)/(len(sameOrgPairs)+len(diffOrgPairs)))
+
+#prefix = '43.255.12.0/22'
+#asn = '131584'
+#org_h.checkIfSameOrg(prefix, asn)
+#
+#prefix = '1.0.64.0/18'
+#asn = '18144'
+#org_h.checkIfSameOrg(prefix, asn)
