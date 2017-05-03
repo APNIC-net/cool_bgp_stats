@@ -154,7 +154,7 @@ class OrgHeuristics:
         except IOError:
             self.ases_filtered_data = dict()
         
-        self.alreadyClassified_file = '{}/alreadyClassifiedCouples.pkl'
+        self.alreadyClassified_file = '{}/alreadyClassifiedCouples.pkl'.format(files_path)
         
         try:
             self.alreadyClassified = pickle.load(open(self.alreadyClassified_file, 'rb'))
