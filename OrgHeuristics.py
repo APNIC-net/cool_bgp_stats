@@ -20,7 +20,7 @@ class OrgHeuristics:
     nirs_dict = {'JP':{
                     'nir_name':'JPNIC',
                     'descr':['JPNIC', 'Japan Network Information Center'],
-                    'remarks': [],
+                    'remarks': ['Authoritative information regarding AS Number', 'assignments made from within this block can also be', 'for assignment to JPNIC members', 'queried at whois.nic.ad.jp', 'Block of 32 AS numbers from AS'],
                     'itemnames':['JPNIC-NET-JP', 'OCN-JPNIC-JP', 'JPNIC-NET-JP-ERX', 'JPNIC-NET-JP-AS-BLOCK', 'JPNIC-2Byte-ASBLOCK-AP', 'JPNIC-JP-ASN-BLOCK', 'JPNIC-ASBLOCK-AP'],
                     'admin/tech':['JNIC1-AP'],
                     'mntner':'MAINT-JPNIC',
@@ -266,9 +266,9 @@ class OrgHeuristics:
             if key in asn_org_data:
                 for pref_item in pref_org_data[key]:
                     for asn_item in asn_org_data[key]:
-                        partial_score = float(self.comparePrefASNField(pref_item, asn_item, key))/min(len(asn_org_data[key]), len(pref_org_data[key]))
+                        partial_score = self.comparePrefASNField(pref_item, asn_item, key)
                         if partial_score > 0:
-                            matchings.append[[pref_item, asn_item]]
+                            matchings.append([pref_item, asn_item])
                         matching_score += partial_score
         
         return (matching_score >= 100), matchings
