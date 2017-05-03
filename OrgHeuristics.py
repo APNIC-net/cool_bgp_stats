@@ -635,6 +635,8 @@ for diffOrg_pair in diffOrgPairs:
         with open(falsePos_file, 'a') as f:
             f.write('{}|{}\n'.format(diffOrg_pair[0], diffOrg_pair[1]))
 
+org_h.dumpToPickleFiles()
+
 print 'Correct results: {}%\n'.format(float(correctResults)/(len(sameOrgPairs)+len(diffOrgPairs)))
 print 'False positives: {}%\n'.format(float(falsePositives)/(len(sameOrgPairs)+len(diffOrgPairs)))
 print 'False Negatives: {}%\n'.format(float(falseNegatives)/(len(sameOrgPairs)+len(diffOrgPairs)))
