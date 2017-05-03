@@ -252,22 +252,26 @@ class OrgHeuristics:
                 # Therefore, for the ASNs we will be working with, we should
                 # always find information about the delegation in the Bulk WHOIS.
                 
-        result = self.comparePrefixAndASNData(pref_org_data, asn_org_data)
+        result, matchings = self.comparePrefixAndASNData(pref_org_data, asn_org_data)
         
         alreadyClass_pref_node.data[asn] = result
 
-        return result
+        return result, matchings
 
     def comparePrefixAndASNData(self, pref_org_data, asn_org_data):
         matching_score = 0
         
+        matchings = []
         for key in pref_org_data.keys():
             if key in asn_org_data:
                 for pref_item in pref_org_data[key]:
                     for asn_item in asn_org_data[key]:
-                        matching_score += float(self.comparePrefASNField(pref_item, asn_item, key))/min(len(asn_org_data[key]), len(pref_org_data[key]))
+                        partial_score = float(self.comparePrefASNField(pref_item, asn_item, key))/min(len(asn_org_data[key]), len(pref_org_data[key]))
+                        if partial_score > 0:
+                            matchings.append[[pref_item, asn_item]]
+                        matching_score += partial_score
         
-        return (matching_score >= 100)
+        return (matching_score >= 100), matchings
     
     def comparePrefASNField(self, pref_field, asn_field, field_name):               
         if self.similar(pref_field, asn_field) > self.scoresDict[field_name]['similarity_threshold']:
@@ -581,6 +585,7 @@ class OrgHeuristics:
 
 
 #org_h = OrgHeuristics('/Users/sofiasilva/Downloads')
+
 org_h = OrgHeuristics('/home/sofia/BGP_stats_files')
 
 correctResults = 0
@@ -588,8 +593,13 @@ falsePositives = 0
 falseNegatives = 0
 
 falseNeg_file = './falseNegatives.csv'
+with open(falseNeg_file, 'wb') as f:
+    f.write('Prefix|ASN|Matchings\n')
+    
 falsePos_file = './falsePositives.csv'
-
+with open(falsePos_file, 'wb') as f:
+    f.write('Prefix|ASN|Matchings\n')
+    
 sameOrgPairs = [['1.0.64.0/18', '18144'],
                 ['103.15.226.0/24', '136052'],
                 ['45.121.52.0/22', '63530'],
@@ -605,14 +615,14 @@ sameOrgPairs = [['1.0.64.0/18', '18144'],
                 ['103.87.28.0/22', '136288']]
 
 for sameOrg_pair in sameOrgPairs:
-    result = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
+    result, matchings = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
     
     if result:
         correctResults += 1
     else:
         falseNegatives += 1
         with open(falseNeg_file, 'a') as f:
-            f.write('{}|{}\n'.format(sameOrg_pair[0], sameOrg_pair[1]))
+            f.write('{}|{}|{}\n'.format(sameOrg_pair[0], sameOrg_pair[1], matchings))
     
 diffOrgPairs = [['211.190.231.0/24', '38660'],
                 ['103.205.100.0/22', '135900'],
@@ -626,25 +636,42 @@ diffOrgPairs = [['211.190.231.0/24', '38660'],
                 ['103.87.28.0/22', '136433']]
 
 for diffOrg_pair in diffOrgPairs:
-    result = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
+    result, matchings = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
     
     if not result:
         correctResults += 1
     else:
         falsePositives += 1
         with open(falsePos_file, 'a') as f:
-            f.write('{}|{}\n'.format(diffOrg_pair[0], diffOrg_pair[1]))
+            f.write('{}|{}|{}\n'.format(diffOrg_pair[0], diffOrg_pair[1], matchings))
 
 org_h.dumpToPickleFiles()
 
 print 'Correct results: {}%\n'.format(float(correctResults)/(len(sameOrgPairs)+len(diffOrgPairs)))
 print 'False positives: {}%\n'.format(float(falsePositives)/(len(sameOrgPairs)+len(diffOrgPairs)))
-print 'False Negatives: {}%\n'.format(float(falseNegatives)/(len(sameOrgPairs)+len(diffOrgPairs)))
+print 'False negatives: {}%\n'.format(float(falseNegatives)/(len(sameOrgPairs)+len(diffOrgPairs)))
 
 #prefix = '43.255.12.0/22'
 #asn = '131584'
 #org_h.checkIfSameOrg(prefix, asn)
-#
+
+'''
+False positives
+211.190.231.0/24|38660
+103.205.100.0/22|135900
+103.84.212.0/22|136290
+103.86.180.0/22|136372
+103.86.190.0/24|131491
+103.86.191.0/24|136370
+2400:c740::/32|136427
+103.86.196.0/22|136091
+103.87.24.0/22|45566
+103.87.28.0/22|136433
+'''
+
+# False negative
 #prefix = '1.0.64.0/18'
 #asn = '18144'
 #org_h.checkIfSameOrg(prefix, asn)
+
+# TODO Remove matchings list when adjustment is finished
