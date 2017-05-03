@@ -603,7 +603,7 @@ for sameOrg_pair in sameOrgPairs:
         correctResults += 1
     else:
         falseNegatives += 1
-        with open(falseNeg_file, 'wb') as f:
+        with open(falseNeg_file, 'a') as f:
             f.write('{}|{}\n'.format(sameOrg_pair[0], sameOrg_pair[1]))
     
 diffOrgPairs = [['211.190.231.0/24', '38660'],
@@ -616,7 +616,7 @@ for diffOrg_pair in diffOrgPairs:
         correctResults += 1
     else:
         falsePositives += 1
-        with open(falsePos_file, 'wb') as f:
+        with open(falsePos_file, 'a') as f:
             f.write('{}|{}\n'.format(diffOrg_pair[0], diffOrg_pair[1]))
 
 print 'Correct results: {}\n'.format(correctResults)
