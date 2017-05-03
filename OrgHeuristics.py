@@ -15,61 +15,64 @@ from ipaddress import ip_network
 from difflib import SequenceMatcher
 import subprocess
 
+
 class OrgHeuristics:
     nirs_dict = {'JP':{
                     'nir_name':'JPNIC',
                     'descr':['JPNIC', 'Japan Network Information Center'],
+                    'remarks': [],
                     'itemnames':['JPNIC-NET-JP', 'OCN-JPNIC-JP', 'JPNIC-NET-JP-ERX', 'JPNIC-NET-JP-AS-BLOCK', 'JPNIC-2Byte-ASBLOCK-AP', 'JPNIC-JP-ASN-BLOCK', 'JPNIC-ASBLOCK-AP'],
                     'admin/tech':['JNIC1-AP'],
                     'mntner':'MAINT-JPNIC',
                     'irt':'IRT-JPNIC-JP',
                     'whois':'whois.nic.ad.jp',
-                    'opaque_id':'A91A7381',
                     'phones': ['81352972311', '81352972312'],
-                    'prefix_example':'1.0.64.0/18', 'asn_example':'18144'
+                    'mail_domain': 'nic.ad.jp'
                     },
                 'ID':{
                     'nir_name':'IDNIC',
                     'descr':['Indonesia Network Information Center', 'Gedung Cyber Lt.3A', 'Jl. Kuningan Barat No.8', 'Jakarta 12710'],
+                    'remarks': [],
                     'itemnames':['IDNIC-ID', 'IDNIC-AS-ID'],
                     'admin/tech':['IA55-AP', 'IH123-AP'],
                     'mntner':'MNT-APJII-ID',
                     'irt':'IRT-IDNIC-ID',
-                    'opaque_id':'A9186214',
                     'phones': ['622152960634', '622152960635'],
-                    'prefix_example':'103.15.226.0/24', 'asn_example':'136052'
+                    'mail_domain': 'idnic.net'
                     },
                 'CN':{
                     'nir_name':'CNNIC',
                     'descr':['China Internet Network Information Center', 'No.4, Zhongguancun No.4 South Street,', 'Haidian District, Beijing', 'P.O.Box: No.6 Branch-box of No.349 Mailbox, Beijing'],
+                    'remarks': [],
                     'itemnames':['CNNIC', 'CNNIC-CRITICAL-CN', 'CNNIC-AP'],
                     'admin/tech':['MW1-AP', 'IPAS1-AP'],
                     'mntner':'MAINT-CNNIC-AP',
                     'irt':'IRT-CNNIC-CN',
-                    'opaque_id':'A9162E3D',
                     'phones': ['861058813000', '861058812666'],
-                    'prefix_example':'45.121.52.0/22', 'asn_example':'63530'
+                    'mail_domain': 'cnnic.cn'
                     },
                 'IN':{
                     'nir_name':'IRINN',
+                    'descr': [],
+                    'itemnames': [],
+                    'remarks': [],
+                    'admin/tech': [],
                     'mntner':'MAINT-IN-IRINN',
-                    'itr':'IRT-IRINN-IN',
-                    'opaque_id':'A918EDB2',
+                    'irt':'IRT-IRINN-IN',
                     'phones': ['9127866000'],
-                    'prefix_example':'103.52.223.0/24', 'asn_example':'133961'
+                    'mail_domain': 'irinn.in'
                     },
                 'KR':{
                     'nir_name':'KRNIC',
                     'descr':['KRNIC', 'Korea Network Information Center', '************************************************', 'Allocated to KRNIC Member.', 'If you would like to find assignment', 'information in detail please refer to', 'the KRNIC Whois Database at:', '"http://whois.nida.or.kr/english/index.html"'],
                     'itemnames':['KRNIC-KR', 'KRNIC-NET', 'KRNIC-AS-KR'],
-                    'remarks':[' ******************************************', 'KRNIC is the National Internet Registry', 'in Korea under APNIC. If you would like to', 'find assignment information in detail', 'please refer to the KRNIC Whois DB'],
+                    'remarks':[' ******************************************', 'KRNIC is the National Internet Registry in Korea under APNIC.', 'If you would like to find assignment', 'information in detail please refer to', 'the KRNIC Whois DB'],
                     'admin/tech':['HM127-AP'],
                     'mntner':'MNT-KRNIC-AP',
                     'irt':'IRT-KRNIC-KR',
                     'whois':'whois.nic.or.kr',
-                    'opaque_id':'A9149F3E',
                     'phones': ['8224055118', '8224055118'],
-                    'prefix_example':'211.190.231.0/24', 'asn_example':'38660'
+                    'mail_domain': 'nic.or.kr'
                     },
                 'TW':{
                     'nir_name':'TWNIC',
@@ -79,20 +82,31 @@ class OrgHeuristics:
                     'admin/tech':['TWA2-AP'],
                     'mntner':'MAINT-TW-TWNIC',
                     'irt':'IRT-TWNIC-AP',
-                    'opaque_id':'A91BDB29',
                     'phones': ['886223411313', '886223968832'],
-                    'prefix_example':'43.255.12.0/22', 'asn_example':'131584'
+                    'mail_domain': 'twnic.net.tw'
                     },
                 'VN':{
                     'nir_name':'VNNIC',
                     'descr':['VNNIC', 'Vietnam Internet network Information Centre', 'Vietnam Internet network Information Centre - VNNIC', 'Vietnam Internet network information center (VNNIC)', 'Branch of VNNIC in Ho Chi Minh City', 'Branch of VNNIC in Da Nang City', '18 Nguyen Du street, Hanoi capital, Vietnam', '18 Nguyen Du street, Hai Ba Trung District, Hanoi', '18 Nguyen Du, Hanoi'],
+                    'remarks': [],
                     'itemnames':['VNNIC-NET', 'VNNIC-AS-VN', 'VNNIC-AS-AP', 'VNNIC-4-BYTE-AS-VN'],
                     'admin/tech':['ITMG1-AP', 'VI2-AP', 'PXD6-AP'],
                     'mntner':'MAINT-VN-VNNIC',
                     'irt':'IRT-VNNIC-AP',
-                    'opaque_id':'A91A560A',
                     'phones': ['84435564944'],
-                    'prefix_example':'103.205.100.0/22', 'asn_example':'135900'
+                    'mail_domain': 'vnnic.net.vn'
+                    },
+                'SIXXS':{
+                    'nir_name': 'SIXXS',
+                    'descr': ['SixXS assignment to end-user'],
+                    'remarks': ['This object was automatically generated by SixXS', 'For more details, query whois.sixxs.net for this object', 'More information can be found at http://www.sixxs.net/', 'Abuse reports should go to ********'],
+                    'itemnames': [],
+                    'admin/tech': ['SATR1-AP'],
+                    'mntner': 'SIXXS-MNT',
+                    'irt': 'IRT-SIXXS',
+                    'whois': 'whois.sixxs.net',
+                    'phones': [],
+                    'mail_domain': 'sixxs.net'
                     }
                 }  
 
@@ -131,6 +145,13 @@ class OrgHeuristics:
             self.ases_filtered_data = pickle.load(open(self.ases_data_file, 'rb'))
         except IOError:
             self.ases_filtered_data = dict()
+        
+        self.alreadyClassified_file = '{}/alreadyClassifiedCouples.pkl'
+        
+        try:
+            self.alreadyClassified = pickle.load(open(self.alreadyClassified_file, 'rb'))
+        except IOError:
+            self.alreadyClassified = radix.Radix()
             
         # Counter to keep track of how many times these heurisitics are applied
         # during an excecution of computeRoutingStats so that we can decide
@@ -144,7 +165,16 @@ class OrgHeuristics:
     def similar(a, b):
         return round(SequenceMatcher(None, a.lower(), b.lower()).ratio(), 1)
 
-    def checkIfSameOrg(self, prefix, asn):    
+    def checkIfSameOrg(self, prefix, asn):
+        asn = long(asn)
+        alreadyClass_pref_node = self.alreadyClassified.search_exact(prefix)
+        
+        if alreadyClass_pref_node is not None:
+            if asn in alreadyClass_pref_node.data:
+                return alreadyClass_pref_node.data[asn]
+        else:
+            alreadyClass_pref_node = self.alreadyClassified.add(prefix)
+            
         network = ip_network(unicode(prefix, "utf-8"))
         
         pref_node = None
@@ -154,12 +184,10 @@ class OrgHeuristics:
             item = 'inetnum'
             # I save the filename so that I can dump the filtered data to the
             # pickles file later on
-            prefixes_data_file = self.ipv4_prefixes_data_file
             filtered_data = self.ipv4_prefixes_filtered_data
                 
         else:
             item = 'inet6num'
-            prefixes_data_file = self.ipv6_prefixes_data_file
             filtered_data = self.ipv6_prefixes_filtered_data
 
         # I check whether I already have filtered data for the prefix
@@ -183,10 +211,6 @@ class OrgHeuristics:
                     # and copy all the filtered information
                     for key in pref_org_data:
                         pref_node.data[key] = pref_org_data[key]
-                
-                # Finally, I dump the updated Radix to a pickle file
-                with open(prefixes_data_file, 'wb') as f:
-                    pickle.dump(filtered_data, f, pickle.HIGHEST_PROTOCOL)
             else:
                 print 'This should never happen'
                 # These heuristics are applied to prefixes delegated by APNIC
@@ -207,15 +231,11 @@ class OrgHeuristics:
             try:
                 asn_dict = self.bulkWHOIS_data['aut-num']['data'][asn]
                 # and proceed to filter it
-                asn_org_data = self.getDataOfInterest(asn, False, asn_dict)
+                asn_org_data = self.getDataOfInterest(str(asn), False, asn_dict)
                 # I add the filtered information about the ASN to the dictionary
                 # with filtered data about ASNs
                 self.ases_filtered_data[asn] = asn_org_data
-            
-                # and finally dump the updated dictionary into a pickle file
-                with open(self.ases_data_file, 'wb') as f:
-                    pickle.dump(self.ases_filtered_data, f, pickle.HIGHEST_PROTOCOL)
-        
+                            
             except KeyError:
                 print 'This should not happen'
                 # If the ASN was not delegated by APNIC, we should have obtained
@@ -224,9 +244,12 @@ class OrgHeuristics:
                 # Therefore, for the ASNs we will be working with, we should
                 # always find information about the delegation in the Bulk WHOIS.
                 
-        return self.comparePrefixAndASNData(pref_org_data, asn_org_data)
+        result = self.comparePrefixAndASNData(pref_org_data, asn_org_data)
+        
+        alreadyClass_pref_node.data[asn] = result
 
-    @staticmethod
+        return result
+
     def comparePrefixAndASNData(self, pref_org_data, asn_org_data):
         matching_score = 0
         
@@ -237,15 +260,11 @@ class OrgHeuristics:
                         matching_score += float(self.comparePrefASNField(pref_item, asn_item, key))/min(len(asn_org_data[key]), len(pref_org_data[key]))
         
         return (matching_score >= 100)
-        
-        # TODO ver si no sería mejor meter la comparación dentro del proceso
-        # de filtrado, para evitar iterar dos veces sobre la misma info
     
-    @staticmethod
     def comparePrefASNField(self, pref_field, asn_field, field_name):
         # TODO Debug and adjust these values
         scoresDict = {'itemnames': {'score': 100, 'similarity_threshold': 0.8},
-                      'remarks/descr': {'score': 50, 'similarity_threshold': 0.5},
+                      'remarks/descr': {'score': 50, 'similarity_threshold': 0.6},
                       'phones': {'score': 50, 'similarity_threshold': 1},
                       'emails': {'score': 50, 'similarity_threshold': 1},
                       'admin/tech': {'score': 50, 'similarity_threshold': 1},
@@ -268,11 +287,11 @@ class OrgHeuristics:
         for nir_country in self.nirs_dict:
             if 'remarks' in self.nirs_dict[nir_country]:
                 for nir_remark in self.nirs_dict[nir_country]['remarks']: 
-                    if self.similar(comment, nir_remark) > 0.5:
+                    if self.similar(comment, nir_remark) > 0.6:
                         return True
             if 'descr' in self.nirs_dict[nir_country]:
                 for nir_descr in self.nirs_dict[nir_country]['descr']:
-                    if self.similar(comment, nir_descr) > 0.5:
+                    if self.similar(comment, nir_descr) > 0.6:
                         return True
         return False
         
@@ -285,6 +304,12 @@ class OrgHeuristics:
                 for nir_phone in self.nirs_dict[nir_country]['phones']:
                     if phone == nir_phone:
                         return True
+        return False
+    
+    def isNIREmail(self, email):
+        for nir_country in self.nirs_dict:
+            if email.split('@')[1] == self.nirs_dict[nir_country]['mail_domain']:
+                return True
         return False
     
     def isNIRContact(self, contact):
@@ -321,16 +346,19 @@ class OrgHeuristics:
                     irt_data = self.bulkWHOIS_data['irt']['data'][irt]
                     for key in irt_data:
                         if key in ['admin-c', 'tech-c']:
-                            if not self.isNIRContact(irt_data[key]):
-                                filtered_data_dict['admin/tech'].append(irt_data[key])
+                            for value in irt_data[key]:
+                                if not self.isNIRContact(value):
+                                    filtered_data_dict['admin/tech'].append(value)
                         
                         elif key in ['fax-no', 'phone']:
-                            if not self.isNIRPhone(irt_data[key]):
-                                filtered_data_dict['phones'].append(irt_data[key])
+                            for value in irt_data[key]:
+                                if not self.isNIRPhone(value):
+                                    filtered_data_dict['phones'].append(value)
         
                         elif key == 'remarks':
-                            if not self.isSimilarToNIRRemarkDescr(irt_data[key]):
-                                filtered_data_dict['remarks/descr'].append(irt_data[key])
+                            for value in irt_data[key]:
+                                if not self.isSimilarToNIRRemarkDescr(value):
+                                    filtered_data_dict['remarks/descr'].append(value)
 
         return filtered_data_dict
         
@@ -344,12 +372,14 @@ class OrgHeuristics:
                         mntner_data = self.bulkWHOIS_data['mntner']['data'][mntner]
                         for key in mntner_data:
                             if key in ['admin-c', 'tech-c']:
-                                if not self.isNIRContact(mntner_data[key]):
-                                    filtered_data_dict['admin/tech'].append(mntner_data[key])
+                                for value in mntner_data[key]:
+                                    if not self.isNIRContact(value):
+                                        filtered_data_dict['admin/tech'].append(value)
                             
-                            if key in ['descr', 'remarks']:
-                                if not self.isSimilarToNIRsRemarkDescr(mntner_data[key]):
-                                    filtered_data_dict['remarks/descr'].append(mntner_data[key])
+                            elif key in ['descr', 'remarks']:
+                                for value in mntner_data[key]:
+                                    if not self.isSimilarToNIRRemarkDescr(value):
+                                        filtered_data_dict['remarks/descr'].append(value)
                             
         return filtered_data_dict
         
@@ -361,6 +391,27 @@ class OrgHeuristics:
                         filtered_data_dict['admin/tech'].append(contact)
 
         return filtered_data_dict
+    
+    def querySIXXSwhois(self, resource, filtered_data_dict):
+        # Most info from SiXXs' whois is related to them and not to the
+        # organization that actually uses the IPv6 prefix, therefore it is not
+        # quite useful for our heuristics. We just keep the email addresses and
+        # phone numbers that may appear.
+        cmd = 'whois -h whois.sixxs.net {}'.format(str(resource))
+        out = subprocess.check_output(cmd, shell=True).split('\n')
+        
+        for line in out:
+            if ':' in line:
+                line_content = line.split(':')[1].strip()
+            if 'phone:' in line:
+                if not self.isNIRPhone(line_content):
+                    filtered_data_dict['phones'].append(line_content)
+            elif 'e-mail:' in line:
+                if not self.isNIREmail(line_content):
+                    filtered_data_dict['emails'].append(line_content)
+        
+        return filtered_data_dict
+
         
     def queryJPNICwhois(self, resource, isNetwork, filtered_data_dict):
         if isNetwork:
@@ -388,7 +439,7 @@ class OrgHeuristics:
             if 'Organization' in line:
                 org_name = line.split(']')[1].lstrip()
 
-                if not self.isSimilarToNIRsRemarkDescr(org_name):
+                if not self.isSimilarToNIRRemarkDescr(org_name):
                     filtered_data_dict['remarks/descr'].append(org_name)
 
         return filtered_data_dict
@@ -436,7 +487,7 @@ class OrgHeuristics:
             elif 'E-Mail' in line:
                 email = content
                 
-        if org_name != '' and not self.isSimilarToNIRsRemarkDescr(org_name):
+        if org_name != '' and not self.isSimilarToNIRRemarkDescr(org_name):
             filtered_data_dict['remarks/descr'].append(org_name) 
         
         if serv_name != '' and not self.isNIRName(serv_name):
@@ -456,7 +507,7 @@ class OrgHeuristics:
     def filterRemarksDescr(self, data_dict, filtered_data_dict, resource, isNetwork):
         if 'remarks' in data_dict:
             for remark in data_dict['remarks']:
-                if not self.isSimilarToNIRsRemarkDescr(remark):
+                if not self.isSimilarToNIRRemarkDescr(remark):
                     filtered_data_dict['remarks/descr'].append(remark)
                     
                 if 'whois.nic.ad.jp' in remark:
@@ -469,10 +520,13 @@ class OrgHeuristics:
                     filtered_data_dict = self.queryKRNICwhois(resource,
                                                               isNetwork,
                                                               filtered_data_dict)
+                elif 'whois.sixxs.net' in remark:
+                    filtered_data_dict = self.querySIXXSwhois(resource,
+                                                              filtered_data_dict)
       
         if 'descr' in data_dict:      
             for descr in data_dict['descr']:
-                if not self.isSimilarToNIRsRemarkDescr(descr):
+                if not self.isSimilarToNIRRemarkDescr(descr):
                     filtered_data_dict['remarks/descr'].append(descr)
 
         return filtered_data_dict
@@ -512,9 +566,59 @@ class OrgHeuristics:
         filtered_data = self.filterIRTs(data_dict, filtered_data)
     
         return filtered_data
+    
+    def dumpToPickleFiles(self):
+        with open(self.ipv4_prefixes_data_file, 'wb') as f:
+            pickle.dump(self.ipv4_prefixes_filtered_data, f, pickle.HIGHEST_PROTOCOL)
+        
+        with open(self.ipv6_prefixes_data_file, 'wb') as f:
+            pickle.dump(self.ipv6_prefixes_filtered_data, f, pickle.HIGHEST_PROTOCOL)
+        
+        with open(self.ases_data_file, 'wb') as f:
+            pickle.dump(self.ases_filtered_data, f, pickle.HIGHEST_PROTOCOL)
+        
+        with open(self.alreadyClassified_file, 'wb') as f:
+            pickle.dump(self.alreadyClassified, f, pickle.HIGHEST_PROTOCOL)
 
-# TODO Hacer DEBUG llamando a checkIfSameOrg para 2001:4428:200:9a::/64 con ASN 18119
-org_h = OrgHeuristics('/Users/sofiasilva/Downloads/')
-prefix = '2001:4428:200:9a::/64'
-asn = 18119
-org_h.checkIfSameOrg(prefix, asn)
+
+org_h = OrgHeuristics('/home/sofia/BGP_stats_files')
+
+correctResults = 0
+falsePositives = 0
+falseNegatives = 0
+
+falseNeg_file = './falseNegatives.csv'
+falsePos_file = './falsePositives.csv'
+
+sameOrgPairs = [['1.0.64.0/18', '18144'],
+                ['103.15.226.0/24', '136052'],
+                ['45.121.52.0/22', '63530'],
+                ['103.52.223.0/24', '133961'],
+                ['43.255.12.0/22', '131584']]
+
+for sameOrg_pair in sameOrgPairs:
+    result = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
+    
+    if result:
+        correctResults += 1
+    else:
+        falseNegatives += 1
+        with open(falseNeg_file, 'wb') as f:
+            f.write('{}|{}\n'.format(sameOrg_pair[0], sameOrg_pair[1]))
+    
+diffOrgPairs = [['211.190.231.0/24', '38660'],
+                ['103.205.100.0/22', '135900']]
+
+for diffOrg_pair in diffOrgPairs:
+    result = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
+    
+    if not result:
+        correctResults += 1
+    else:
+        falsePositives += 1
+        with open(falsePos_file, 'wb') as f:
+            f.write('{}|{}\n'.format(diffOrg_pair[0], diffOrg_pair[1]))
+
+print 'Correct results: {}\n'.format(correctResults)
+print 'False positives: {}\n'.format(falsePositives)
+print 'False Negatives: {}\n'.format(falseNegatives)
