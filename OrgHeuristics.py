@@ -252,11 +252,11 @@ class OrgHeuristics:
                 # Therefore, for the ASNs we will be working with, we should
                 # always find information about the delegation in the Bulk WHOIS.
                 
-        result, matchings = self.comparePrefixAndASNData(pref_org_data, asn_org_data)
+        resultDict = self.comparePrefixAndASNData(pref_org_data, asn_org_data)
         
-        alreadyClass_pref_node.data[asn] = result
+        alreadyClass_pref_node.data[asn] = resultDict['sameOrg']
 
-        return result, matchings
+        return resultDict
 
     def comparePrefixAndASNData(self, pref_org_data, asn_org_data):
         matching_score = 0
@@ -271,7 +271,7 @@ class OrgHeuristics:
                             matchings.append([pref_item, asn_item])
                         matching_score += partial_score
         
-        return (matching_score > 50), matchings
+        return {'sameOrg': (matching_score > 50), 'matchingsList': matchings}
     
     def comparePrefASNField(self, pref_field, asn_field, field_name):               
         if self.similar(pref_field, asn_field) > self.scoresDict[field_name]['similarity_threshold']:
@@ -615,14 +615,14 @@ sameOrgPairs = [['1.0.64.0/18', '18144'],
                 ['103.87.28.0/22', '136288']]
 
 for sameOrg_pair in sameOrgPairs:
-    result, matchings = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
+    resultDict = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
     
-    if result:
+    if resultDict['sameOrg']:
         correctResults += 1
     else:
         falseNegatives += 1
         with open(falseNeg_file, 'a') as f:
-            f.write('{}|{}|{}\n'.format(sameOrg_pair[0], sameOrg_pair[1], matchings))
+            f.write('{}|{}|{}\n'.format(sameOrg_pair[0], sameOrg_pair[1], resultDict['matchingsList']))
     
 diffOrgPairs = [['211.190.231.0/24', '38660'],
                 ['103.205.100.0/22', '135900'],
@@ -636,14 +636,14 @@ diffOrgPairs = [['211.190.231.0/24', '38660'],
                 ['103.87.28.0/22', '136433']]
 
 for diffOrg_pair in diffOrgPairs:
-    result, matchings = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
+    resultDict = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
     
-    if not result:
+    if not resultDict['sameOrg']:
         correctResults += 1
     else:
         falsePositives += 1
         with open(falsePos_file, 'a') as f:
-            f.write('{}|{}|{}\n'.format(diffOrg_pair[0], diffOrg_pair[1], matchings))
+            f.write('{}|{}|{}\n'.format(diffOrg_pair[0], diffOrg_pair[1], resultDict['matchingsList']))
 
 org_h.dumpToPickleFiles()
 
