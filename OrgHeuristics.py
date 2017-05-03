@@ -271,7 +271,7 @@ class OrgHeuristics:
                             matchings.append([pref_item, asn_item])
                         matching_score += partial_score
         
-        return (matching_score >= 100), matchings
+        return (matching_score > 50), matchings
     
     def comparePrefASNField(self, pref_field, asn_field, field_name):               
         if self.similar(pref_field, asn_field) > self.scoresDict[field_name]['similarity_threshold']:
