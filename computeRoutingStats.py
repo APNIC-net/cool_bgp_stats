@@ -1334,14 +1334,14 @@ def main(argv):
         else:
             if ext != '':
                 routingStatsObj.bgp_handler.storeHistoricalDataFromArchive(
+                                                startDate_date, endDate_date,
                                                 archive_folder, ext, READABLE,
-                                                RIBfiles, COMPRESSED,
-                                                startDate_date, endDate_date)
+                                                RIBfiles, COMPRESSED)
             else:
                 routingStatsObj.bgp_handler.storeHistoricalDataFromArchive(
-                                                archive_folder=archive_folder,
                                                 startDate=startDate_date,
-                                                endDate=endDate_date)
+                                                endDate=endDate_date,
+                                                archive_folder=archive_folder)
         
 if __name__ == "__main__":
     main(sys.argv[1:])

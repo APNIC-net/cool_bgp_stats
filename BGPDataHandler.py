@@ -143,15 +143,16 @@ class BGPDataHandler:
     # This function loads the data structures of the class with the routing
     # data contained in the archive folder corresponding to the routing
     # date provided or to the most recent date present in the archive
-    def loadStructuresFromArchive(self, archive_folder, extension='bgprib.mrt',
-                                  routing_date, READABLE=False, RIBfiles=True,
+    def loadStructuresFromArchive(self, archive_folder='/data/wattle/bgplog', extension='bgprib.mrt',
+                                  routing_date='', READABLE=False, RIBfiles=True,
                                   COMPRESSED=False):
      
         historical_files = ''
         
         if routing_date == '':
-            historical_files = self.getPathsToHistoricalData(archive_folder,
-                                                         extension, '', '')
+            historical_files = self.getPathsToHistoricalData('', '',
+                                                             archive_folder,
+                                                             extension)
         
             if historical_files == '':
                 sys.stderr.write("There are no files with extension {} in the archive!\n".format(extension))
@@ -160,12 +161,13 @@ class BGPDataHandler:
             routing_files  =\
                         self.getMostRecentsFromHistoricalList(historical_files)
         else:
-            routing_files = self.getSpecificFilesFromArchive(archive_folder,
-                                                             extension,
-                                                             routing_date)
+            routing_files = self.getSpecificFilesFromArchive(routing_date,
+                                                             archive_folder,
+                                                             extension)
             if len(routing_files) == 0:
-                historical_files = self.getPathsToHistoricalData(archive_folder,
-                                                         extension, '', '')
+                historical_files = self.getPathsToHistoricalData('', '',
+                                                                 archive_folder,
+                                                                 extension)
         
                 if historical_files == '':
                     sys.stderr.write("Archive is empty!\n")
@@ -212,12 +214,15 @@ class BGPDataHandler:
         return True
         
         
-    def storeHistoricalDataFromArchive(self, archive_folder, extension='bgprib.mrt',
+    def storeHistoricalDataFromArchive(self, startDate, endDate,
+                                        archive_folder='/data/wattle/bgplog',
+                                        extension='bgprib.mrt',
                                         READABLE=False, RIBfiles=True,
-                                        COMPRESSED=False, startDate, endDate):
-        historical_files = self.getPathsToHistoricalData(archive_folder,
-                                                         extension, startDate,
-                                                         endDate)
+                                        COMPRESSED=False):
+        historical_files = self.getPathsToHistoricalData(startDate,
+                                                         endDate,
+                                                         archive_folder,
+                                                         extension)
         if historical_files == '':
             sys.stderr.write("There are no routing files in the archive that meet the criteria (extension ({}) and period of time ({}-{})).".format(extension, startDate, endDate))
         else:
@@ -233,8 +238,9 @@ class BGPDataHandler:
     
     # This function returns a list of paths to the routing files from the files
     # in the archive corresponding to the provided date
-    def getSpecificFilesFromArchive(self, archive_folder, extension='bgprib.mrt',
-                                    routing_date):
+    def getSpecificFilesFromArchive(self, routing_date,
+                                    archive_folder='/data/wattle/bgplog',
+                                    extension='bgprib.mrt'):
         month = str(routing_date.month)
         if len(month) == 1:
             month = '0{}'.format(month)
@@ -254,8 +260,8 @@ class BGPDataHandler:
                 if item.endswith(extension):
                     routing_files.append(os.path.join(routing_folder, item))
             if len(routing_files) == 0 and extension == 'bgprib.mrt':
-                return self.getSpecificFilesFromArchive(archive_folder, 'dmp.gz',
-                                                        routing_date)
+                return self.getSpecificFilesFromArchive(routing_date,
+                                                        archive_folder, 'dmp.gz')
         except OSError:
             return []
         
@@ -781,8 +787,9 @@ class BGPDataHandler:
     # file with a list of paths to the files with the provided extension
     # in the archive folder. If an extension is not provided, 'bgprib.mrt' is used.
     # It returns the path to the created file
-    def getPathsToHistoricalData(self, archive_folder, extension='bgprib.mrt',
-                                 startDate, endDate):
+    def getPathsToHistoricalData(self, startDate, endDate,
+                                 archive_folder='/data/wattle/bgplog',
+                                 extension='bgprib.mrt'):
         dateStr = 'UNTIL{}'.format(endDate)
         
         if startDate != '':
@@ -802,8 +809,8 @@ class BGPDataHandler:
         
         if len(files_list_list) == 0:
             if extension == 'bgprib.mrt':
-                return self.getPathsToHistoricalData(archive_folder, 'dmp.gz',
-                                                     startDate, endDate)
+                return self.getPathsToHistoricalData(startDate, endDate,
+                                                     archive_folder, 'dmp.gz')
             else:
                 return ''
         else:
