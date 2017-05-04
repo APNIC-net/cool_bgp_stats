@@ -143,8 +143,9 @@ class BGPDataHandler:
     # This function loads the data structures of the class with the routing
     # data contained in the archive folder corresponding to the routing
     # date provided or to the most recent date present in the archive
-    def loadStructuresFromArchive(self, archive_folder, extension, routing_date,
-                                  READABLE, RIBfiles, COMPRESSED):
+    def loadStructuresFromArchive(self, archive_folder, extension='bgprib.mrt',
+                                  routing_date, READABLE=False, RIBfiles=True,
+                                  COMPRESSED=False):
      
         historical_files = ''
         
@@ -153,7 +154,7 @@ class BGPDataHandler:
                                                          extension, '', '')
         
             if historical_files == '':
-                sys.stderr.write("Archive is empty!\n")
+                sys.stderr.write("There are no files with extension {} in the archive!\n".format(extension))
                 return False
 
             routing_files  =\
@@ -211,14 +212,14 @@ class BGPDataHandler:
         return True
         
         
-    def storeHistoricalDataFromArchive(self, archive_folder, extension,\
-                                        READABLE, RIBfiles, COMPRESSED,\
-                                        startDate, endDate):
+    def storeHistoricalDataFromArchive(self, archive_folder, extension='bgprib.mrt',
+                                        READABLE=False, RIBfiles=True,
+                                        COMPRESSED=False, startDate, endDate):
         historical_files = self.getPathsToHistoricalData(archive_folder,
                                                          extension, startDate,
                                                          endDate)
         if historical_files == '':
-            sys.stderr.write("There are no routing files in the archive that meet the criteria (extension and period of time).")
+            sys.stderr.write("There are no routing files in the archive that meet the criteria (extension ({}) and period of time ({}-{})).".format(extension, startDate, endDate))
         else:
             self.storeHistoricalData(historical_files, False, READABLE, RIBfiles,
                                      COMPRESSED)
@@ -232,7 +233,8 @@ class BGPDataHandler:
     
     # This function returns a list of paths to the routing files from the files
     # in the archive corresponding to the provided date
-    def getSpecificFilesFromArchive(self, archive_folder, extension, routing_date):
+    def getSpecificFilesFromArchive(self, archive_folder, extension='bgprib.mrt',
+                                    routing_date):
         month = str(routing_date.month)
         if len(month) == 1:
             month = '0{}'.format(month)
@@ -251,6 +253,9 @@ class BGPDataHandler:
             for item in os.listdir(routing_folder):
                 if item.endswith(extension):
                     routing_files.append(os.path.join(routing_folder, item))
+            if len(routing_files) == 0 and extension == 'bgprib.mrt':
+                return self.getSpecificFilesFromArchive(archive_folder, 'dmp.gz',
+                                                        routing_date)
         except OSError:
             return []
         
@@ -774,9 +779,10 @@ class BGPDataHandler:
            
     # This function walks a folder with historical routing info and creates a
     # file with a list of paths to the files with the provided extension
-    # in the archive folder
+    # in the archive folder. If an extension is not provided, 'bgprib.mrt' is used.
     # It returns the path to the created file
-    def getPathsToHistoricalData(self, archive_folder, extension, startDate, endDate):
+    def getPathsToHistoricalData(self, archive_folder, extension='bgprib.mrt',
+                                 startDate, endDate):
         dateStr = 'UNTIL{}'.format(endDate)
         
         if startDate != '':
@@ -795,7 +801,11 @@ class BGPDataHandler:
                         files_list_list.append(os.path.join(root, filename))
         
         if len(files_list_list) == 0:
-            return ''
+            if extension == 'bgprib.mrt':
+                return self.getPathsToHistoricalData(archive_folder, 'dmp.gz',
+                                                     startDate, endDate)
+            else:
+                return ''
         else:
             files_list_list_sorted = sorted(files_list_list)
             

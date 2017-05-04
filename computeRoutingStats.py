@@ -103,11 +103,12 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
         for period in periodsIntact:
             periodsLengths.append((period[1] - period[0]).days + 1)
         
-        periodsLengths = np.array(periodsLengths)
-        statsForPrefix['avgPeriodLengthIntact'] = periodsLengths.mean()
-        statsForPrefix['stdPeriodLengthIntact'] = periodsLengths.std()
-        statsForPrefix['minPeriodLengthIntact'] = periodsLengths.min()
-        statsForPrefix['maxPeriodLengthIntact'] = periodsLengths.max()
+        if len(periodsLengths) > 0:
+            periodsLengths = np.array(periodsLengths)
+            statsForPrefix['avgPeriodLengthIntact'] = periodsLengths.mean()
+            statsForPrefix['stdPeriodLengthIntact'] = periodsLengths.std()
+            statsForPrefix['minPeriodLengthIntact'] = periodsLengths.min()
+            statsForPrefix['maxPeriodLengthIntact'] = periodsLengths.max()
         
     # General History of Visibility of Prefix
     # The General History of Visibility takes into account not only
@@ -142,39 +143,47 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
                 periodsLengthsGral.append((period[1] - period[0]).days+1)
              
         timeBreaks = np.unique(timeBreaks)
-             
-        numsOfPeriodsGral = np.array(numsOfPeriodsGral)
-        avgNumOfPeriodsGral = numsOfPeriodsGral.mean()
-#       stdNumOfPeriodsGral = numsOfPeriodsGral.std()
-#       minNumOfPeriodsGral = numsOfPeriodsGral.min()
-#       maxNumOfPeriodsGral = numsOfPeriodsGral.max()
-#                    
-        daysUsedGral = np.array(daysUsedGral)
-        avgDaysUsedGral = daysUsedGral.mean()
-#       stdDaysUsedGral = daysUsedGral.std()
-#       minDaysUsedGral = daysUsedGral.min()
-#       maxDaysUsedGral = daysUsedGral.max()
-
-        statsForPrefix['avgRelUsedTimeGral'] =\
-                                    100*float(avgDaysUsedGral)/daysUsable
-
-        statsForPrefix['avgTimeFragmentationGral'] =\
+        
+        if len(numsOfPeriodsGral) > 0:
+            numsOfPeriodsGral = np.array(numsOfPeriodsGral)
+            avgNumOfPeriodsGral = numsOfPeriodsGral.mean()
+#           stdNumOfPeriodsGral = numsOfPeriodsGral.std()
+#           minNumOfPeriodsGral = numsOfPeriodsGral.min()
+#           maxNumOfPeriodsGral = numsOfPeriodsGral.max()
+        else:
+            avgNumOfPeriodsGral = 0
+            
+        if len(daysUsedGral) > 0:        
+            daysUsedGral = np.array(daysUsedGral)
+            avgDaysUsedGral = daysUsedGral.mean()
+#           stdDaysUsedGral = daysUsedGral.std()
+#           minDaysUsedGral = daysUsedGral.min()
+#           maxDaysUsedGral = daysUsedGral.max()
+            
+            statsForPrefix['avgTimeFragmentationGral'] =\
                             avgNumOfPeriodsGral/(float(avgDaysUsedGral)/60)
+            
+            statsForPrefix['avgRelUsedTimeGral'] =\
+                                    100*float(avgDaysUsedGral)/daysUsable
+        else:
+            avgDaysUsedGral = 0
         
-        daysSeenGral = np.array(daysSeenGral)
-        avgDaysSeenGral = daysSeenGral.mean()
-#       stdDaysSeenGral = daysSeenGral.std()
-#       minDaysSeenGral = daysSeenGral.min()
-#       maxDaysSeenGral = daysSeenGral.max()
-        
-        statsForPrefix['avgEffectiveUsageGral'] =\
+        if len(daysSeenGral) > 0:
+            daysSeenGral = np.array(daysSeenGral)
+            avgDaysSeenGral = daysSeenGral.mean()
+#           stdDaysSeenGral = daysSeenGral.std()
+#           minDaysSeenGral = daysSeenGral.min()
+#           maxDaysSeenGral = daysSeenGral.max()
+            
+            if avgDaysUsedGral != 0:
+                statsForPrefix['avgEffectiveUsageGral'] =\
                                     100*float(avgDaysSeenGral)/avgDaysUsedGral
-        
-        periodsLengthsGral = np.array(periodsLengthsGral)
-        statsForPrefix['avgPeriodLengthGral'] = periodsLengthsGral.mean()
-        statsForPrefix['stdPeriodLengthGral'] = periodsLengthsGral.std()
-        statsForPrefix['minPeriodLengthGral'] = periodsLengthsGral.min()
-        statsForPrefix['maxPeriodLengthGral'] = periodsLengthsGral.max()
+        if len(periodsLengthsGral) > 0:
+            periodsLengthsGral = np.array(periodsLengthsGral)
+            statsForPrefix['avgPeriodLengthGral'] = periodsLengthsGral.mean()
+            statsForPrefix['stdPeriodLengthGral'] = periodsLengthsGral.std()
+            statsForPrefix['minPeriodLengthGral'] = periodsLengthsGral.min()
+            statsForPrefix['maxPeriodLengthGral'] = periodsLengthsGral.max()
     
         # We summarize all the prefixes seen during each period
         for period in prefixesPerPeriod:
@@ -345,12 +354,13 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
         ASpathsLengths = []
         for path in blockASpaths:
             ASpathsLengths.append(len(path.split()))
-            
-        ASpathsLengths = np.array(ASpathsLengths)
-        statsForPrefix['avgASPathLengthIntact'] = ASpathsLengths.mean()
-        statsForPrefix['stdASPathLengthIntact'] = ASpathsLengths.std()
-        statsForPrefix['minASPathLengthIntact'] = ASpathsLengths.min()
-        statsForPrefix['maxASPathLengthIntact'] = ASpathsLengths.max()
+        
+        if len(ASpathsLengths) > 0:
+            ASpathsLengths = np.array(ASpathsLengths)
+            statsForPrefix['avgASPathLengthIntact'] = ASpathsLengths.mean()
+            statsForPrefix['stdASPathLengthIntact'] = ASpathsLengths.std()
+            statsForPrefix['minASPathLengthIntact'] = ASpathsLengths.min()
+            statsForPrefix['maxASPathLengthIntact'] = ASpathsLengths.max()
     else:
         if numsOfOriginASesList is not None:
             numsOfOriginASesList.append(len(blockOriginASes))
@@ -615,23 +625,26 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                                                  levenshteinDists,
                                                  routingStatsObj, files_path)
             
-            numsOfOriginASesLessSpec = np.array(numsOfOriginASesLessSpec)
-            statsForPrefix['avgNumOfOriginASesLessSpec'] = numsOfOriginASesLessSpec.mean()
-            statsForPrefix['stdNumOfOriginASesLessSpec'] = numsOfOriginASesLessSpec.std()
-            statsForPrefix['minNumOfOriginASesLessSpec'] = numsOfOriginASesLessSpec.min()
-            statsForPrefix['maxNumOfOriginASesLessSpec'] = numsOfOriginASesLessSpec.max()
+            if len(numsOfOriginASesLessSpec) > 0:
+                numsOfOriginASesLessSpec = np.array(numsOfOriginASesLessSpec)
+                statsForPrefix['avgNumOfOriginASesLessSpec'] = numsOfOriginASesLessSpec.mean()
+                statsForPrefix['stdNumOfOriginASesLessSpec'] = numsOfOriginASesLessSpec.std()
+                statsForPrefix['minNumOfOriginASesLessSpec'] = numsOfOriginASesLessSpec.min()
+                statsForPrefix['maxNumOfOriginASesLessSpec'] = numsOfOriginASesLessSpec.max()
 
-            numsOfASPathsLessSpec = np.array(numsOfASPathsLessSpec)
-            statsForPrefix['avgNumOfASPathsLessSpec'] = numsOfASPathsLessSpec.mean()
-            statsForPrefix['stdNumOfASPathsLessSpec'] = numsOfASPathsLessSpec.std()
-            statsForPrefix['minNumOfASPathsLessSpec'] = numsOfASPathsLessSpec.min()
-            statsForPrefix['maxNumOfASPathsLessSpec'] = numsOfASPathsLessSpec.max()
+            if len(numsOfASPathsLessSpec) > 0:
+                numsOfASPathsLessSpec = np.array(numsOfASPathsLessSpec)
+                statsForPrefix['avgNumOfASPathsLessSpec'] = numsOfASPathsLessSpec.mean()
+                statsForPrefix['stdNumOfASPathsLessSpec'] = numsOfASPathsLessSpec.std()
+                statsForPrefix['minNumOfASPathsLessSpec'] = numsOfASPathsLessSpec.min()
+                statsForPrefix['maxNumOfASPathsLessSpec'] = numsOfASPathsLessSpec.max()
 
-            ASPathLengthsLessSpec = np.array(ASPathLengthsLessSpec)
-            statsForPrefix['avgASPathLengthLessSpec'] = ASPathLengthsLessSpec.mean()
-            statsForPrefix['stdASPathLengthLessSpec'] = ASPathLengthsLessSpec.std()
-            statsForPrefix['minASPathLengthLessSpec'] = ASPathLengthsLessSpec.min()
-            statsForPrefix['maxASPathLengthLessSpec'] = ASPathLengthsLessSpec.max()
+            if len(ASPathLengthsLessSpec) > 0:
+                ASPathLengthsLessSpec = np.array(ASPathLengthsLessSpec)
+                statsForPrefix['avgASPathLengthLessSpec'] = ASPathLengthsLessSpec.mean()
+                statsForPrefix['stdASPathLengthLessSpec'] = ASPathLengthsLessSpec.std()
+                statsForPrefix['minASPathLengthLessSpec'] = ASPathLengthsLessSpec.min()
+                statsForPrefix['maxASPathLengthLessSpec'] = ASPathLengthsLessSpec.max()
 
             if len(levenshteinDists) > 0:
                 levenshteinDists = np.array(levenshteinDists)
@@ -739,24 +752,27 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                                                      levenshteinDists,
                                                      routingStatsObj,
                                                      files_path)
-                                                     
-            numsOfOriginASesMoreSpec = np.array(numsOfOriginASesMoreSpec)
-            statsForPrefix['avgNumOfOriginASesMoreSpec'] = numsOfOriginASesMoreSpec.mean()
-            statsForPrefix['stdNumOfOriginASesMoreSpec'] = numsOfOriginASesMoreSpec.std()
-            statsForPrefix['minNumOfOriginASesMoreSpec'] = numsOfOriginASesMoreSpec.min()
-            statsForPrefix['maxNumOfOriginASesMoreSpec'] = numsOfOriginASesMoreSpec.max()
+            
+            if len(numsOfOriginASesMoreSpec) > 0:
+                numsOfOriginASesMoreSpec = np.array(numsOfOriginASesMoreSpec)
+                statsForPrefix['avgNumOfOriginASesMoreSpec'] = numsOfOriginASesMoreSpec.mean()
+                statsForPrefix['stdNumOfOriginASesMoreSpec'] = numsOfOriginASesMoreSpec.std()
+                statsForPrefix['minNumOfOriginASesMoreSpec'] = numsOfOriginASesMoreSpec.min()
+                statsForPrefix['maxNumOfOriginASesMoreSpec'] = numsOfOriginASesMoreSpec.max()
 
-            numsOfASPathsMoreSpec = np.array(numsOfASPathsMoreSpec)
-            statsForPrefix['avgNumOfASPathsMoreSpec'] = numsOfASPathsMoreSpec.mean()
-            statsForPrefix['stdNumOfASPathsMoreSpec'] = numsOfASPathsMoreSpec.std()
-            statsForPrefix['minNumOfASPathsMoreSpec'] = numsOfASPathsMoreSpec.min()
-            statsForPrefix['maxNumOfASPathsMoreSpec'] = numsOfASPathsMoreSpec.max()
+            if len(numsOfASPathsMoreSpec) > 0:
+                numsOfASPathsMoreSpec = np.array(numsOfASPathsMoreSpec)
+                statsForPrefix['avgNumOfASPathsMoreSpec'] = numsOfASPathsMoreSpec.mean()
+                statsForPrefix['stdNumOfASPathsMoreSpec'] = numsOfASPathsMoreSpec.std()
+                statsForPrefix['minNumOfASPathsMoreSpec'] = numsOfASPathsMoreSpec.min()
+                statsForPrefix['maxNumOfASPathsMoreSpec'] = numsOfASPathsMoreSpec.max()
 
-            ASPathLengthsMoreSpec = np.array(ASPathLengthsMoreSpec)
-            statsForPrefix['avgASPathLengthMoreSpec'] = ASPathLengthsMoreSpec.mean()
-            statsForPrefix['stdASPathLengthMoreSpec'] = ASPathLengthsMoreSpec.std()
-            statsForPrefix['minASPathLengthMoreSpec'] = ASPathLengthsMoreSpec.min()
-            statsForPrefix['maxASPathLengthMoreSpec'] = ASPathLengthsMoreSpec.max()
+            if len(ASPathLengthsMoreSpec) > 0:
+                ASPathLengthsMoreSpec = np.array(ASPathLengthsMoreSpec)
+                statsForPrefix['avgASPathLengthMoreSpec'] = ASPathLengthsMoreSpec.mean()
+                statsForPrefix['stdASPathLengthMoreSpec'] = ASPathLengthsMoreSpec.std()
+                statsForPrefix['minASPathLengthMoreSpec'] = ASPathLengthsMoreSpec.min()
+                statsForPrefix['maxASPathLengthMoreSpec'] = ASPathLengthsMoreSpec.max()
 
             if len(levenshteinDists) > 0:
                 levenshteinDists = np.array(levenshteinDists)
@@ -850,11 +866,12 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
                 for period in periodsActive:
                     periodsLengths.append((period[1] - period[0]).days + 1)
                 
-                periodsLengths = np.array(periodsLengths)
-                statsForAS['avgPeriodLength'] = periodsLengths.mean()
-                statsForAS['stdPeriodLength'] = periodsLengths.std()
-                statsForAS['minPeriodLength'] = periodsLengths.min()
-                statsForAS['maxPeriodLength'] = periodsLengths.max()
+                if len(periodsLengths) > 0:
+                    periodsLengths = np.array(periodsLengths)
+                    statsForAS['avgPeriodLength'] = periodsLengths.mean()
+                    statsForAS['stdPeriodLength'] = periodsLengths.std()
+                    statsForAS['minPeriodLength'] = periodsLengths.min()
+                    statsForAS['maxPeriodLength'] = periodsLengths.max()
 
         line = statsForAS[routingStatsObj.allAttr_ases[0]]
         
@@ -925,7 +942,7 @@ def main(argv):
             print 'r = Use already downloaded Internet Routing data file.'
             print 'If the routing file contains a "show ip bgp" output, the "-o" option must be used to specify this.'
             print "H = Historical data. Instead of processing a single file, process the routing data contained in the archive folder provided."
-            print "e = Extension. If you use the -H option you MUST also use the -E option to provide the extension of the files in the archive you want to work with."
+            print "e = Extension. The extension of the files in the archive you want to work with. If no extension is provided, 'bgprib.mrt' will be used."
             print "If none of the three options -u, -r or -H are provided, the script will try to work with routing data from URLs included ./BGPoutputs.txt"
             print "S = Start date in format YYYY or YYYYmm or YYYYmmdd. The start date of the period of time during which the considered resources were delegated."
             print 'E = End date in format YYYY or YYYYmm or YYYYmmdd. The end date of the period of time during which the considered resources were delegated.'
@@ -1135,11 +1152,6 @@ def main(argv):
     if not os.path.exists(files_path):
         os.makedirs(files_path)
         
-    if archive_folder != '' and ext == '':
-        print "If you use the -H option you MUST also use the -e option to provide the extension of the files in the archive you want to work with."
-        sys.exit()
-
-        
     dateStr = 'Delegated_BEFORE{}'.format(endDate)
 
     if startDate != '':
@@ -1204,10 +1216,14 @@ def main(argv):
                             routing_file, READABLE, RIBfiles, COMPRESSED)
     
             else: # archive_folder not null
-                loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
-                            archive_folder, ext, routing_date, READABLE, RIBfiles,
-                            COMPRESSED)
-        
+                if ext != '':
+                    loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
+                                archive_folder, ext, routing_date, READABLE, RIBfiles,
+                                COMPRESSED)
+                else:
+                    loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
+                                                        archive_folder=archive_folder,
+                                                        routing_date=routing_date)
         if not loaded:
             print "Data structures not loaded!\n"
             sys.exit()
@@ -1316,12 +1332,16 @@ def main(argv):
                     routingStatsObj.bgp_handler.storeHistoricalDataFromFile(\
                                                     routing_file, False, True, False)
         else:
-            routingStatsObj.bgp_handler.storeHistoricalDataFromArchive(archive_folder,
-                                                                       ext, READABLE,
-                                                                       RIBfiles,
-                                                                       COMPRESSED,
-                                                                       startDate_date,
-                                                                       endDate_date)
+            if ext != '':
+                routingStatsObj.bgp_handler.storeHistoricalDataFromArchive(
+                                                archive_folder, ext, READABLE,
+                                                RIBfiles, COMPRESSED,
+                                                startDate_date, endDate_date)
+            else:
+                routingStatsObj.bgp_handler.storeHistoricalDataFromArchive(
+                                                archive_folder=archive_folder,
+                                                startDate=startDate_date,
+                                                endDate=endDate_date)
         
 if __name__ == "__main__":
     main(sys.argv[1:])
