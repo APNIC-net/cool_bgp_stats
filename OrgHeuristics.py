@@ -583,9 +583,10 @@ class OrgHeuristics:
         with open(self.alreadyClassified_file, 'wb') as f:
             pickle.dump(self.alreadyClassified, f, pickle.HIGHEST_PROTOCOL)
 
-
+# For debug in matong
 #org_h = OrgHeuristics('/Users/sofiasilva/Downloads')
 
+# For local debug
 org_h = OrgHeuristics('/home/sofia/BGP_stats_files')
 
 correctResults = 0
@@ -651,9 +652,6 @@ for diffOrg_pair in diffOrgPairs:
         with open(falsePos_file, 'a') as f:
             f.write('{}|{}|{}\n'.format(diffOrg_pair[0], diffOrg_pair[1], matchings))
 
-print 'Correct results: {}%'.format(float(correctResults)/(len(sameOrgPairs)+len(diffOrgPairs)))
-print 'False positives: {}%'.format(float(falsePositives)/(len(sameOrgPairs)+len(diffOrgPairs)))
-print 'False negatives: {}%'.format(float(falseNegatives)/(len(sameOrgPairs)+len(diffOrgPairs)))
-
-
-# TODO Remove matchings list when adjustment is finished?
+print 'Correct results: {}%'.format(100*float(correctResults)/(len(sameOrgPairs)+len(diffOrgPairs)))
+print 'False positives: {}%'.format(100*float(falsePositives)/(len(sameOrgPairs)+len(diffOrgPairs)))
+print 'False negatives: {}%'.format(100*float(falseNegatives)/(len(sameOrgPairs)+len(diffOrgPairs)))
