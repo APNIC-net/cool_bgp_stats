@@ -285,7 +285,22 @@ def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, del_handler, orgHe
         originASorg = getASNOpaqueID(blockOriginAS, del_handler)
         if prefix_org in nirs_opaque_ids or\
             originASorg in nirs_opaque_ids:
-                sameOrgs = orgHeuristics.checkIfSameOrg(routedPrefix, blockOriginAS)
+                # TODO Pensar si no sería mejor tener una estructura donde
+                # ir guardando las parejas de prefijos y AS de origen para los
+                # que tengo que aplicar la heurística y aplicarla en otro script
+                # para no demorar el cómputo de estadísticas.
+                # En caso de decidir que si, debería ser un Radix donde guardo
+                # cada prefijo y que en el data dict tenga un campo con el
+                # prefijo delegado asociado y una lista de diccionarios, cada
+                # uno de ellos con una fecha, el AS de origen en esa fecha y un
+                # boolean sameOrg que será cargado cuando se aplique la heurística.
+                # Por ahora llevamos un contador de las veces que lo invocamos
+                # para ver si vale la pena.
+                orgHeuristics.invokedCounter += 1
+                start_time = time()
+                sameOrgs = orgHeuristics.checkIfSameOrg(routedPrefix, blockOriginAS, [])
+                end_time = time()
+                orgHeuristics.totalTimeConsumed += (end_time - start_time)
         elif originASorg == 'UNKNOWN':
             # If we get an UNKNOWN organization for the AS it means the AS
             # was not delegated by APNIC, therefore, it cannot be the same
@@ -637,7 +652,7 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                 # maximum because it is a single prefix,
                 # that's why we use None for the parameters corresponding to the
                 # lists for those values
-                classifyPrefixAndUpdateVariables(prefix, True, statsForPrefix,
+                classifyPrefixAndUpdateVariables(prefix, False, statsForPrefix,
                                                  routingStatsObj.prefix_variables,
                                                  'originatedByDiffOrg', None,
                                                  None, None, levenshteinDists,
@@ -714,7 +729,7 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
             levenshteinDists = []
             for moreSpec in more_specifics:
                 if moreSpec != prefix:
-                    classifyPrefixAndUpdateVariables(moreSpec, False,
+                    classifyPrefixAndUpdateVariables(moreSpec, True,
                                                      statsForPrefix,
                                                      routingStatsObj.moreSpec_variables,
                                                      'hasFragmentsOriginatedByDiffOrg',
@@ -1202,7 +1217,17 @@ def main(argv):
                               TEMPORAL_DATA)
         end_time = time()
         sys.stderr.write("Stats for prefixes computed successfully!\n")
-        sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
+        sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))
+        
+        routingStatsObj.orgHeuristics.dumpToPickleFiles()
+        
+        sys.stderr.write(
+            "OrgHeuristics was invoked {} times, consuming in total {} seconds."\
+                .format(routingStatsObj.orgHeuristics.invokedCounter,
+                        routingStatsObj.orgHeuristics.totalTimeConsumed))
+        # TODO Si es demasiado el tiempo consumido, guardar parejas de prefijos
+        # y sus ASes de origen en una estructura y aplicar heurística aparte.
+        # Ver TODO más arriba
 
         prefixes_stats_df = pd.read_csv(prefixes_stats_file, sep = ',')
         prefixes_json_filename = '{}_prefixes.json'.format(file_name)
