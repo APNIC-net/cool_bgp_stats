@@ -112,11 +112,11 @@ class OrgHeuristics:
     
     scoresDict = {'itemnames': {'score': 100, 'similarity_threshold': 0.8},
                   'remarks/descr': {'score': 50, 'similarity_threshold': 0.6},
-                  'phones': {'score': 50, 'similarity_threshold': 0.99},
-                  'emails': {'score': 50, 'similarity_threshold': 0.99},
-                  'admin/tech': {'score': 50, 'similarity_threshold': 0.99},
-                  'mntners': {'score': 50, 'similarity_threshold': 0.99},
-                  'irts': {'score': 50, 'similarity_threshold': 0.99}}
+                  'phones': {'score': 30, 'similarity_threshold': 0.99},
+                  'emails': {'score': 30, 'similarity_threshold': 0.99},
+                  'admin/tech': {'score': 30, 'similarity_threshold': 0.99},
+                  'mntners': {'score': 30, 'similarity_threshold': 0.99},
+                  'irts': {'score': 30, 'similarity_threshold': 0.99}}
 
     def __init__(self, files_path):
         self.bulkWHOIS_data = {'inetnum' : {'file' : '{}/apnic.db.inetnum.pkl'.format(files_path)},
@@ -173,7 +173,7 @@ class OrgHeuristics:
     def similar(a, b):
         return round(SequenceMatcher(None, a.lower(), b.lower()).ratio(), 1)
 
-    def checkIfSameOrg(self, prefix, asn):
+    def checkIfSameOrg(self, prefix, asn, matchings):
         asn = long(asn)
         alreadyClass_pref_node = self.alreadyClassified.search_exact(prefix)
         
@@ -252,16 +252,15 @@ class OrgHeuristics:
                 # Therefore, for the ASNs we will be working with, we should
                 # always find information about the delegation in the Bulk WHOIS.
                 
-        resultDict = self.comparePrefixAndASNData(pref_org_data, asn_org_data)
+        result = self.comparePrefixAndASNData(pref_org_data, asn_org_data, matchings)
         
-        alreadyClass_pref_node.data[asn] = resultDict['sameOrg']
+        alreadyClass_pref_node.data[asn] = result
 
-        return resultDict
+        return result
 
-    def comparePrefixAndASNData(self, pref_org_data, asn_org_data):
+    def comparePrefixAndASNData(self, pref_org_data, asn_org_data, matchings):
         matching_score = 0
         
-        matchings = []
         for key in pref_org_data.keys():
             if key in asn_org_data:
                 for pref_item in pref_org_data[key]:
@@ -271,7 +270,8 @@ class OrgHeuristics:
                             matchings.append([pref_item, asn_item])
                         matching_score += partial_score
         
-        return {'sameOrg': (matching_score > 50), 'matchingsList': matchings}
+        result = (matching_score >= 50)
+        return result
     
     def comparePrefASNField(self, pref_field, asn_field, field_name):               
         if self.similar(pref_field, asn_field) > self.scoresDict[field_name]['similarity_threshold']:
@@ -615,17 +615,22 @@ sameOrgPairs = [['1.0.64.0/18', '18144'],
                 ['103.87.28.0/22', '136288']]
 
 for sameOrg_pair in sameOrgPairs:
-    resultDict = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
+    matchings = []
+    result = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1], matchings)
     
-    if resultDict['sameOrg']:
+    if result:
         correctResults += 1
     else:
         falseNegatives += 1
         with open(falseNeg_file, 'a') as f:
-            f.write('{}|{}|{}\n'.format(sameOrg_pair[0], sameOrg_pair[1], resultDict['matchingsList']))
+            f.write('{}|{}|{}\n'.format(sameOrg_pair[0], sameOrg_pair[1], matchings))
     
-diffOrgPairs = [['211.190.231.0/24', '38660'],
-                ['103.205.100.0/22', '135900'],
+diffOrgPairs = [['1.0.64.0/18', '136288'],
+                ['103.15.226.0/24', '18109'],
+                ['45.121.52.0/22', '136288'],
+                ['103.52.223.0/24', '136414'],
+                ['43.255.12.0/22', '136413'],
+                ['211.190.231.0/24', '38660'],
                 ['103.84.212.0/22', '136290'],
                 ['103.86.180.0/22', '136372'],
                 ['103.86.190.0/24', '131491'],
@@ -636,42 +641,19 @@ diffOrgPairs = [['211.190.231.0/24', '38660'],
                 ['103.87.28.0/22', '136433']]
 
 for diffOrg_pair in diffOrgPairs:
-    resultDict = org_h.checkIfSameOrg(sameOrg_pair[0], sameOrg_pair[1])
+    matchings = []
+    result = org_h.checkIfSameOrg(diffOrg_pair[0], diffOrg_pair[1], matchings)
     
-    if not resultDict['sameOrg']:
+    if not result:
         correctResults += 1
     else:
         falsePositives += 1
         with open(falsePos_file, 'a') as f:
-            f.write('{}|{}|{}\n'.format(diffOrg_pair[0], diffOrg_pair[1], resultDict['matchingsList']))
+            f.write('{}|{}|{}\n'.format(diffOrg_pair[0], diffOrg_pair[1], matchings))
 
-org_h.dumpToPickleFiles()
+print 'Correct results: {}%'.format(float(correctResults)/(len(sameOrgPairs)+len(diffOrgPairs)))
+print 'False positives: {}%'.format(float(falsePositives)/(len(sameOrgPairs)+len(diffOrgPairs)))
+print 'False negatives: {}%'.format(float(falseNegatives)/(len(sameOrgPairs)+len(diffOrgPairs)))
 
-print 'Correct results: {}%\n'.format(float(correctResults)/(len(sameOrgPairs)+len(diffOrgPairs)))
-print 'False positives: {}%\n'.format(float(falsePositives)/(len(sameOrgPairs)+len(diffOrgPairs)))
-print 'False negatives: {}%\n'.format(float(falseNegatives)/(len(sameOrgPairs)+len(diffOrgPairs)))
 
-#prefix = '43.255.12.0/22'
-#asn = '131584'
-#org_h.checkIfSameOrg(prefix, asn)
-
-'''
-False positives
-211.190.231.0/24|38660
-103.205.100.0/22|135900
-103.84.212.0/22|136290
-103.86.180.0/22|136372
-103.86.190.0/24|131491
-103.86.191.0/24|136370
-2400:c740::/32|136427
-103.86.196.0/22|136091
-103.87.24.0/22|45566
-103.87.28.0/22|136433
-'''
-
-# False negative
-#prefix = '1.0.64.0/18'
-#asn = '18144'
-#org_h.checkIfSameOrg(prefix, asn)
-
-# TODO Remove matchings list when adjustment is finished
+# TODO Remove matchings list when adjustment is finished?
