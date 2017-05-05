@@ -303,13 +303,7 @@ def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, del_handler, orgHe
                 # prefijo delegado asociado y una lista de diccionarios, cada
                 # uno de ellos con una fecha, el AS de origen en esa fecha y un
                 # boolean sameOrg que será cargado cuando se aplique la heurística.
-                # Por ahora llevamos un contador de las veces que lo invocamos
-                # para ver si vale la pena.
-                orgHeuristics.invokedCounter += 1
-                start_time = time()
                 sameOrgs = orgHeuristics.checkIfSameOrg(routedPrefix, blockOriginAS, [])
-                end_time = time()
-                orgHeuristics.totalTimeConsumed += (end_time - start_time)
         elif originASorg == 'UNKNOWN':
             # If we get an UNKNOWN organization for the AS it means the AS
             # was not delegated by APNIC, therefore, it cannot be the same
@@ -557,7 +551,10 @@ def writeStatsLineToFile(statsForPrefix, allAttr, stats_filename):
     line = statsForPrefix[allAttr[0]]
         
     for i in range(len(allAttr)-1):
-        line = '{},{}'.format(line, statsForPrefix[allAttr[i+1]])
+        try:
+            line = '{},{}'.format(line, statsForPrefix[allAttr[i+1]])
+        except KeyError:
+            line = '{},{}'.format(line, '-')
     
     line = line + '\n'
 
