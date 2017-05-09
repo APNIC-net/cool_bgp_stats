@@ -14,7 +14,7 @@ import radix
 from ipaddress import ip_network
 from difflib import SequenceMatcher
 import subprocess
-
+from time import time
 
 class OrgHeuristics:
     nirs_dict = {'JP':{
@@ -133,24 +133,24 @@ class OrgHeuristics:
                 print 'IOError. Probably file {} does not exist. Aborting.\n'.format(self.bulkWHOIS_data[item]['file'])
                 sys.exit()
         
-        self.ipv4_prefixes_data_file = '{}/ipv4_prefixes_filtered_WHOISdata.pkl'.format(files_path)
+        self.ipv4_prefixes_filtered_file = '{}/ipv4_prefixes_filtered_WHOISdata.pkl'.format(files_path)
         
         try:
-            self.ipv4_prefixes_filtered_data = pickle.load(open(self.ipv4_prefixes_data_file, 'rb'))
+            self.ipv4_prefixes_filtered_data = pickle.load(open(self.ipv4_prefixes_filtered_file, 'rb'))
         except IOError:
             self.ipv4_prefixes_filtered_data = radix.Radix()
 
-        self.ipv6_prefixes_data_file = '{}/ipv6_prefixes_filtered_WHOISdata.pkl'.format(files_path)
+        self.ipv6_prefixes_filtered_file = '{}/ipv6_prefixes_filtered_WHOISdata.pkl'.format(files_path)
         
         try:
-            self.ipv6_prefixes_filtered_data = pickle.load(open(self.ipv6_prefixes_data_file, 'rb'))
+            self.ipv6_prefixes_filtered_data = pickle.load(open(self.ipv6_prefixes_filtered_file, 'rb'))
         except IOError:
             self.ipv6_prefixes_filtered_data = radix.Radix()
 
-        self.ases_data_file = '{}/ases_filtered_WHOISdata.pkl'.format(files_path)
+        self.ases_filtered_file = '{}/ases_filtered_WHOISdata.pkl'.format(files_path)
         
         try:
-            self.ases_filtered_data = pickle.load(open(self.ases_data_file, 'rb'))
+            self.ases_filtered_data = pickle.load(open(self.ases_filtered_file, 'rb'))
         except IOError:
             self.ases_filtered_data = dict()
         
@@ -174,6 +174,9 @@ class OrgHeuristics:
         return round(SequenceMatcher(None, a.lower(), b.lower()).ratio(), 1)
 
     def checkIfSameOrg(self, prefix, asn, matchings):
+        self.invokedCounter += 1
+        start_time = time()
+        
         asn = long(asn)
         alreadyClass_pref_node = self.alreadyClassified.search_exact(prefix)
         
@@ -236,26 +239,50 @@ class OrgHeuristics:
         # If I don't have already filtered data for the ASN, I look for info
         # about it in the data coming from the Bulk WHOIS
         if asn_org_data is None:
-            try:
+            if asn in self.bulkWHOIS_data['aut-num']['data']:
                 asn_dict = self.bulkWHOIS_data['aut-num']['data'][asn]
                 # and proceed to filter it
                 asn_org_data = self.getDataOfInterest(str(asn), False, asn_dict)
                 # I add the filtered information about the ASN to the dictionary
                 # with filtered data about ASNs
-                self.ases_filtered_data[asn] = asn_org_data
                             
-            except KeyError:
-                print 'This should not happen'
-                # If the ASN was not delegated by APNIC, we should have obtained
+            else:
+                # We will call this function for ASNs that were delegated by APNIC.
+                # If the ASN was not delegated by APNIC, we would have obtained
                 # UNKNOWN in computeRoutingStats when trying to get the opaque id
                 # for the ASN, and we would not have called OrgHeuristics.
-                # Therefore, for the ASNs we will be working with, we should
-                # always find information about the delegation in the Bulk WHOIS.
+                # But it could happen that the ASN was delegated by APNIC to
+                # a NIR and there is no info about it in the Bulk WHOIS but
+                # there is in the WHOIS of the NIR (tipically JPNIC), so we
+                # try to get info from the NIRs that have their own WHOIS.
                 
-        result = self.comparePrefixAndASNData(pref_org_data, asn_org_data, matchings)
-        
-        alreadyClass_pref_node.data[asn] = result
+                asn_org_data = dict()
+                asn_org_data['itemnames'] = []
+                asn_org_data['remarks/descr'] = []
+                asn_org_data['phones'] = []
+                asn_org_data['emails'] = []
+                
+                asn_org_data = self.queryJPNICwhois(asn, False, asn_org_data)
+                asn_org_data = self.queryKRNICwhois(asn, False, asn_org_data)
+            
+            empty = True
+            
+            for key in asn_org_data.keys():
+                if len(asn_org_data[key]) > 0:
+                    empty = False
+                    self.ases_filtered_data[asn] = asn_org_data
+                    break
 
+            if empty:
+                print 'ASN {} not found!\n'.format(asn)
+                result = None
+            else:
+                result = self.comparePrefixAndASNData(pref_org_data, asn_org_data, matchings)            
+                alreadyClass_pref_node.data[asn] = result
+
+        end_time = time()
+        self.totalTimeConsumed += (end_time - start_time)
+        
         return result
 
     def comparePrefixAndASNData(self, pref_org_data, asn_org_data, matchings):
@@ -571,13 +598,13 @@ class OrgHeuristics:
         return filtered_data
     
     def dumpToPickleFiles(self):
-        with open(self.ipv4_prefixes_data_file, 'wb') as f:
+        with open(self.ipv4_prefixes_filtered_file, 'wb') as f:
             pickle.dump(self.ipv4_prefixes_filtered_data, f, pickle.HIGHEST_PROTOCOL)
         
-        with open(self.ipv6_prefixes_data_file, 'wb') as f:
+        with open(self.ipv6_prefixes_filtered_file, 'wb') as f:
             pickle.dump(self.ipv6_prefixes_filtered_data, f, pickle.HIGHEST_PROTOCOL)
         
-        with open(self.ases_data_file, 'wb') as f:
+        with open(self.ases_filtered_file, 'wb') as f:
             pickle.dump(self.ases_filtered_data, f, pickle.HIGHEST_PROTOCOL)
         
         with open(self.alreadyClassified_file, 'wb') as f:
