@@ -257,10 +257,10 @@ class OrgHeuristics:
                 # try to get info from the NIRs that have their own WHOIS.
                 
                 asn_org_data = dict()
-                asn_org_data['itemnames'] = []
-                asn_org_data['remarks/descr'] = []
-                asn_org_data['phones'] = []
-                asn_org_data['emails'] = []
+                asn_org_data['itemnames'] = set()
+                asn_org_data['remarks/descr'] = set()
+                asn_org_data['phones'] = set()
+                asn_org_data['emails'] = set()
                 
                 asn_org_data = self.queryJPNICwhois(asn, False, asn_org_data)
                 asn_org_data = self.queryKRNICwhois(asn, False, asn_org_data)
