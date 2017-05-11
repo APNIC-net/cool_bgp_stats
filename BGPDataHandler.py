@@ -457,7 +457,6 @@ class BGPDataHandler:
                 set(paths_parts[1].tolist()),\
                 set([item for sublist in paths_parts[0].tolist() for item in\
                         str(sublist).split()]), date
-                                        
         
     # This function downloads and processes all the files in the provided list.
     # The boolean variable containsURLs must be True if the files_list is a list
@@ -566,6 +565,42 @@ class BGPDataHandler:
         return routingDate, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref
+    
+    
+    def completeRadixesFromRoutingFile(self, r_file, isReadable, RIBfile, COMPRESSED,
+                                       ipv4_radix, ipv6_radix):
+        if not isReadable:
+            readable_file_name =  self.getReadableFile(r_file, False, RIBfile, COMPRESSED)
+        else:
+            readable_file_name = r_file
+
+        bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
+                                index_col=False, usecols=[1,3,5,6,7],\
+                                names=['timestamp',\
+                                        'peer',\
+                                        'prefix',\
+                                        'ASpath',\
+                                        'origin'])
+        
+        if bgp_df.shape[0] > 0:
+        
+            if self.DEBUG:
+                bgp_df = bgp_df[0:10]
+            
+            for prefix, prefix_subset in bgp_df.groupby('prefix'):
+                network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
+                if network.version == 4:
+                    prefixes_radix = ipv4_radix
+                    
+                else:
+                    prefixes_radix = ipv6_radix
+                    
+                node = prefixes_radix.search_exact(prefix)
+
+                if node is None:
+                    node = prefixes_radix.add(prefix)
+
+        return ipv4_radix, ipv6_radix
         
     # This function converts a file containing the output of the 'show ip bgp' command
     # to a file in the same format used for BGPDump outputs
@@ -759,7 +794,8 @@ class BGPDataHandler:
             gzip_file.close()
             output.close()
             
-            source = output_file 
+            source = output_file
+            source_filename = source.split('/')[-1]
                 
         # If the routing file is a RIB file, we process it using BGPdump
         if RIBfile:            
@@ -821,6 +857,39 @@ class BGPDataHandler:
                     files_list.write("%s\n" % filename)
 
             return files_list_filename
+
+    # This function walks a folder with historical routing info and returns
+    # a dictionary indexed by date containing the paths to the files
+    # in the archive folder for the corresponding date that have the provided
+    # extension. If no extension is provided, 'bgprib.mrt' is used first and
+    # dmp.gz is used then, thus returning a dictionary with paths to ALL the
+    # routing files for each date (both bgptib.mrt and dmp.gz files)
+    def getPathsToHistoricalData_dict(self, startDate, endDate,
+                                         archive_folder, extension, files_dict):
+                                             
+        if extension == '':
+            actual_ext = 'bgprib.mrt'
+        else:
+            actual_ext = extension
+                    
+        for root, subdirs, files in os.walk(archive_folder):
+            for filename in files:
+                if filename.endswith(actual_ext):
+                    file_date = self.getDateFromFileName(filename)
+                    if (endDate != '' and file_date <= endDate + timedelta(1) or endDate == '') and\
+                        (startDate != '' and file_date > startDate or startDate == ''):
+                            file_path = os.path.join(root, filename)
+                            if file_date not in files_dict:
+                                files_dict[file_date] = [file_path]
+                            else:
+                                files_dict[file_date].append(file_path)
+        
+        if extension == '':
+            return self.getPathsToAllHistoricalData_dict(startDate, endDate,
+                                                         archive_folder,
+                                                         'dmp.gz', files_dict)
+
+        return files_dict
 
     # This function saves the data structures of the class to pickle files
     def saveDataToFiles(self):
