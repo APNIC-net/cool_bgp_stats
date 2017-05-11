@@ -492,31 +492,32 @@ class OrgHeuristics:
         email = ''
         
         for line in out:
-            content = line.split(':')[1].strip()
-            
-            # If 'IPv4 Address' or 'IPv6 Address' appears in a line
-            # it means a new block of info starts.
-            # If it is not the first block of indo, it is a block of info
-            # for a more specific prefix,
-            # therefore we reset all the variables so that we just keep the
-            # info for the most specific prefix.
-            if 'IPv4 Address' in line or 'IPv6 Address' in line:
-                org_name = ''
-                serv_name = ''
-                phone = ''
-                email = ''
-                                
-            elif 'Organization Name' in line or line.startswith('Name'):
-                org_name = content
-            elif 'Service Name' in line:
-                serv_name = content
-            elif 'AS Name' in line:
-                as_name = content
-            elif 'Phone' in line:
-                phone = content
-            elif 'E-Mail' in line:
-                email = content
+            if ':' in line:
+                content = line.split(':')[1].strip()
                 
+                # If 'IPv4 Address' or 'IPv6 Address' appears in a line
+                # it means a new block of info starts.
+                # If it is not the first block of indo, it is a block of info
+                # for a more specific prefix,
+                # therefore we reset all the variables so that we just keep the
+                # info for the most specific prefix.
+                if 'IPv4 Address' in line or 'IPv6 Address' in line:
+                    org_name = ''
+                    serv_name = ''
+                    phone = ''
+                    email = ''
+                                    
+                elif 'Organization Name' in line or line.startswith('Name'):
+                    org_name = content
+                elif 'Service Name' in line:
+                    serv_name = content
+                elif 'AS Name' in line:
+                    as_name = content
+                elif 'Phone' in line:
+                    phone = content
+                elif 'E-Mail' in line:
+                    email = content
+                    
         if org_name != '' and not self.isSimilarToNIRRemarkDescr(org_name):
             filtered_data_dict['remarks/descr'].add(org_name) 
         
