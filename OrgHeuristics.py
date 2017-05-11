@@ -276,9 +276,9 @@ class OrgHeuristics:
             if empty:
                 print 'ASN {} not found!\n'.format(asn)
                 result = None
-            else:
-                result = self.comparePrefixAndASNData(pref_org_data, asn_org_data, matchings)            
-                alreadyClass_pref_node.data[asn] = result
+            
+        result = self.comparePrefixAndASNData(pref_org_data, asn_org_data, matchings)            
+        alreadyClass_pref_node.data[asn] = result
 
         end_time = time()
         self.totalTimeConsumed += (end_time - start_time)
