@@ -870,15 +870,7 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
                     statsForAS['minPeriodLength'] = periodsLengths.min()
                     statsForAS['maxPeriodLength'] = periodsLengths.max()
 
-        line = statsForAS[routingStatsObj.allAttr_ases[0]]
-        
-        for i in range(len(routingStatsObj.allAttr_ases)-1):
-            line = '{},{}'.format(line, statsForAS[routingStatsObj.allAttr_ases[i+1]])
-        
-        line = line + '\n'
-
-        with open(stats_filename, 'a') as stats_file:
-            stats_file.write(line)
+        writeStatsLineToFile(statsForAS, routingStatsObj.allAttr_ases, stats_filename)
             
     
 def main(argv):
