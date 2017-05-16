@@ -1185,7 +1185,8 @@ def main(argv):
     routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, COMPUTE, EXTENDED,
                                     del_file, startDate_date, endDate_date,
                                     routing_date, INCREMENTAL,
-                                    final_existing_date, file_name)
+                                    final_existing_date, prefixes_stats_file,
+                                    ases_stats_file)
     
     if COMPUTE:
         loaded = False 
@@ -1222,23 +1223,23 @@ def main(argv):
                               TEMPORAL_DATA)
         end_time = time()
         sys.stderr.write("Stats for prefixes computed successfully!\n")
-        sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))
+        sys.stderr.write("Prefixes statistics computation took {} seconds\n".format(end_time-start_time))
         
         routingStatsObj.orgHeuristics.dumpToPickleFiles()
         
         sys.stderr.write(
-            "OrgHeuristics was invoked {} times, consuming in total {} seconds."\
+            "OrgHeuristics was invoked {} times, consuming in total {} seconds.\n"\
                 .format(routingStatsObj.orgHeuristics.invokedCounter,
                         routingStatsObj.orgHeuristics.totalTimeConsumed))
         # TODO Si es demasiado el tiempo consumido, guardar parejas de prefijos
         # y sus ASes de origen en una estructura y aplicar heurística aparte.
         # Ver TODO más arriba
 
-        prefixes_stats_df = pd.read_csv(prefixes_stats_file, sep = ',')
+        prefixes_stats_df = pd.read_csv(routingStatsObj.prefixes_stats_file, sep = ',')
         prefixes_json_filename = '{}_prefixes.json'.format(file_name)
         prefixes_stats_df.to_json(prefixes_json_filename, orient='index')
-        sys.stderr.write("Prefixes stats saved to JSON file successfully!\n")
-        sys.stderr.write("Files generated:\n{}\nand\n{})\n".format(prefixes_stats_file,
+        sys.stderr.write("Prefixes stats saved to JSON and CSV files successfully!\n")
+        sys.stderr.write("Files generated:\n{}\n\nand\n\n{}\n".format(prefixes_stats_file,
                                                         prefixes_json_filename))
         
         if es_host != '':
@@ -1268,15 +1269,15 @@ def main(argv):
         computeASesStats(routingStatsObj, ases_stats_file, TEMPORAL_DATA)
         end_time = time()
         sys.stderr.write("Stats for ASes computed successfully!\n")
-        sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
+        sys.stderr.write("ASes statistics computation took {} seconds\n".format(end_time-start_time))   
 
         routingStatsObj.db_handler.close()
 
         ases_stats_df = pd.read_csv(ases_stats_file, sep = ',')
         ases_json_filename = '{}_ases.json'.format(file_name)
         ases_stats_df.to_json(ases_json_filename, orient='index')
-        sys.stderr.write("ASes stats saved to JSON file successfully!\n")
-        sys.stderr.write("Files generated:\n{}\nand\n{})\n".format(ases_stats_file,
+        sys.stderr.write("ASes stats saved to JSON and CSV files successfully!\n")
+        sys.stderr.write("Files generated:\n{}\n\nand\n\n{}\n".format(ases_stats_file,
                                                                     ases_json_filename))
         
         if es_host != '':

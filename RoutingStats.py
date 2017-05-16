@@ -20,7 +20,7 @@ class RoutingStats:
     
     def __init__(self, files_path, DEBUG, KEEP, COMPUTE, EXTENDED, del_file,\
                 startDate, endDate, routing_date, INCREMENTAL, final_existing_date,\
-                file_name):
+                prefixes_stats_file, ases_stats_file):
                         
         self.bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP)
         
@@ -215,9 +215,7 @@ class RoutingStats:
                     line = '{},{}'.format(line, self.allAttr_pref[i+1])
             
                 line = line + '\n'
-            
-                prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
-            
+                        
                 with open(prefixes_stats_file, 'w') as csv_file:
                     csv_file.write(line)
             
@@ -238,16 +236,14 @@ class RoutingStats:
             self.allAttr_ases = expanded_del_asn_df_columns + other_ases_data_columns +\
                                 booleanKeys_ases + valueKeys_ases + counterKeys_ases
     
-            line = self.allAttr_ases[0]
-            
-            for i in range(len(self.allAttr_ases)-1):
-                line = '{},{}'.format(line, self.allAttr_ases[i+1])
-            
-            line = line + '\n'
-    
             if not INCREMENTAL:
-                ases_stats_file = '{}_ASes.csv'.format(file_name)
-            
+                line = self.allAttr_ases[0]
+                
+                for i in range(len(self.allAttr_ases)-1):
+                    line = '{},{}'.format(line, self.allAttr_ases[i+1])
+                
+                line = line + '\n'
+    
                 with open(ases_stats_file, 'w') as csv_file:
                     csv_file.write(line)
                     
