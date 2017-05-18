@@ -524,8 +524,17 @@ class BGPDataHandler:
             while line:
                 curr_field = ''
                 curr_pos = 0
+                ASes = []
+                curr_asn = ''
                 for char in line:
                     if curr_pos in [1, 5, 6]:
+                        if curr_pos == 6:
+                            if char == ' ' or char == '|':
+                                ASes.append(curr_asn)
+                                curr_asn = ''
+                            else:
+                                curr_asn = '{}{}'.format(curr_asn, char)
+                                
                         if char == '|':
                             if isFirstLine and curr_pos == 1:
                                 isFirstLine = False
@@ -533,9 +542,8 @@ class BGPDataHandler:
                             elif curr_pos == 5:
                                 prefixes.add(curr_field)
                             elif curr_pos == 6:
-                                ASpath_parts = curr_field.split()
-                                middleASes = middleASes.union(set(ASpath_parts[0:-1]))
-                                originASes.add(ASpath_parts[-1])
+                                middleASes = middleASes.union(set(ASes[0:-1]))
+                                originASes.add(ASes[-1])
                             curr_field = ''                            
                             
                         else:
