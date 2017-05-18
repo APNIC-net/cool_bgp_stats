@@ -456,48 +456,6 @@ class BGPDataHandler:
     # The routing file is assumed to include routing data for a single day,
     # therefore the date is taken from the timestamp of the first row in the
     # bgp_df DataFrame.
-#    def getPrefixesASesAndDate(self, routing_file, isReadable, RIBfile, COMPRESSED):
-#        start = time()
-#        if not isReadable:
-#            readable_file_name = self.getReadableFile(routing_file, False,\
-#                                                        RIBfile, COMPRESSED)
-#        else:
-#            readable_file_name = routing_file
-#        end = time()
-#        sys.stderr.write('It took {} seconds to get a readable file.\n'.format(end-start))
-#        
-#        if readable_file_name == '':
-#            return [], [], ''
-#
-#        start = time()
-#        bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
-#                                index_col=False, usecols=[1,3,5,6,7],\
-#                                names=['timestamp',\
-#                                        'peer',\
-#                                        'prefix',\
-#                                        'ASpath',\
-#                                        'origin'])
-#        end = time()
-#        sys.stderr.write('It took {} seconds to load the readable file into a DataFrame.\n'.format(end-start))
-#        
-#        if self.DEBUG:
-#            bgp_df = bgp_df[0:10]
-#        
-#        start = time()
-#        file_date = datetime.utcfromtimestamp(bgp_df['timestamp'].tolist()[0]).strftime('%Y%m%d')
-#        
-#        # To get the origin ASes and middle ASes we split the ASpath column
-#        paths_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
-#
-#        prefixes = set(bgp_df['prefix'].tolist())
-#        originASes = set(paths_parts[1].tolist())
-#        middleASes = set([item for sublist in paths_parts[0].tolist() for item in\
-#                        str(sublist).split()])
-#        end = time()
-#        sys.stderr.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
-#        
-#        return prefixes, originASes, middleASes, file_date
-
     def getPrefixesASesAndDate(self, routing_file, isReadable, RIBfile, COMPRESSED):
         start = time()
         if not isReadable:
@@ -511,56 +469,102 @@ class BGPDataHandler:
         if readable_file_name == '':
             return [], [], ''
 
-        file_date = None
-        prefixes = set()
-        originASes = set()
-        middleASes = set()
+        start = time()
+        bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
+                                index_col=False, usecols=[1,3,5,6,7],\
+                                names=['timestamp',\
+                                        'peer',\
+                                        'prefix',\
+                                        'ASpath',\
+                                        'origin'])
+        end = time()
+        sys.stderr.write('It took {} seconds to load the readable file into a DataFrame.\n'.format(end-start))
+        
+        if self.DEBUG:
+            bgp_df = bgp_df[0:10]
         
         start = time()
-        with open(readable_file_name, 'rb') as readable_f:
-            line = readable_f.readline()
-            isFirstLine = True
-            
-            while line:
-                curr_field = ''
-                curr_pos = 0
-                ASes = []
-                curr_asn = ''
-                for char in line:
-                    if curr_pos in [1, 5, 6]:
-                        if curr_pos == 6:
-                            if char == ' ' or char == '|':
-                                ASes.append(curr_asn)
-                                curr_asn = ''
-                            else:
-                                curr_asn = '{}{}'.format(curr_asn, char)
-                                
-                        if char == '|':
-                            if isFirstLine and curr_pos == 1:
-                                isFirstLine = False
-                                file_date = datetime.utcfromtimestamp(float(curr_field)).strftime('%Y%m%d')
-                            elif curr_pos == 5:
-                                prefixes.add(curr_field)
-                            elif curr_pos == 6:
-                                if len(ASes) > 0 :
-                                    middleASes = middleASes.union(set(ASes[0:-1]))
-                                    originASes.add(ASes[-1])
-                            curr_field = ''                            
-                            
-                        else:
-                            curr_field = '{}{}'.format(curr_field, char)
+        file_date = datetime.utcfromtimestamp(bgp_df['timestamp'].tolist()[0]).strftime('%Y%m%d')
+        
+        # To get the origin ASes and middle ASes we split the ASpath column
+        paths_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
 
-                    if char == '|':
-                        curr_pos += 1
-                        if curr_pos > 6:
-                            break
-
-                line = readable_f.readline()
-
+        prefixes = set(bgp_df['prefix'].tolist())
+        originASes = set(paths_parts[1].tolist())
+        middleASes = set([item for sublist in paths_parts[0].tolist() for item in\
+                        str(sublist).split()])
         end = time()
         sys.stderr.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
         
         return prefixes, originASes, middleASes, file_date
+
+    # Reading the readable routing file line by line and char by char takes
+    # much longer than loading the routing file into a DataFrame, that's why
+    # we stick to the other implementation of this function.
+    # The code for this implementation is left here commented as a reference.
+#    def getPrefixesASesAndDate(self, routing_file, isReadable, RIBfile, COMPRESSED):
+#        start = time()
+#        if not isReadable:
+#            readable_file_name = self.getReadableFile(routing_file, False,\
+#                                                        RIBfile, COMPRESSED)
+#        else:
+#            readable_file_name = routing_file
+#        end = time()
+#        sys.stderr.write('It took {} seconds to get a readable file.\n'.format(end-start))
+#        
+#        if readable_file_name == '':
+#            return [], [], ''
+#
+#        file_date = None
+#        prefixes = set()
+#        originASes = set()
+#        middleASes = set()
+#        
+#        start = time()
+#        with open(readable_file_name, 'rb') as readable_f:
+#            line = readable_f.readline()
+#            isFirstLine = True
+#            
+#            while line:
+#                curr_field = ''
+#                curr_pos = 0
+#                ASes = []
+#                curr_asn = ''
+#                for char in line:
+#                    if curr_pos in [1, 5, 6]:
+#                        if curr_pos == 6:
+#                            if char == ' ' or char == '|':
+#                                ASes.append(curr_asn)
+#                                curr_asn = ''
+#                            else:
+#                                curr_asn = '{}{}'.format(curr_asn, char)
+#                                
+#                        if char == '|':
+#                            if isFirstLine and curr_pos == 1:
+#                                isFirstLine = False
+#                                file_date = datetime.utcfromtimestamp(float(curr_field)).strftime('%Y%m%d')
+#                            elif curr_pos == 5:
+#                                prefixes.add(curr_field)
+#                            elif curr_pos == 6:
+#                                if len(ASes) > 0 :
+#                                    middleASes = middleASes.union(set(ASes[0:-1]))
+#                                    originASes.add(ASes[-1])
+#                            curr_field = ''                            
+#                            
+#                        else:
+#                            curr_field = '{}{}'.format(curr_field, char)
+#
+#                    if char == '|':
+#                        curr_pos += 1
+#                        if curr_pos > 6:
+#                            break
+#
+#                line = readable_f.readline()
+#
+#        end = time()
+#        sys.stderr.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
+#        
+#        return prefixes, originASes, middleASes, file_date
         
     # This function downloads and processes all the files in the provided list.
     # The boolean variable containsURLs must be True if the files_list is a list
