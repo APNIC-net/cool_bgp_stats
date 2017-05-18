@@ -542,8 +542,9 @@ class BGPDataHandler:
                             elif curr_pos == 5:
                                 prefixes.add(curr_field)
                             elif curr_pos == 6:
-                                middleASes = middleASes.union(set(ASes[0:-1]))
-                                originASes.add(ASes[-1])
+                                if len(ASes) > 0 :
+                                    middleASes = middleASes.union(set(ASes[0:-1]))
+                                    originASes.add(ASes[-1])
                             curr_field = ''                            
                             
                         else:
