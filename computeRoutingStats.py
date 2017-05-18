@@ -366,11 +366,12 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
             for path in blockASpaths:
                 ASPathLengthsList.append(len(path.split()))
         
-    # If the delegated prefix is not already marked as having fragments being
+    # If the delegated prefix is not already marked as being
     # announced by an AS delegated to an organization different from the
-    # organization that received the delegation of the prefix
+    # organization that received the delegation of the prefix or is not
+    # already marked as having fragments or less specifics in this situation
     if not statsForPrefix[diffOrg_var]:
-        # We check if the routed prefix  (fragment of the delegated prefix)
+        # We check if the routed prefix
         # and all its origin ASes were delegated to the same organization
         statsForPrefix[diffOrg_var] = not checkIfSameOrg(routedPrefix,
                                                             blockOriginASes,
@@ -904,6 +905,19 @@ def main(argv):
     READABLE = True
     es_host = ''
     
+    # For DEBUG
+    RIBfiles = False
+    files_path = '/Users/sofiasilva/BGP_files'
+    KEEP = True
+    COMPUTE = True
+    DEBUG = False
+    EXTENDED = True
+    startDate = '20000101'
+    endDate = '20000131'
+    routing_date = '20170430'
+    archive_folder = files_path
+    ext = 'readable'
+    
     try:
         opts, args = getopt.getopt(argv, "hf:u:r:H:e:S:E:TNocknd:xp:a:4:6:O:P:R:D:",
                                         ["files_path=", "urls_file=", "routing_file=",
@@ -1132,6 +1146,9 @@ def main(argv):
     # If a routing date is not provided, stats are computed for the day before today
     if routing_date == '':
         routing_date = today - timedelta(1)
+    else:
+        routing_date_str = routing_date
+        routing_date = datetime.strptime(routing_date_str, '%Y%m%d').date()
     
     if endDate_date > routing_date:
         print 'The routing date provided must be higher than the end of the period of time for the considered delegations.'
@@ -1146,7 +1163,7 @@ def main(argv):
     if startDate != '':
         dateStr = 'Delegated_AFTER{}{}'.format(startDate, dateStr)
     
-    dateStr = '{}_AsOf{}'.format(dateStr, routing_date)
+    dateStr = '{}_AsOf{}'.format(dateStr, routing_date_str)
         
     if not DEBUG:
         file_name = '%s/routing_stats_%s' % (files_path, dateStr)
@@ -1186,15 +1203,17 @@ def main(argv):
                                     del_file, startDate_date, endDate_date,
                                     routing_date, INCREMENTAL,
                                     final_existing_date, prefixes_stats_file,
-                                    ases_stats_file)
+                                    ases_stats_file, TEMPORAL_DATA)
     
     if COMPUTE:
         loaded = False 
             
         if fromFiles:
-            loaded = routingStatsObj.bgp_handler.loadStructuresFromFiles(routing_date, ipv4_prefixes_file,
-                                    ipv6_prefixes_file, ASes_originated_prefixes_file,
-                                    ASes_propagated_prefixes_file)
+            loaded = routingStatsObj.bgp_handler.loadStructuresFromFiles(
+                                                    routing_date, ipv4_prefixes_file,
+                                                    ipv6_prefixes_file,
+                                                    ASes_originated_prefixes_file,
+                                                    ASes_propagated_prefixes_file)
                                     
         else:
             if routing_file == '' and archive_folder == '':
@@ -1235,7 +1254,7 @@ def main(argv):
         # y sus ASes de origen en una estructura y aplicar heurística aparte.
         # Ver TODO más arriba
 
-        prefixes_stats_df = pd.read_csv(routingStatsObj.prefixes_stats_file, sep = ',')
+        prefixes_stats_df = pd.read_csv(prefixes_stats_file, sep = ',')
         prefixes_json_filename = '{}_prefixes.json'.format(file_name)
         prefixes_stats_df.to_json(prefixes_json_filename, orient='index')
         sys.stderr.write("Prefixes stats saved to JSON and CSV files successfully!\n")
