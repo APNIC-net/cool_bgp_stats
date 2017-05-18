@@ -20,7 +20,7 @@ class RoutingStats:
     
     def __init__(self, files_path, DEBUG, KEEP, COMPUTE, EXTENDED, del_file,\
                 startDate, endDate, routing_date, INCREMENTAL, final_existing_date,\
-                prefixes_stats_file, ases_stats_file):
+                prefixes_stats_file, ases_stats_file, TEMPORAL_DATA):
                         
         self.bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP)
         
@@ -29,7 +29,8 @@ class RoutingStats:
                                                 startDate, endDate, INCREMENTAL,
                                                 final_existing_date, KEEP)
     
-            self.db_handler = VisibilityDBHandler(routing_date)
+            if TEMPORAL_DATA:
+                self.db_handler = VisibilityDBHandler(routing_date)
             
             self.orgHeuristics = OrgHeuristics(files_path)
             
