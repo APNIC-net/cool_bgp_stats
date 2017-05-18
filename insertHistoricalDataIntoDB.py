@@ -10,6 +10,20 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from BGPDataHandler import BGPDataHandler
 from time import time
 
+def storeFile(routing_file, bgp_handler):
+    if routing_file.endswith('readable'):
+        RIBfiles = False
+        READABLE = True
+        COMPRESSED = False
+        
+        start = time()
+        bgp_handler.storeHistoricalDataFromFile(routing_file, READABLE, RIBfiles, COMPRESSED)
+        end = time()
+        sys.stderr.write('storeHistoricalDataFromFile took {} seconds in total\n'.format(end-start))    
+    
+        
+        #TODO Finish (consider other possible extensions)
+    
 def storeReadables(readables_path, dates_inserted, bgp_handler):
     # Available readable files
     readable_files = []
@@ -78,40 +92,46 @@ def storeDumps(archive_folder, dates_inserted, bgp_handler):
 
 def main(argv):
     proc_num = -1
+    routing_file = ''
 
     try:
-        opts, args = getopt.getopt(argv,"hn:", ['procNumber=',])
+        opts, args = getopt.getopt(argv,"hn:f:", ['procNumber=', 'routingFile=',])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -n <process number [1-5]>'.format(sys.argv[0])
+        print 'Usage: {} -h | -n <process number [1-5]> | -f <routing file>'.format(sys.argv[0])
         print "The process number is a number from 1 to 5 that allows the script to process a subset of the available files so that different scripts can process different files."
         sys.exit()
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'Usage: {} -h | <process number [1-5]>'.format(sys.argv[0])
+            print 'Usage: {} -h | -n <process number [1-5]> | -f <routing file>'.format(sys.argv[0])
             print "The process number is a number from 1 to 5 that allows the script to process a subset of the available files so that different scripts can process different files."
+            print "Use -f option if you just want to insert routing data from a specific file."
             sys.exit()
         elif opt == '-n':
             proc_num = arg
+        elif opt == '-f':
+            routing_file = os.path.abspath(arg)
         else:
             assert False, 'Unhandled option'
     
-#    archive_folder = '/data/wattle/bgplog'
+    archive_folder = '/data/wattle/bgplog'
 
-#    readables_path = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
-    readables_path = '/home/sofia/BGP_stats_files'
+    readables_path = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
 
     DEBUG = False
-    files_path = readables_path
+    files_path = '/home/sofia/BGP_stats_files'
     KEEP = True
     
     bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP)
     
     dates_inserted = []
 
-    storeReadables(readables_path, dates_inserted, bgp_handler)
-#    storeBGPRibs(archive_folder, dates_inserted, bgp_handler)
-#    storeDumps(archive_folder, dates_inserted, bgp_handler)
+    if routing_file == '':
+        storeReadables(readables_path, dates_inserted, bgp_handler)
+        storeBGPRibs(archive_folder, dates_inserted, bgp_handler)
+        storeDumps(archive_folder, dates_inserted, bgp_handler)
+    else:
+        storeFile(routing_file, bgp_handler)
             
 if __name__ == "__main__":
     main(sys.argv[1:])
