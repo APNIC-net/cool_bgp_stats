@@ -295,10 +295,11 @@ class OrgHeuristics:
                         partial_score = self.comparePrefASNField(pref_item, asn_item, key)
                         if partial_score > 0:
                             matchings.append([pref_item, asn_item])
-                        matching_score += partial_score
+                            matching_score += partial_score
+                            if matching_score >= 50:
+                                return True
         
-        result = (matching_score >= 50)
-        return result
+        return False
     
     def comparePrefASNField(self, pref_field, asn_field, field_name):               
         if self.similar(pref_field, asn_field) > self.scoresDict[field_name]['similarity_threshold']:
@@ -400,13 +401,15 @@ class OrgHeuristics:
                         filtered_data_dict['mntners'].add(mntner)
                         
                         mntner_data = self.bulkWHOIS_data['mntner']['data'][mntner]
-                        for key in mntner_data:
-                            if key in ['admin-c', 'tech-c']:
+
+                        for key in ['admin-c', 'tech-c']:
+                            if key in mntner_data:
                                 for value in mntner_data[key]:
                                     if not self.isNIRContact(value):
                                         filtered_data_dict['admin/tech'].add(value)
                             
-                            elif key in ['descr', 'remarks']:
+                        for key in ['descr', 'remarks']:
+                            if key in mntner_data:
                                 for value in mntner_data[key]:
                                     if not self.isSimilarToNIRRemarkDescr(value):
                                         filtered_data_dict['remarks/descr'].add(value)

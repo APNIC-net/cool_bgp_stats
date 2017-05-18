@@ -10,11 +10,12 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from OrgHeuristics import OrgHeuristics
 
-# For debug in matong
-#org_h = OrgHeuristics('/Users/sofiasilva/Downloads')
-
 # For local debug
-org_h = OrgHeuristics('/home/sofia/BGP_stats_files')
+org_h = OrgHeuristics('/Users/sofiasilva/BGP_files')
+
+# For debug in matong
+#org_h = OrgHeuristics('/home/sofia/BGP_stats_files')
+
 
 correctResults = 0
 falsePositives = 0
