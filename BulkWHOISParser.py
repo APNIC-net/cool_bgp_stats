@@ -65,7 +65,8 @@ class BulkWHOISParser:
                     try:
                         output.write(gzip_file.read())
                     except IOError:
-                        return ''
+                        sys.stderr.write('IOError when dealing with file {}'.format(output_file))
+                        return
                 
                 gzip_file.close()
                 output.close()
@@ -139,7 +140,12 @@ class BulkWHOISParser:
             line_data = line[first_colon+1:].strip()
             
             if line_tag == 'remarks' or line_tag == 'descr':
-                line_data_word_set = set(line_data.split())            
+                # If an address is embedded in this field, we do not want to
+                # take it into account as comparing addresses may be misleading
+                if 'address:' in line_data:
+                   return ip_blocks, asn, as_block, contact_id, current_dict
+                   
+                line_data_word_set = set(line_data.split())
                 additional_tags = line_data_word_set.intersection(self.whois_data[item]['fields'])
 
                 if len(additional_tags) == 1:
@@ -202,7 +208,7 @@ def main(argv):
     
     #For DEBUG
 #    DEBUG = True
-#    files_path = '/Users/sofiasilva/Downloads'
+#    files_path = '/Users/sofiasilva/BGP_files/BulkWHOISParser_test'
     
     try:
         opts, args = getopt.getopt(argv, 'hf:D', ['files_path='])
