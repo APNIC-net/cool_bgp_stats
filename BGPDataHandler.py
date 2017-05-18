@@ -64,11 +64,11 @@ class BGPDataHandler:
    
     # This function loads the data structures of the class from previously
     # generated pickle files containing the result of already processed routing data
-    def loadStructuresFromFiles(self, date, ipv4_prefixes_file, ipv6_prefixes_file,\
+    def loadStructuresFromFiles(self, r_date, ipv4_prefixes_file, ipv6_prefixes_file,\
                                 ASes_originated_prefixes_file,\
                                 ASes_propagated_prefixes_file):
      
-        self.routingDate = date
+        self.routingDate = r_date
         self.ipv4Prefixes_radix = pickle.load(open(ipv4_prefixes_file, "rb"))
         self.ipv6Prefixes_radix = pickle.load(open(ipv6_prefixes_file, "rb"))
         self.ASes_originated_prefixes_dic = pickle.load(open(ASes_originated_prefixes_file, "rb"))
@@ -81,14 +81,14 @@ class BGPDataHandler:
     # the URLs in the urls_file point, and loads the data structures of the class
     # with the results from this processing
     def loadStructuresFromURLSfile(self, urls_file, READABLE, RIBfiles):
-        date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
+        files_date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref  =\
                         self.processMultipleFiles(files_list=urls_file,\
                                                 isList=False, containsURLs=True,\
                                                 RIBfiles=RIBfiles, areReadable=READABLE)
                     
-        self.routingDate = date
+        self.routingDate = files_date
         self.ipv4Prefixes_radix = ipv4Prefixes_radix
         self.ipv6Prefixes_radix = ipv6Prefixes_radix
         self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
@@ -115,12 +115,12 @@ class BGPDataHandler:
             readable_file_name = routing_file
         
         if readable_file_name != '':
-            date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
+            file_date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
                 ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
                 ipv4_longest_pref, ipv6_longest_pref =\
                                     self.processReadableDF(readable_file_name)
         
-            self.routingDate = date              
+            self.routingDate = file_date              
             self.ipv4Prefixes_radix = ipv4Prefixes_radix
             self.ipv6Prefixes_radix = ipv6Prefixes_radix
             self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
@@ -181,7 +181,7 @@ class BGPDataHandler:
                     sys.stderr.write("There is no routing file in the archive for the date provided.\n")
                     return False
                     
-        date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
+        files_date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
             ipv4_longest_pref, ipv6_longest_pref  =\
                         self.processMultipleFiles(files_list=routing_files,
@@ -189,7 +189,7 @@ class BGPDataHandler:
                                                 RIBfiles=RIBfiles, areReadable=READABLE,
                                                 COMPRESSED=COMPRESSED)
                     
-        self.routingDate = date
+        self.routingDate = files_date
         self.ipv4Prefixes_radix = ipv4Prefixes_radix
         self.ipv6Prefixes_radix = ipv6Prefixes_radix
         self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
@@ -280,12 +280,12 @@ class BGPDataHandler:
         routing_files = []
         for line in files_list_obj:
             if not line.startswith('#') and line.strip() != '':
-                date = self.getDateFromFileName(line.strip())
+                file_date = self.getDateFromFileName(line.strip())
                 
                 # We have to add 1 daye to the provided date as the files in the
                 # archive contain routing data corresponding to the day before to the
                 # date specified in the file name.
-                if date == routing_date + timedelta(1):
+                if file_date == routing_date + timedelta(1):
                    routing_files.append(line.strip())
         
         return routing_files
@@ -300,33 +300,33 @@ class BGPDataHandler:
         
         for line in files_list_obj:
             if not line.startswith('#') and line.strip() != '':
-                date = self.getDateFromFileName(line.strip())
+                file_date = self.getDateFromFileName(line.strip())
                 
-                if date > mostRecentDate:
+                if file_date > mostRecentDate:
                     # We add 1 to the endDate because the files in the archive
                     # have routing data for the day before of the date in the
                     # name of the file
-                    mostRecentDate = date
+                    mostRecentDate = file_date
                     mostRecentFiles = [line.strip()]
-                elif date == mostRecentDate:
+                elif file_date == mostRecentDate:
                     mostRecentFiles.append(line.strip())
         
         return mostRecentFiles
         
     def getDateFromFileName(self, filename):
-        date = ''
+        file_date = ''
         
         dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]',\
                     filename)
                     
         if len(dates) > 0:
-            date = dates[0][0:4]+dates[0][5:7]+dates[0][8:10]
+            file_date = dates[0][0:4]+dates[0][5:7]+dates[0][8:10]
         else:
             dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]',\
                         filename)
             if len(dates) > 0:
-                date = dates[0]
-        return datetime.strptime(date, '%Y%m%d').date()
+                file_date = dates[0]
+        return datetime.strptime(file_date, '%Y%m%d').date()
     
     # This function stores the routing data from the files listed in the
     # historical_files file skipping the mostRecent routing file provided,
@@ -357,28 +357,25 @@ class BGPDataHandler:
     # This function stores the routing data from the routing_file provided
     # into the visibility database
     def storeHistoricalDataFromFile(self, routing_file, isReadable, RIBfile, COMPRESSED):
-        start = time()
-        prefixes, originASes, middleASes, date =\
+        prefixes, originASes, middleASes, file_date =\
                         self.getPrefixesASesAndDate(routing_file, isReadable,\
                                                     RIBfile, COMPRESSED)
-        end = time()
-        sys.stderr.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes.\n'.format(end-start))
 
-        visibilityDB = VisibilityDBHandler(date)
+        visibilityDB = VisibilityDBHandler(file_date)
 
         start = time()
-        prefixesInDBForDate = visibilityDB.getPrefixCountForDate(date)
+        prefixesInDBForDate = visibilityDB.getPrefixCountForDate(file_date)
     
         if prefixesInDBForDate != 0 and prefixesInDBForDate != len(prefixes):
-            visibilityDB.dropPrefixesForDate(date)
+            visibilityDB.dropPrefixesForDate(file_date)
         
-        prefixesInDBForDate = visibilityDB.getPrefixCountForDate(date)
+        prefixesInDBForDate = visibilityDB.getPrefixCountForDate(file_date)
         end = time()
         sys.stderr.write('It took {} seconds to check for existing prefixes for this date and delete records if necessary.\n'.format(end-start))
 
         start = time()
         if prefixesInDBForDate == 0:
-            visibilityDB.storeListOfPrefixesSeen(prefixes, date)
+            visibilityDB.storeListOfPrefixesSeen(prefixes, file_date)
         end = time()
         sys.stderr.write('It took {} seconds insert the list of prefixes for this date into the DB.\n'.format(end-start))
 
@@ -402,18 +399,18 @@ class BGPDataHandler:
         sys.stderr.write('It took {} seconds to clean the list of origin ASes.\n'.format(end-start))
 
         start = time()
-        originASesInDBForDate = visibilityDB.getOriginASCountForDate(date)
+        originASesInDBForDate = visibilityDB.getOriginASCountForDate(file_date)
         
         if originASesInDBForDate != 0 and originASesInDBForDate != len(cleanOriginASes):
-            visibilityDB.dropOriginASesForDate(date)
+            visibilityDB.dropOriginASesForDate(file_date)
 
-        originASesInDBForDate = visibilityDB.getOriginASCountForDate(date)
+        originASesInDBForDate = visibilityDB.getOriginASCountForDate(file_date)
         end = time()
         sys.stderr.write('It took {} seconds to check for existing origin ASes for this date and delete records if necessary.\n'.format(end-start))
 
         start = time()
         if originASesInDBForDate == 0:
-            visibilityDB.storeListOfASesSeen(cleanOriginASes, True, date)
+            visibilityDB.storeListOfASesSeen(cleanOriginASes, True, file_date)
         end = time()
         sys.stderr.write('It took {} seconds to insert the list of origin ASes for this date into the DB.\n'.format(end-start))
 
@@ -434,18 +431,18 @@ class BGPDataHandler:
         sys.stderr.write('It took {} seconds to clean the list of middle ASes.\n'.format(end-start))
 
         start = time()
-        middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(date)
+        middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(file_date)
         
         if middleASesInDBForDate != 0 and middleASesInDBForDate != len(cleanMiddleASes):
-            visibilityDB.dropMiddleASesForDate(date)
+            visibilityDB.dropMiddleASesForDate(file_date)
 
-        middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(date)
+        middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(file_date)
         end = time()
         sys.stderr.write('It took {} seconds to check for existing middle ASes for this date and delete records if necessary.\n'.format(end-start))
 
         start = time()
         if middleASesInDBForDate == 0:
-            visibilityDB.storeListOfASesSeen(cleanMiddleASes, False, date)
+            visibilityDB.storeListOfASesSeen(cleanMiddleASes, False, file_date)
         end = time()
         sys.stderr.write('It took {} seconds to insert the list of middle ASes for this date into the DB.\n'.format(end-start))
 
@@ -459,6 +456,48 @@ class BGPDataHandler:
     # The routing file is assumed to include routing data for a single day,
     # therefore the date is taken from the timestamp of the first row in the
     # bgp_df DataFrame.
+#    def getPrefixesASesAndDate(self, routing_file, isReadable, RIBfile, COMPRESSED):
+#        start = time()
+#        if not isReadable:
+#            readable_file_name = self.getReadableFile(routing_file, False,\
+#                                                        RIBfile, COMPRESSED)
+#        else:
+#            readable_file_name = routing_file
+#        end = time()
+#        sys.stderr.write('It took {} seconds to get a readable file.\n'.format(end-start))
+#        
+#        if readable_file_name == '':
+#            return [], [], ''
+#
+#        start = time()
+#        bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
+#                                index_col=False, usecols=[1,3,5,6,7],\
+#                                names=['timestamp',\
+#                                        'peer',\
+#                                        'prefix',\
+#                                        'ASpath',\
+#                                        'origin'])
+#        end = time()
+#        sys.stderr.write('It took {} seconds to load the readable file into a DataFrame.\n'.format(end-start))
+#        
+#        if self.DEBUG:
+#            bgp_df = bgp_df[0:10]
+#        
+#        start = time()
+#        file_date = datetime.utcfromtimestamp(bgp_df['timestamp'].tolist()[0]).strftime('%Y%m%d')
+#        
+#        # To get the origin ASes and middle ASes we split the ASpath column
+#        paths_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
+#
+#        prefixes = set(bgp_df['prefix'].tolist())
+#        originASes = set(paths_parts[1].tolist())
+#        middleASes = set([item for sublist in paths_parts[0].tolist() for item in\
+#                        str(sublist).split()])
+#        end = time()
+#        sys.stderr.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
+#        
+#        return prefixes, originASes, middleASes, file_date
+
     def getPrefixesASesAndDate(self, routing_file, isReadable, RIBfile, COMPRESSED):
         start = time()
         if not isReadable:
@@ -472,29 +511,47 @@ class BGPDataHandler:
         if readable_file_name == '':
             return [], [], ''
 
+        file_date = None
+        prefixes = set()
+        originASes = set()
+        middleASes = set()
+        
         start = time()
-        bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
-                                index_col=False, usecols=[1,3,5,6,7],\
-                                names=['timestamp',\
-                                        'peer',\
-                                        'prefix',\
-                                        'ASpath',\
-                                        'origin'])
-        end = time()
-        sys.stderr.write('It took {} seconds to load the readable file into a DataFrame.\n'.format(end-start))
-        
-        if self.DEBUG:
-            bgp_df = bgp_df[0:10]
+        with open(readable_file_name, 'rb') as readable_f:
+            line = readable_f.readline()
+            isFirstLine = True
             
-        date = datetime.utcfromtimestamp(bgp_df['timestamp'].tolist()[0]).strftime('%Y%m%d')
-        
-        # To get the origin ASes and middle ASes we split the ASpath column
-        paths_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
+            while line:
+                curr_field = ''
+                curr_pos = 0
+                for char in line:
+                    if curr_pos in [1, 5, 6]:
+                        if char == '|':
+                            if isFirstLine and curr_pos == 1:
+                                isFirstLine = False
+                                file_date = datetime.utcfromtimestamp(float(curr_field)).strftime('%Y%m%d')
+                            elif curr_pos == 5:
+                                prefixes.add(curr_field)
+                            elif curr_pos == 6:
+                                ASpath_parts = curr_field.split()
+                                middleASes = middleASes.union(set(ASpath_parts[0:-1]))
+                                originASes.add(ASpath_parts[-1])
+                            curr_field = ''                            
+                            
+                        else:
+                            curr_field = '{}{}'.format(curr_field, char)
 
-        return set(bgp_df['prefix'].tolist()),\
-                set(paths_parts[1].tolist()),\
-                set([item for sublist in paths_parts[0].tolist() for item in\
-                        str(sublist).split()]), date
+                    if char == '|':
+                        curr_pos += 1
+                        if curr_pos > 6:
+                            break
+
+                line = readable_f.readline()
+
+        end = time()
+        sys.stderr.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
+        
+        return prefixes, originASes, middleASes, file_date
         
     # This function downloads and processes all the files in the provided list.
     # The boolean variable containsURLs must be True if the files_list is a list
@@ -528,7 +585,7 @@ class BGPDataHandler:
                     else:
                         readable_file_name = line.strip()
                     
-                    date, ipv4Prefixes_radix_partial,\
+                    file_date, ipv4Prefixes_radix_partial,\
                         ipv6Prefixes_radix_partial,\
                         ASes_originated_prefixes_dic_partial,\
                         ASes_propagated_prefixes_dic_partial,\
@@ -543,15 +600,15 @@ class BGPDataHandler:
                     else:
                         readable_file_name = line.strip()
                     
-                    date, ipv4Prefixes_radix_partial,\
+                    file_date, ipv4Prefixes_radix_partial,\
                         ipv6Prefixes_radix_partial,\
                         ASes_originated_prefixes_dic_partial,\
                         ASes_propagated_prefixes_dic_partial,\
                         ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
                                 self.processReadableDF(readable_file_name)
                 
-                if date > routingDate:
-                    routingDate = date
+                if file_date > routingDate:
+                    routingDate = file_date
                     
                 for prefix in ipv4Prefixes_radix_partial.prefixes():
                     node_partial = ipv4Prefixes_radix_partial.search_exact(prefix)
@@ -649,10 +706,10 @@ class BGPDataHandler:
         i = 0
         # load routing table info  (the next loop does it automatically)
         for entry_n, bgp_entry in enumerate(bgp_rib.BGPRIB.parse_cisco_show_ip_bgp_generator(routing_file)):
-            date = bgp_entry[8]
-#           date_part = str(date)[0:8]
-#           time_part = str(date)[8:12]
-            timestamp = timegm(datetime.strptime(date, "%Y%m%d%H%M").timetuple())
+            file_date = bgp_entry[8]
+#           date_part = str(file_date)[0:8]
+#           time_part = str(file_date)[8:12]
+            timestamp = timegm(datetime.strptime(file_date, "%Y%m%d%H%M").timetuple())
             next_hop = bgp_entry[2]
             prefix = bgp_entry[0]
             as_path = bgp_entry[6]
@@ -691,7 +748,7 @@ class BGPDataHandler:
     # putting all the info into a Data Frame  
     def processReadableDF(self, readable_file_name):
         
-        date = ''
+        file_date = ''
         ipv4Prefixes_radix = radix.Radix()
         ipv6Prefixes_radix = radix.Radix()
         ASes_originated_prefixes_dic = dict()
@@ -715,7 +772,7 @@ class BGPDataHandler:
 
              # We add a column to the Data Frame with the corresponding date
             bgp_df['date'] = bgp_df.apply(lambda row: datetime.utcfromtimestamp(row['timestamp']).date(), axis=1)
-            date = max(bgp_df['date'])
+            file_date = max(bgp_df['date'])
             
             ASpath_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
             bgp_df['middleASes'] = ASpath_parts[0]
@@ -799,7 +856,7 @@ class BGPDataHandler:
                 except OSError:
                     pass
             
-        return date, ipv4Prefixes_radix, ipv6Prefixes_radix, ASes_originated_prefixes_dic,\
+        return file_date, ipv4Prefixes_radix, ipv6Prefixes_radix, ASes_originated_prefixes_dic,\
                 ASes_propagated_prefixes_dic, ipv4_longest_prefix, ipv6_longest_prefix
 
     # This function downloads a routing file if the source provided is a URL
