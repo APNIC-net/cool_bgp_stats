@@ -14,6 +14,7 @@ from datetime import datetime, date, timedelta
 import pandas as pd
 import ipaddress
 from VisibilityDBHandler import VisibilityDBHandler
+from time import time
 
 # For some reason in my computer os.getenv('PATH') differs from echo $PATH
 # /usr/local/bin is not in os.getenv('PATH')
@@ -241,14 +242,17 @@ class BGPDataHandler:
     def getSpecificFilesFromArchive(self, routing_date,
                                     archive_folder='/data/wattle/bgplog',
                                     extension='bgprib.mrt'):
+        
+        # We have to add 1 to the provided date as the files in the
+        # archive contain routing data corresponding to the day before to the
+        # date specified in the file name.
+        routing_date = routing_date + timedelta(1)
+
         month = str(routing_date.month)
         if len(month) == 1:
             month = '0{}'.format(month)
         
-        # We have to add 1 to the day of the provided date as the files in the
-        # archive contain routing data corresponding to the day before to the
-        # date specified in the file name.
-        day = str(routing_date.day + 1)
+        day = str(routing_date.day)
         if len(day) == 1:
             day = '0{}'.format(day)
         
@@ -353,21 +357,32 @@ class BGPDataHandler:
     # This function stores the routing data from the routing_file provided
     # into the visibility database
     def storeHistoricalDataFromFile(self, routing_file, isReadable, RIBfile, COMPRESSED):
+        start = time()
         prefixes, originASes, middleASes, date =\
                         self.getPrefixesASesAndDate(routing_file, isReadable,\
                                                     RIBfile, COMPRESSED)
+        end = time()
+        sys.stderr.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes.\n'.format(end-start))
+
         visibilityDB = VisibilityDBHandler(date)
 
+        start = time()
         prefixesInDBForDate = visibilityDB.getPrefixCountForDate(date)
     
         if prefixesInDBForDate != 0 and prefixesInDBForDate != len(prefixes):
             visibilityDB.dropPrefixesForDate(date)
         
         prefixesInDBForDate = visibilityDB.getPrefixCountForDate(date)
+        end = time()
+        sys.stderr.write('It took {} seconds to check for existing prefixes for this date and delete records if necessary.\n'.format(end-start))
 
+        start = time()
         if prefixesInDBForDate == 0:
             visibilityDB.storeListOfPrefixesSeen(prefixes, date)
-            
+        end = time()
+        sys.stderr.write('It took {} seconds insert the list of prefixes for this date into the DB.\n'.format(end-start))
+
+        start = time()
         cleanOriginASes = []
         for originAS in originASes:
             if originAS is None or originAS == 'nan':
@@ -383,17 +398,26 @@ class BGPDataHandler:
                 cleanOriginASes.append(originAS)
         
         cleanOriginASes = list(set(cleanOriginASes))
-                
+        end = time()
+        sys.stderr.write('It took {} seconds to clean the list of origin ASes.\n'.format(end-start))
+
+        start = time()
         originASesInDBForDate = visibilityDB.getOriginASCountForDate(date)
         
         if originASesInDBForDate != 0 and originASesInDBForDate != len(cleanOriginASes):
             visibilityDB.dropOriginASesForDate(date)
 
         originASesInDBForDate = visibilityDB.getOriginASCountForDate(date)
-            
+        end = time()
+        sys.stderr.write('It took {} seconds to check for existing origin ASes for this date and delete records if necessary.\n'.format(end-start))
+
+        start = time()
         if originASesInDBForDate == 0:
             visibilityDB.storeListOfASesSeen(cleanOriginASes, True, date)
+        end = time()
+        sys.stderr.write('It took {} seconds to insert the list of origin ASes for this date into the DB.\n'.format(end-start))
 
+        start = time()
         cleanMiddleASes = []                
         for middleAS in middleASes:
             if middleAS is None or middleAS == 'nan':
@@ -406,17 +430,25 @@ class BGPDataHandler:
                 cleanMiddleASes.append(middleAS)
         
         cleanMiddleASes = list(set(cleanMiddleASes))
-        
+        end = time()
+        sys.stderr.write('It took {} seconds to clean the list of middle ASes.\n'.format(end-start))
+
+        start = time()
         middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(date)
         
         if middleASesInDBForDate != 0 and middleASesInDBForDate != len(cleanMiddleASes):
             visibilityDB.dropMiddleASesForDate(date)
 
         middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(date)
-            
+        end = time()
+        sys.stderr.write('It took {} seconds to check for existing middle ASes for this date and delete records if necessary.\n'.format(end-start))
+
+        start = time()
         if middleASesInDBForDate == 0:
             visibilityDB.storeListOfASesSeen(cleanMiddleASes, False, date)
-        
+        end = time()
+        sys.stderr.write('It took {} seconds to insert the list of middle ASes for this date into the DB.\n'.format(end-start))
+
         visibilityDB.close()
 
     
@@ -428,15 +460,19 @@ class BGPDataHandler:
     # therefore the date is taken from the timestamp of the first row in the
     # bgp_df DataFrame.
     def getPrefixesASesAndDate(self, routing_file, isReadable, RIBfile, COMPRESSED):
+        start = time()
         if not isReadable:
             readable_file_name = self.getReadableFile(routing_file, False,\
                                                         RIBfile, COMPRESSED)
         else:
             readable_file_name = routing_file
+        end = time()
+        sys.stderr.write('It took {} seconds to get a readable file.\n'.format(end-start))
         
         if readable_file_name == '':
             return [], [], ''
 
+        start = time()
         bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
                                 index_col=False, usecols=[1,3,5,6,7],\
                                 names=['timestamp',\
@@ -444,7 +480,9 @@ class BGPDataHandler:
                                         'prefix',\
                                         'ASpath',\
                                         'origin'])
-
+        end = time()
+        sys.stderr.write('It took {} seconds to load the readable file into a DataFrame.\n'.format(end-start))
+        
         if self.DEBUG:
             bgp_df = bgp_df[0:10]
             

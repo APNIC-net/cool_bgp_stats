@@ -8,6 +8,7 @@ Created on Wed Apr  5 11:50:52 2017
 import os, sys, getopt
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from BGPDataHandler import BGPDataHandler
+from time import time
 
 def storeReadables(readables_path, dates_inserted, bgp_handler):
     # Available readable files
@@ -21,8 +22,11 @@ def storeReadables(readables_path, dates_inserted, bgp_handler):
     READABLE = True
     COMPRESSED = False
     
+    start = time()
     bgp_handler.storeHistoricalData(readable_files, True, READABLE, RIBfiles, COMPRESSED)
-
+    end = time()
+    sys.stderr.write('storeHistoricalData took {} seconds in total\n'.format(end-start))    
+    
 def storeBGPRibs(archive_folder, dates_inserted, bgp_handler):
     extension = 'bgprib.mrt'
     
@@ -45,7 +49,10 @@ def storeBGPRibs(archive_folder, dates_inserted, bgp_handler):
     READABLE = False
     COMPRESSED = False
     
+    start = time()
     bgp_handler.storeHistoricalData(bgprib_files_list, True, READABLE, RIBfiles, COMPRESSED)
+    end = time()
+    sys.stderr.write('It took {} seconds in total to insert the files {} into the DB.\n'.format(end-start, bgprib_files_list))
 
 def storeDumps(archive_folder, dates_inserted, bgp_handler):                                                               
     extension = 'dmp.gz'
@@ -89,9 +96,10 @@ def main(argv):
         else:
             assert False, 'Unhandled option'
     
-    archive_folder = '/data/wattle/bgplog'
+#    archive_folder = '/data/wattle/bgplog'
 
-    readables_path = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
+#    readables_path = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
+    readables_path = '/home/sofia/BGP_stats_files'
 
     DEBUG = False
     files_path = readables_path
@@ -102,8 +110,8 @@ def main(argv):
     dates_inserted = []
 
     storeReadables(readables_path, dates_inserted, bgp_handler)
-    storeBGPRibs(archive_folder, dates_inserted, bgp_handler)
-    storeDumps(archive_folder, dates_inserted, bgp_handler)
+#    storeBGPRibs(archive_folder, dates_inserted, bgp_handler)
+#    storeDumps(archive_folder, dates_inserted, bgp_handler)
             
 if __name__ == "__main__":
     main(sys.argv[1:])
