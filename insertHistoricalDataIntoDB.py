@@ -16,11 +16,7 @@ def storeFile(routing_file, bgp_handler):
         READABLE = True
         COMPRESSED = False
         
-        start = time()
-        bgp_handler.storeHistoricalDataFromFile(routing_file, READABLE, RIBfiles, COMPRESSED)
-        end = time()
-        sys.stderr.write('storeHistoricalDataFromFile took {} seconds in total\n'.format(end-start))    
-    
+        bgp_handler.storeHistoricalDataFromFile(routing_file, READABLE, RIBfiles, COMPRESSED)    
         
         #TODO Finish (consider other possible extensions)
     
@@ -37,7 +33,7 @@ def storeReadables(readables_path, dates_inserted, bgp_handler):
     COMPRESSED = False
     
     start = time()
-    bgp_handler.storeHistoricalData(readable_files, True, READABLE, RIBfiles, COMPRESSED)
+    bgp_handler.storeHistoricalData(readable_files, READABLE, RIBfiles, COMPRESSED)
     end = time()
     sys.stderr.write('storeHistoricalData took {} seconds in total\n'.format(end-start))    
     
@@ -64,7 +60,7 @@ def storeBGPRibs(archive_folder, dates_inserted, bgp_handler):
     COMPRESSED = False
     
     start = time()
-    bgp_handler.storeHistoricalData(bgprib_files_list, True, READABLE, RIBfiles, COMPRESSED)
+    bgp_handler.storeHistoricalData(bgprib_files_list, READABLE, RIBfiles, COMPRESSED)
     end = time()
     sys.stderr.write('It took {} seconds in total to insert the files {} into the DB.\n'.format(end-start, bgprib_files_list))
 
@@ -88,7 +84,7 @@ def storeDumps(archive_folder, dates_inserted, bgp_handler):
     READABLE = False
     COMPRESSED = True
     
-    bgp_handler.storeHistoricalData(dmp_files_list, True, READABLE, RIBfiles, COMPRESSED)
+    bgp_handler.storeHistoricalData(dmp_files_list, READABLE, RIBfiles, COMPRESSED)
 
 def main(argv):
     proc_num = -1
