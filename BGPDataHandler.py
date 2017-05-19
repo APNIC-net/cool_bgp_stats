@@ -167,21 +167,10 @@ class BGPDataHandler:
             routing_files = self.getSpecificFilesFromArchive(routing_date,
                                                              archive_folder,
                                                              extension)
+                                                          
             if len(routing_files) == 0:
-                historical_files = self.getPathsToHistoricalData('', '',
-                                                                 archive_folder,
-                                                                 extension)
-        
-                if len(historical_files) == 0:
-                    sys.stderr.write("Archive is empty!\n")
-                    return False
-
-                routing_files = self.getSpecificFilesFromHistoricalList(historical_files,
-                                                                        routing_date)
-                                                                        
-                if len(routing_files) == 0:
-                    sys.stderr.write("There is no routing file in the archive for the date provided.\n")
-                    return False
+                sys.stderr.write("There is no routing file in the archive for the date provided.\n")
+                return False
                     
         files_date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
@@ -808,15 +797,20 @@ class BGPDataHandler:
                     if network.prefixlen > ipv6_longest_prefix:
                         ipv6_longest_prefix = network.prefixlen 
                     prefixes_radix = ipv6Prefixes_radix
-                    
+                
+                # TODO Arreglar esto. Da error porque en algún caso la lista de ASpaths tiene valores nulos
+                # ValueError: cannot index with vector containing NA / NaN values
+                ASpaths = set(prefix_subset['ASpath'])
+                originASes = set(prefix_subset['originAS'])
+                
                 node = prefixes_radix.search_exact(prefix)
                 if node is None:
                     node = prefixes_radix.add(prefix)
-                    node.data['ASpaths'] = set(prefix_subset['ASpath'])
-                    node.data['OriginASes'] = set(prefix_subset['originAS'])
+                    node.data['ASpaths'] = ASpaths
+                    node.data['OriginASes'] = originASes
                 else:
-                    node.data['ASpaths'] = node.data['ASpaths'].union(set(prefix_subset['ASpath']))
-                    node.data['OriginASes'] = node.data['OriginASes'].union(set(prefix_subset['originAS']))
+                    node.data['ASpaths'] = node.data['ASpaths'].union(ASpaths)
+                    node.data['OriginASes'] = node.data['OriginASes'].union(originASes)
                     
                             
             for middleAS in middleASes_set:
