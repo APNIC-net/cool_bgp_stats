@@ -22,7 +22,7 @@ class RoutingStats:
                 startDate, endDate, routing_date, INCREMENTAL, final_existing_date,\
                 prefixes_stats_file, ases_stats_file, TEMPORAL_DATA):
                         
-        self.bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP)
+        self.bgp_handler = BGPDataHandler(DEBUG, files_path)
         
         if COMPUTE: 
             self.del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file,
@@ -102,11 +102,12 @@ class RoutingStats:
             # the number of AS paths (numOfASPathsGral) and of the length of the
             # AS paths (ASPathLengthGral).
     
-            # For the routed fragments of the delegated prefix that are classified 
-            # as SODP or DODP we compute the Levenshtein Distance between the AS path
-            # of the fragment and the AS path of its covering prefix. After computing
-            # this distance for all the corresponding fragments, we compute the
-            # average, standard deviation, maximum and minimum amongst all the distances.
+            # For the routed prefixes that have a different AS path from the
+            # AS path of its covering prefix, we compute the Levenshtein Distance
+            # between the AS path of the covered prefix and the AS path of its
+            # covering prefix. After computing this distance for all the
+            # corresponding fragments, we compute the average, standard
+            # deviation, maximum and minimum amongst all the distances.
     
             # Without taking into consideration the historical routing data, but
             # just from the most recent routing file being considered, we compute
@@ -114,29 +115,19 @@ class RoutingStats:
     
             
             # The rest of the variables correspond to concepts defined in [1] and [2].
-            # We just use the concepts defined in [2] that are not redundant with the
-            # concepts defined in [1] 
-            # Prefixes classified as Top in [2] are the prefixes classified as Covering
-            # in [1]. Prefixes classified as Deaggregated in [2] are those classified as
-            # SOSP or SODP in [1]. Prefixes classified as Delegated in [2] are those
-            # classified as DOSP or DODP in [1].     
             
             booleanGralKeys_pref = ['isRoutedIntact', 'isDead', 'isDeadIntact',
                                 'originatedByDiffOrg', 'hasFragmentsOriginatedByDiffOrg',\
                                 'hasLessSpecificsOriginatedByDiffOrg', 'onlyRoot', 'rootMSCompl',
                                 'rootMSIncompl', 'noRootMSCompl', 'noRootMSIncompl']
             
-            self.prefix_variables = {'DODP1': 'isDODP1',
-                                       'DODP2': 'isDODP2',
-                                       'DODP3': 'isDODP3',
-                                       'DOSP': 'isDOSP',
-                                       'SODP1': 'isSODP1',
-                                       'SODP2': 'isSODP2',
-                                       'SOSP': 'isSOSP',
-                                       'coveredLevel1': 'isCoveredLevel1',
-                                       'coveredLevel2plus': 'isCoveredLevel2plus',
-                                       'covering': 'isCovering',
-                                       'lonely': 'isLonely'}
+            self.prefix_variables = {'top': 'isTop',
+                                     'lonely': 'isLonely',
+                                     'delegated': 'isDelegated',
+                                     'deaggregated': 'isDeaggregated',                                     
+                                     'coveredLevel1': 'isCoveredLevel1',
+                                     'coveredLevel2plus': 'isCoveredLevel2plus',
+                                     'covering': 'isCovering'}
                                        
             booleanKeys_pref = booleanGralKeys_pref + self.prefix_variables.values()
             
@@ -174,29 +165,21 @@ class RoutingStats:
             gralCounterKeys_pref = ['numOfOriginASesIntact', 'numOfASPathsIntact',
                                 'numOfLessSpecificsRouted', 'numOfMoreSpecificsRouted']
                                        
-            self.moreSpec_variables = {'DODP1': 'numOfDODP1MoreSpec',
-                                       'DODP2': 'numOfDODP2MoreSpec',
-                                       'DODP3': 'numOfDODP3MoreSpec',
-                                       'DOSP': 'numOfDOSPMoreSpec',
-                                       'SODP1': 'numOfSODP1MoreSpec',
-                                       'SODP2': 'numOfSODP2MoreSpec',
-                                       'SOSP': 'numOfSOSPMoreSpec',
+            self.moreSpec_variables = {'top': 'numOfTopMoreSpec',
+                                       'lonely': 'numOfLonelyMoreSpec',
+                                       'delegated': 'numOfDelegatedMoreSpec',
+                                       'deaggregated': 'numOfDeaggregatedMoreSpec',
                                        'coveredLevel1': 'numOfCoveredLevel1MoreSpec',
                                        'coveredLevel2plus': 'numOfCoveredLevel2plusMoreSpec',
-                                       'covering': 'numOfCoveringMoreSpec',
-                                       'lonely': 'numOfLonelyMoreSpec'}
+                                       'covering': 'numOfCoveringMoreSpec'}
             
-            self.lessSpec_variables = {'DODP1': 'numOfDODP1LessSpec',
-                                       'DODP2': 'numOfDODP2LessSpec',
-                                       'DODP3': 'numOfDODP3LessSpec',
-                                       'DOSP': 'numOfDOSPLessSpec',
-                                       'SODP1': 'numOfSODP1LessSpec',
-                                       'SODP2': 'numOfSODP2LessSpec',
-                                       'SOSP': 'numOfSOSPLessSpec',
+            self.lessSpec_variables = {'top': 'numOfTopLessSpec',
+                                       'lonely': 'numOfLonelyLessSpec',
+                                       'delegated': 'numOfDelegatedLessSpec',
+                                       'deaggregated': 'numOfDeaggregatedLessSpec',
                                        'coveredLevel1': 'numOfCoveredLevel1LessSpec',
                                        'coveredLevel2plus': 'numOfCoveredLevel2plusLessSpec',
-                                       'covering': 'numOfCoveringLessSpec',
-                                       'lonely': 'numOfLonelyLessSpec'}
+                                       'covering': 'numOfCoveringLessSpec'}
                                        
             counterKeys_pref = gralCounterKeys_pref +\
                                 self.moreSpec_variables.values() +\
