@@ -325,10 +325,8 @@ def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, del_handler, orgHe
 # This function classifies the provided prefix into Covering or Covered
 # (Level 1 or Level 2+). If the prefix is a covered prefix, it is further
 # classified into the following classes depending on the relation between its
-# origin ASes and its covering prefix's origin ASes and the relation between its
-# AS paths and its covering prefix's AS paths: 'SOSP', 'SODP1', 'SODP2', 'DOSP',
-# 'DODP1', 'DODP2', 'DODP3'.
-# These classes are taken from those defined in [1]
+# origin ASes and its covering prefix's origin ASes: 'deaggregated' and 'delegated'
+# These classes are taken from those defined in [2]
 # The corresponding variables in the statsForPrefix dictionary are incremented
 # to keep track of the number of prefixes in each class.
 def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
@@ -408,121 +406,31 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
         coveringPrefOriginASes = routingStatsObj.bgp_handler.getOriginASesForBlock(coveringNet)
         coveringPrefASpaths = routingStatsObj.bgp_handler.getASpathsForBlock(coveringNet)       
   
-        if len(blockOriginASes.intersection(coveringPrefOriginASes)) > 0:
-            if len(blockASpaths) == 1:
-                if blockASpaths.issubset(coveringPrefASpaths):
-                    if isDelegated:
-                        statsForPrefix[variables['SOSP']] = True
-                    else:
-                        statsForPrefix[variables['SOSP']] += 1
-                else:
-                    if isDelegated:
-                        statsForPrefix[variables['SODP2']] = True
-                    else:
-                        statsForPrefix[variables['SODP2']] += 1
-                    
-                    levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
-                                                                    coveringPrefASpaths))
-                                                
-            else: # len(blockASpaths) >= 2
-                if len(coveringPrefASpaths.intersection(blockASpaths)) > 0 and\
-                    len(blockASpaths.difference(coveringPrefASpaths)) > 0:
-                    if isDelegated:
-                        statsForPrefix[variables['SODP1']] = True
-                    else:
-                        statsForPrefix[variables['SODP1']] += 1
-                    
-                    levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
-                                                                    coveringPrefASpaths))
-                        
+        # If all the origin ASes of the covered prefix are also origin ASes of
+        # the covering prefix, then the covered prefix is a deaggregated prefix
+        if blockOriginASes.issubset(coveringPrefOriginASes):
+            if isDelegated:
+                statsForPrefix[variables['deaggregated']] = True
+            else:
+                statsForPrefix[variables['deaggregated']] += 1
+            
         else:
-            if len(blockASpaths) == 1:
-                if len(blockOriginASes) == 1:
-                    blockOriginAS = long(blockOriginASes.pop())
-
-                    # We check whether the origin AS of the
-                    # block is a customer of any of the origin ASes
-                    # of the covering prefix                       
-                    for coveringPrefOriginAS in coveringPrefOriginASes:
-                        if len(routingStatsObj.ASrels[(routingStatsObj.ASrels['AS1'] == long(coveringPrefOriginAS)) &\
-                                (routingStatsObj.ASrels['AS2'] == blockOriginAS) &\
-                                (routingStatsObj.ASrels['rel_type'] == 'P2C')]):
-
-                                for coveringPrefASpath in coveringPrefASpaths:
-                                    if coveringPrefASpath.split(' ')[-1] == coveringPrefOriginAS:
-                                        blockASpath_woOrigin = ' '.join(list(blockASpaths)[0].split(' ')[0:-1])
-                                        
-                                        if blockASpath_woOrigin == coveringPrefASpath:
-                                            if isDelegated:
-                                                statsForPrefix[variables['DOSP']] = True
-                                            else:
-                                                statsForPrefix[variables['DOSP']] += 1
-                                            break
-                                else:
-                                    continue
-                                break
-                                
-                if not blockASpaths.issubset(coveringPrefASpaths):
-                    if isDelegated:
-                        statsForPrefix[variables['DODP1']] = True
-                    else:
-                        statsForPrefix[variables['DODP1']] += 1
-                    
-                    levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
-                                                                    coveringPrefASpaths))
-                                                
-            else: # len(blockASpaths) >= 2
-                blockASpaths_woOrigin = set()
-                for ASpath in blockASpaths:
-                    blockASpaths_woOrigin.add(' '.join(ASpath.split(' ')[0:-1]))
-                
-                if len(coveringPrefASpaths.intersection(blockASpaths_woOrigin)) > 0 and\
-                    len(blockASpaths_woOrigin.difference(coveringPrefASpaths)) > 0:
-                    if isDelegated:
-                        statsForPrefix[variables['DODP2']] = True
-                    else:
-                        statsForPrefix[variables['DODP2']] += 1
-                    
-                    levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
-                                                                    coveringPrefASpaths))
-              
-            if len(coveringPrefASpaths.intersection(blockASpaths)) == 0:
-                blockOriginASesCustomers = set()
-                for blockOriginAS in blockOriginASes:
-                    blockOriginASesCustomers.\
-                        union(routingStatsObj.ASrels[(routingStatsObj.ASrels['AS1'] == long(blockOriginAS)) &\
-                                (routingStatsObj.ASrels['rel_type'] == 'P2C')]['AS2'].tolist())
-                
-                coveringPrefOriginASesCustomers = set()
-                for coveringPrefOriginAS in coveringPrefOriginASes:
-                    coveringPrefOriginASesCustomers.\
-                        union(routingStatsObj.ASrels[(routingStatsObj.ASrels['AS1'] == long(coveringPrefOriginAS)) &\
-                                (routingStatsObj.ASrels['rel_type'] == 'P2C')]['AS2'].tolist())
-                
-                commonCustomers = blockOriginASesCustomers.\
-                                    intersection(coveringPrefOriginASesCustomers)
-                if len(commonCustomers) > 0:
-                    for commonCustomer in commonCustomers:
-                        correspondingOriginASes =\
-                            set(routingStatsObj.ASrels[(routingStatsObj.ASrels['AS2'] == long(commonCustomer)) &\
-                                (routingStatsObj.ASrels['rel_type'] == 'P2C')]['AS1'].tolist()).\
-                                intersection(blockOriginASes)
-                        for correspondingOriginAS in correspondingOriginASes:
-                            if len(routingStatsObj.bgp_handler.ASes_originated_prefixes_dic[correspondingOriginAS]) >= 2:
-                                if isDelegated:
-                                    statsForPrefix[variables['DODP3']] = True
-                                else:
-                                    statsForPrefix[variables['DODP3']] += 1
-                                    
-                                levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
-                                                                coveringPrefASpaths))
-                                break
-                        else:
-                            continue
-                        break
+            if isDelegated:
+                statsForPrefix[variables['delegated']] = True
+            else:
+                statsForPrefix[variables['delegated']] += 1
+        
+        levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
+                                                        coveringPrefASpaths))
                     
     # If there are no less specific blocks being routed
-    else:      
+    else:  
+        # the prefix is classified as top
+        if isDelegated:
+            statsForPrefix[variables['top']] = True
+        else:
+            statsForPrefix[variables['top']] += 1
+            
         # If the list of more specific blocks being routed only
         # includes the block itself, taking into account we are 
         # under the case of the block not having less specific
@@ -663,7 +571,7 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                 # maximum because it is a single prefix,
                 # that's why we use None for the parameters corresponding to the
                 # lists for those values
-                classifyPrefixAndUpdateVariables(prefix, False, statsForPrefix,
+                classifyPrefixAndUpdateVariables(prefix, True, statsForPrefix,
                                                  routingStatsObj.prefix_variables,
                                                  'originatedByDiffOrg', None,
                                                  None, None, levenshteinDists,
@@ -740,7 +648,7 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
             levenshteinDists = []
             for moreSpec in more_specifics:
                 if moreSpec != prefix:
-                    classifyPrefixAndUpdateVariables(moreSpec, True,
+                    classifyPrefixAndUpdateVariables(moreSpec, False,
                                                      statsForPrefix,
                                                      routingStatsObj.moreSpec_variables,
                                                      'hasFragmentsOriginatedByDiffOrg',
