@@ -118,7 +118,7 @@ class BGPDataHandler:
         ASes_propagated_prefixes_dic = dict()
         
         if readable_file_name != '':
-            file_date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
+            routing_date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
                 ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
                 ipv4_longest_pref, ipv6_longest_pref =\
                                     self.processReadableDF(readable_file_name,
@@ -127,7 +127,7 @@ class BGPDataHandler:
                                                            ASes_originated_prefixes_dic,
                                                            ASes_propagated_prefixes_dic)
         
-            self.routingDate = file_date              
+            self.routingDate = routing_date              
             self.ipv4Prefixes_radix = ipv4Prefixes_radix
             self.ipv6Prefixes_radix = ipv6Prefixes_radix
             self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
@@ -331,25 +331,25 @@ class BGPDataHandler:
     # This function stores the routing data from the routing_file provided
     # into the visibility database
     def storeHistoricalDataFromFile(self, routing_file, isReadable, RIBfile, COMPRESSED):
-        prefixes, originASes, middleASes, file_date =\
+        prefixes, originASes, middleASes, routing_date =\
                         self.getPrefixesASesAndDate(routing_file, isReadable,\
                                                     RIBfile, COMPRESSED)
 
-        visibilityDB = VisibilityDBHandler(file_date)
+        visibilityDB = VisibilityDBHandler(routing_date)
 
         start = time()
-        prefixesInDBForDate = visibilityDB.getPrefixCountForDate(file_date)
+        prefixesInDBForDate = visibilityDB.getPrefixCountForDate(routing_date)
     
         if prefixesInDBForDate != 0 and prefixesInDBForDate != len(prefixes):
-            visibilityDB.dropPrefixesForDate(file_date)
+            visibilityDB.dropPrefixesForDate(routing_date)
         
-        prefixesInDBForDate = visibilityDB.getPrefixCountForDate(file_date)
+        prefixesInDBForDate = visibilityDB.getPrefixCountForDate(routing_date)
         end = time()
         sys.stderr.write('It took {} seconds to check for existing prefixes for this date and delete records if necessary.\n'.format(end-start))
 
         start = time()
         if prefixesInDBForDate == 0:
-            visibilityDB.storeListOfPrefixesSeen(prefixes, file_date)
+            visibilityDB.storeListOfPrefixesSeen(prefixes, routing_date)
         end = time()
         sys.stderr.write('It took {} seconds insert the list of prefixes for this date into the DB.\n'.format(end-start))
 
@@ -373,18 +373,18 @@ class BGPDataHandler:
         sys.stderr.write('It took {} seconds to clean the list of origin ASes.\n'.format(end-start))
 
         start = time()
-        originASesInDBForDate = visibilityDB.getOriginASCountForDate(file_date)
+        originASesInDBForDate = visibilityDB.getOriginASCountForDate(routing_date)
         
         if originASesInDBForDate != 0 and originASesInDBForDate != len(cleanOriginASes):
-            visibilityDB.dropOriginASesForDate(file_date)
+            visibilityDB.dropOriginASesForDate(routing_date)
 
-        originASesInDBForDate = visibilityDB.getOriginASCountForDate(file_date)
+        originASesInDBForDate = visibilityDB.getOriginASCountForDate(routing_date)
         end = time()
         sys.stderr.write('It took {} seconds to check for existing origin ASes for this date and delete records if necessary.\n'.format(end-start))
 
         start = time()
         if originASesInDBForDate == 0:
-            visibilityDB.storeListOfASesSeen(cleanOriginASes, True, file_date)
+            visibilityDB.storeListOfASesSeen(cleanOriginASes, True, routing_date)
         end = time()
         sys.stderr.write('It took {} seconds to insert the list of origin ASes for this date into the DB.\n'.format(end-start))
 
@@ -405,18 +405,18 @@ class BGPDataHandler:
         sys.stderr.write('It took {} seconds to clean the list of middle ASes.\n'.format(end-start))
 
         start = time()
-        middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(file_date)
+        middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(routing_date)
         
         if middleASesInDBForDate != 0 and middleASesInDBForDate != len(cleanMiddleASes):
-            visibilityDB.dropMiddleASesForDate(file_date)
+            visibilityDB.dropMiddleASesForDate(routing_date)
 
-        middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(file_date)
+        middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(routing_date)
         end = time()
         sys.stderr.write('It took {} seconds to check for existing middle ASes for this date and delete records if necessary.\n'.format(end-start))
 
         start = time()
         if middleASesInDBForDate == 0:
-            visibilityDB.storeListOfASesSeen(cleanMiddleASes, False, file_date)
+            visibilityDB.storeListOfASesSeen(cleanMiddleASes, False, routing_date)
         end = time()
         sys.stderr.write('It took {} seconds to insert the list of middle ASes for this date into the DB.\n'.format(end-start))
 
@@ -458,7 +458,7 @@ class BGPDataHandler:
             bgp_df = bgp_df[0:10]
         
         start = time()
-        file_date = datetime.utcfromtimestamp(bgp_df['timestamp'].tolist()[0]).strftime('%Y%m%d')
+        routing_date = datetime.utcfromtimestamp(max(bgp_df['timestamp'])).date()
         
         # To get the origin ASes and middle ASes we split the ASpath column
         paths_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
@@ -470,7 +470,7 @@ class BGPDataHandler:
         end = time()
         sys.stderr.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
         
-        return prefixes, originASes, middleASes, file_date
+        return prefixes, originASes, middleASes, routing_date
 
     # Reading the readable routing file line by line and char by char takes
     # much longer than loading the routing file into a DataFrame, that's why
@@ -713,10 +713,10 @@ class BGPDataHandler:
         i = 0
         # load routing table info  (the next loop does it automatically)
         for entry_n, bgp_entry in enumerate(bgp_rib.BGPRIB.parse_cisco_show_ip_bgp_generator(routing_file)):
-            file_date = bgp_entry[8]
+            routing_date = bgp_entry[8]
 #           date_part = str(file_date)[0:8]
 #           time_part = str(file_date)[8:12]
-            timestamp = timegm(datetime.strptime(file_date, "%Y%m%d%H%M").timetuple())
+            timestamp = timegm(datetime.strptime(routing_date, "%Y%m%d%H%M").timetuple())
             next_hop = bgp_entry[2]
             prefix = bgp_entry[0]
             as_path = bgp_entry[6]
@@ -757,7 +757,7 @@ class BGPDataHandler:
                           ipv6Prefixes_radix, ASes_originated_prefixes_dic,
                           ASes_propagated_prefixes_dic):
         
-        file_date = ''
+        routing_date = None
         
         ipv4_longest_prefix = -1
         ipv6_longest_prefix = -1
@@ -775,9 +775,10 @@ class BGPDataHandler:
             if self.DEBUG:
                 bgp_df = bgp_df[0:10]
 
-             # We add a column to the Data Frame with the corresponding date
-            bgp_df['date'] = bgp_df.apply(lambda row: datetime.utcfromtimestamp(row['timestamp']).date(), axis=1)
-            file_date = max(bgp_df['date'])
+            # We take the most recent date of the routing file as the routing date
+            # Typically the routing file will containg routing data for a single date
+            routing_timestamp = max(bgp_df['timestamp'])
+            routing_date = datetime.utcfromtimestamp(routing_timestamp).date()
             
             ASpath_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
             bgp_df['originAS'] = ASpath_parts[1]            
@@ -893,7 +894,7 @@ class BGPDataHandler:
                     else:
                         ASes_originated_prefixes_dic[originAS] = prefixes
             
-        return file_date, ipv4Prefixes_radix, ipv6Prefixes_radix, ASes_originated_prefixes_dic,\
+        return routing_date, ipv4Prefixes_radix, ipv6Prefixes_radix, ASes_originated_prefixes_dic,\
                 ASes_propagated_prefixes_dic, ipv4_longest_prefix, ipv6_longest_prefix
 
     # This function downloads a routing file if the source provided is a URL
