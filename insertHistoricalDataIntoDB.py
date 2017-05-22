@@ -116,9 +116,8 @@ def main(argv):
 
     DEBUG = False
     files_path = '/home/sofia/BGP_stats_files'
-    KEEP = True
     
-    bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP)
+    bgp_handler = BGPDataHandler(DEBUG, files_path)
     
     dates_inserted = []
 
