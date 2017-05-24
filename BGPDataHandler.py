@@ -12,10 +12,10 @@ import radix
 from calendar import timegm
 from datetime import datetime, date, timedelta
 import pandas as pd
-import ipaddress
 from VisibilityDBHandler import VisibilityDBHandler
 from time import time
 import resource
+from netaddr import IPNetwork
 
 # For some reason in my computer os.getenv('PATH') differs from echo $PATH
 # /usr/local/bin is not in os.getenv('PATH')
@@ -217,7 +217,12 @@ class BGPDataHandler:
         # We have to add 1 to the provided date as the files in the
         # archive contain routing data corresponding to the day before to the
         # date specified in the file name.
-        routing_date = routing_date + timedelta(1)
+        # We comment this line out as the bgprib files we are working with
+        # containg routing data for the date included in their filename.
+        # TODO Check if this is always the case for bgprib files
+        # Maybe just the dmp files contain routing data for the day before
+        # to the date incuded in their name
+#        routing_date = routing_date + timedelta(1)
 
         month = str(routing_date.month)
         if len(month) == 1:
@@ -472,7 +477,7 @@ class BGPDataHandler:
         end = time()
         
         with open(self.output_file, 'a') as output:
-            output.write('It took {} seconds to get a readable file.\n'.format(end-start))
+            output.write('Get a readable file|{}|seconds\n'.format(end-start))
         
         self.printUsage(self.output_file)
         
@@ -490,7 +495,7 @@ class BGPDataHandler:
         end = time()
         
         with open(self.output_file, 'a') as output:
-            output.write('It took {} seconds to load the readable file into a DataFrame.\n'.format(end-start))
+            output.write('Load the readable file into a DataFrame|{}|seconds\n'.format(end-start))
         
         self.printUsage(self.output_file)
         
@@ -510,7 +515,7 @@ class BGPDataHandler:
         end = time()
         
         with open(self.output_file, 'a') as output:
-            output.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
+            output.write('Get the lists of prefixes, origin ASes and middle ASes from the DataFrame|{}|seconds\n'.format(end-start))
         
         self.printUsage(self.output_file)
         
@@ -729,7 +734,7 @@ class BGPDataHandler:
                 bgp_df = bgp_df[0:10]
             
             for prefix, prefix_subset in bgp_df.groupby('prefix'):
-                network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
+                network = IPNetwork(prefix)
                 if network.version == 4:
                     prefixes_radix = ipv4_radix
                     
@@ -821,9 +826,9 @@ class BGPDataHandler:
             ASpath_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
             bgp_df['originAS'] = ASpath_parts[1]            
             bgp_df['middleASes'] = ASpath_parts[0]
-            
+           
             for prefix, prefix_subset in bgp_df.groupby('prefix'):
-                network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
+                network = IPNetwork(prefix)
                 if network.version == 4:
                     if network.prefixlen > ipv4_longest_prefix:
                         ipv4_longest_prefix = network.prefixlen
@@ -852,7 +857,7 @@ class BGPDataHandler:
             bgp_df = pd.concat([existing_bgp_df, bgp_df])
             
         return routing_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
-                ipv6_longest_prefix
+                ipv4_longest_prefix, ipv6_longest_prefix
 
     # This function downloads a routing file if the source provided is a URL
     # If the file is COMPRESSED, it is unzipped
@@ -1012,13 +1017,13 @@ class BGPDataHandler:
     # and ipv6_prefixes_indexes Radixes
     def setLongestPrefixLengths(self):
         for prefix in self.ipv4_prefixes_indexes_radix.prefixes():
-            network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
+            network = IPNetwork(prefix)
             
             if network.prefixlen > self.ipv4_longest_pref:
                 self.ipv4_longest_pref = network.prefixlen
                 
         for prefix in self.ipv6_prefixes_indexes_radix.prefixes():
-            network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
+            network = IPNetwork(prefix)
 
             if network.prefixlen > self.ipv6_longest_pref:
                 self.ipv6_longest_pref = network.prefixlen

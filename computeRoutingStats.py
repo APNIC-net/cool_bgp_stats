@@ -7,7 +7,7 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 #Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from RoutingStats import RoutingStats
-import ipaddress
+from netaddr import IPSet, IPNetwork
 import pandas as pd
 import numpy as np
 import math
@@ -136,9 +136,9 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
                 timeBreaks.append(period[1])
                 
                 if period not in prefixesPerPeriod:
-                    prefixesPerPeriod[period] = [fragment]
+                    prefixesPerPeriod[period] = IPSet([fragment])
                 else:
-                    prefixesPerPeriod[period].append(fragment)
+                    prefixesPerPeriod[period].add(fragment)
                     
                 periodsLengthsGral.append((period[1] - period[0]).days+1)
              
@@ -184,14 +184,6 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
             statsForPrefix['stdPeriodLengthGral'] = periodsLengthsGral.std()
             statsForPrefix['minPeriodLengthGral'] = periodsLengthsGral.min()
             statsForPrefix['maxPeriodLengthGral'] = periodsLengthsGral.max()
-    
-        # We summarize all the prefixes seen during each period
-        for period in prefixesPerPeriod:
-            aggregated_fragments = [ipaddr for ipaddr in
-                        ipaddress.collapse_addresses(
-                        [ipaddress.ip_network(unicode(ip_net, 'utf-8'))
-                        for ip_net in prefixesPerPeriod[period]])]
-            prefixesPerPeriod[period] = aggregated_fragments
            
         if len(timeBreaks) > 0:
             # Evolution of Visibility (Visibility per period)
@@ -208,10 +200,9 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
                 for period in prefixesPerPeriod:
                     if timeBreaks[0] >= period[0] and timeBreaks[0]\
                                                         <= period[1]:
-                        for prefix in prefixesPerPeriod[period]:
-                            numOfIPsVisible += prefix.num_addresses
+                        numOfIPsVisible += len(prefixesPerPeriod[period])
                 
-                visibility = float(numOfIPsVisible)*100/network.num_addresses
+                visibility = float(numOfIPsVisible)*100/network.size
                 visibilities.append(visibility)
                 periodLengths.append(1)
             
@@ -221,10 +212,9 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
                 for period in prefixesPerPeriod:
                     if timeBreaks[i] >= period[0] and timeBreaks[i+1]\
                                                         <= period[1]:
-                        for prefix in prefixesPerPeriod[period]:
-                            numOfIPsVisible += prefix.num_addresses
+                        numOfIPsVisible += len(prefixesPerPeriod[period])
                 
-                visibility = float(numOfIPsVisible)*100/network.num_addresses
+                visibility = float(numOfIPsVisible)*100/network.size
                 visibilities.append(visibility)
                 periodLengths.append((timeBreaks[i+1] - timeBreaks[i]).days+1)
             
@@ -284,14 +274,14 @@ def getASNOpaqueID(asn, del_handler):
     else:
         return 'UNKNOWN'
         
-def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, del_handler, orgHeuristics):
+def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, routingStatsObj):
     nirs_opaque_ids = ['A91A7381', 'A9186214', 'A9162E3D', 'A918EDB2',
                        'A9149F3E', 'A91BDB29', 'A91A560A']
                        
     sameOrgs = True
               
     for blockOriginAS in blockOriginASes:
-        originASorg = getASNOpaqueID(blockOriginAS, del_handler)
+        originASorg = getASNOpaqueID(blockOriginAS, routingStatsObj.del_handler)
         if prefix_org in nirs_opaque_ids or\
             originASorg in nirs_opaque_ids:
                 # TODO Pensar si no sería mejor tener una estructura donde
@@ -303,7 +293,10 @@ def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, del_handler, orgHe
                 # prefijo delegado asociado y una lista de diccionarios, cada
                 # uno de ellos con una fecha, el AS de origen en esa fecha y un
                 # boolean sameOrg que será cargado cuando se aplique la heurística.
-                sameOrgs = orgHeuristics.checkIfSameOrg(routedPrefix, blockOriginAS, [])
+                if routingStatsObj.orgHeuristics is None:
+                    routingStatsObj.instantiateOrgHeuristics()
+                    
+                sameOrgs = routingStatsObj.orgHeuristics.checkIfSameOrg(routedPrefix, blockOriginAS, [])
         elif originASorg == 'UNKNOWN':
             # If we get an UNKNOWN organization for the AS it means the AS
             # was not delegated by APNIC, therefore, it cannot be the same
@@ -334,7 +327,7 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
                                         numsOfASPathsList, ASPathLengthsList,
                                         levenshteinDists, routingStatsObj, files_path):
     
-    routedNetwork = ipaddress.ip_network(unicode(routedPrefix, "utf-8"))
+    routedNetwork = IPNetwork(routedPrefix)
 
     blockOriginASes = routingStatsObj.bgp_handler.getOriginASesForBlock(routedNetwork)
     blockASpaths = routingStatsObj.bgp_handler.getASpathsForBlock(routedNetwork)
@@ -374,8 +367,7 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
         statsForPrefix[diffOrg_var] = not checkIfSameOrg(routedPrefix,
                                                             blockOriginASes,
                                                             statsForPrefix['opaque_id'],
-                                                            routingStatsObj.del_handler,
-                                                            routingStatsObj.orgHeuristics)
+                                                            routingStatsObj)
         
                     
     # Find routed blocks related to the prefix of interest 
@@ -402,7 +394,7 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
         # The corresponding covering prefix is the last prefix in the
         # list of less specifics
         coveringPref = net_less_specifics[-1]
-        coveringNet = ipaddress.ip_network(unicode(coveringPref, 'utf-8'))
+        coveringNet = IPNetwork(coveringPref)
         coveringPrefOriginASes = routingStatsObj.bgp_handler.getOriginASesForBlock(coveringNet)
         coveringPrefASpaths = routingStatsObj.bgp_handler.getASpathsForBlock(coveringNet)       
   
@@ -484,6 +476,7 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
         statsForPrefix = routingStatsObj.def_dict_pref.copy()
 
         statsForPrefix['prefix'] = prefix
+        statsForPrefix['prefLength'] = int(prefix_row['count/prefLen'])
         statsForPrefix['del_date'] = prefix_row['date'].date()
         statsForPrefix['resource_type'] = prefix_row['resource_type']
         statsForPrefix['status'] = prefix_row['status']
@@ -492,13 +485,13 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
         statsForPrefix['region'] = prefix_row['region']
         statsForPrefix['routing_date'] = str(routingStatsObj.bgp_handler.routingDate)
 
-        delNetwork = ipaddress.ip_network(unicode(prefix, "utf-8"))
+        delNetwork = IPNetwork(prefix)
         
         if TEMPORAL_DATA:
             first_seen_intact = computeNetworkUsageLatency(prefix, statsForPrefix, routingStatsObj.db_handler)
             computeNetworkHistoryOfVisibility(delNetwork, statsForPrefix, routingStatsObj.db_handler, first_seen_intact)
 
-        ips_delegated = delNetwork.num_addresses 
+        ips_delegated = delNetwork.size 
 
         # Find routed blocks related to the prefix of interest 
         less_specifics = routingStatsObj.bgp_handler.getRoutedParentAndGrandparents(delNetwork)
@@ -592,19 +585,14 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                 if len(more_specifics) == 1 and len(less_specifics) == 0:
                     statsForPrefix['onlyRoot'] = True
 
-                if len(more_specifics) > 1:    
-                    aggr_more_spec = [ipaddr for ipaddr in
-                                        ipaddress.collapse_addresses(
-                                        [ipaddress.ip_network(unicode(ip_net, 'utf-8'))
-                                        for ip_net in more_specifics_wo_prefix])]
-                                        
-                    if len(more_specifics) >= 3 and prefix in\
-                                    [str(ip_net) for ip_net in aggr_more_spec]:
+                aggr_more_spec = IPSet(more_specifics_wo_prefix)
+                
+                if len(more_specifics) >= 2:
+                    if len(more_specifics) >= 3 and IPNetwork(prefix) in aggr_more_spec:
                         # • root/MS-complete: The root prefix and at least two subprefixes
                         # are announced. The set of all sub-prefixes spans the whole root prefix.
                         statsForPrefix['rootMSCompl'] = True
-                    elif len(more_specifics) >= 2 and prefix not in\
-                                    [str(ip_net) for ip_net in aggr_more_spec]:
+                    else:
                         # • root/MS-incomplete: The root prefix and at least one subprefix
                         # is announced. Together, the set of announced subprefixes
                         # does not cover the root prefix.
@@ -613,30 +601,23 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
             else:
                 # We summarize the more specific routed blocks without the block itself
                 # to get the maximum aggregation possible of the more specifics
-                aggr_more_spec = [ipaddr for ipaddr in
-                                    ipaddress.collapse_addresses(
-                                    [ipaddress.ip_network(unicode(ip_net, 'utf-8'))
-                                    for ip_net in more_specifics_wo_prefix])]
+                aggr_more_spec = IPSet(more_specifics_wo_prefix)
     
                 # ips_routed is obtained from the summarized routed blocks
                 # so that IPs contained in overlapping announcements are not
                 # counted more than once
-                ips_routed = 0            
-                for aggr_r in aggr_more_spec:
-                    ips_routed += aggr_r.num_addresses
+                ips_routed = len(aggr_more_spec)
                                     
                 # The visibility of the block is the percentaje of IPs
                 # that are visible
                 statsForPrefix['currentVisibility'] = float(ips_routed*100)/ips_delegated
         
-                if len(more_specifics) >= 2 and prefix in\
-                                    [str(ip_net) for ip_net in aggr_more_spec]:
+                if len(more_specifics) >= 2 and IPNetwork(prefix) in aggr_more_spec:
                     # • no root/MS-complete: The root prefix is not announced.
                     # However, there are at least two sub-prefixes which together
                     # cover the complete root prefix.
                     statsForPrefix['noRootMSCompl'] = True
-                elif len(more_specifics) >= 1 and prefix not in\
-                                    [str(ip_net) for ip_net in aggr_more_spec]:
+                else:
                     # • no root/MS-incomplete: The root prefix is not announced.
                     # There is at least one sub-prefix. Taking all sub-prefixes
                     # together, they do not cover the complete root prefix.
@@ -646,18 +627,17 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
             numsOfASPathsMoreSpec = []
             ASPathLengthsMoreSpec = [] 
             levenshteinDists = []
-            for moreSpec in more_specifics:
-                if moreSpec != prefix:
-                    classifyPrefixAndUpdateVariables(moreSpec, False,
-                                                     statsForPrefix,
-                                                     routingStatsObj.moreSpec_variables,
-                                                     'hasFragmentsOriginatedByDiffOrg',
-                                                     numsOfOriginASesMoreSpec,
-                                                     numsOfASPathsMoreSpec,
-                                                     ASPathLengthsMoreSpec,
-                                                     levenshteinDists,
-                                                     routingStatsObj,
-                                                     files_path)
+            for moreSpec in more_specifics_wo_prefix:
+                classifyPrefixAndUpdateVariables(moreSpec, False,
+                                                 statsForPrefix,
+                                                 routingStatsObj.moreSpec_variables,
+                                                 'hasFragmentsOriginatedByDiffOrg',
+                                                 numsOfOriginASesMoreSpec,
+                                                 numsOfASPathsMoreSpec,
+                                                 ASPathLengthsMoreSpec,
+                                                 levenshteinDists,
+                                                 routingStatsObj,
+                                                 files_path)
             
             if len(numsOfOriginASesMoreSpec) > 0:
                 numsOfOriginASesMoreSpec = np.array(numsOfOriginASesMoreSpec)
@@ -711,26 +691,23 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
         del_date = expanded_del_asns_df.ix[i]['date'].to_pydatetime().date()
         statsForAS['del_date'] = del_date
         statsForAS['routing_date'] = str(routingStatsObj.bgp_handler.routingDate)
-        statsForAS['numOfUpstreams'] = len(routingStatsObj.ASrels[(routingStatsObj.ASrels['rel_type'] == 'P2C')\
-                                            & (routingStatsObj.ASrels['AS2'] == long(asn))])
+        # We comment this line out as the URL to download CAIDA's AS relationships
+        # dataset does not always work. It is not conceived to be automatically
+        # downloaded but access to the data has to be requested.
+#        statsForAS['numOfUpstreams'] = len(routingStatsObj.ASrels[(routingStatsObj.ASrels['rel_type'] == 'P2C')\
+#                                            & (routingStatsObj.ASrels['AS2'] == long(asn))])
 
-        try:
-            statsForAS['numOfPrefixesOriginated'] =\
-                                len(set(routingStatsObj.bgp_handler.bgp_df[\
-                                routingStatsObj.bgp_handler.bgp_df['originAS'] ==\
-                                str(asn)]['prefix']))
-        except KeyError:
-            statsForAS['numOfPrefixesOriginated'] = 0
+        statsForAS['numOfPrefixesOriginated'] =\
+                            len(set(routingStatsObj.bgp_handler.bgp_df[\
+                            routingStatsObj.bgp_handler.bgp_df['originAS'] ==\
+                            str(asn)]['prefix']))
        
-        try:
-            statsForAS['numOfPrefixesPropagated'] =\
-                                len(set(routingStatsObj.bgp_handler.bgp_df[\
-                                (~routingStatsObj.bgp_handler.bgp_df['middleAS'].\
-                                isnull()) & 
-                                (routingStatsObj.bgp_handler.bgp_df['middleAS'].\
-                                str.contains(str(asn)))]['prefix']))
-        except KeyError:
-            statsForAS['numOfPrefixesPropagated'] = 0
+        statsForAS['numOfPrefixesPropagated'] =\
+                            len(set(routingStatsObj.bgp_handler.bgp_df[\
+                            (~routingStatsObj.bgp_handler.bgp_df['middleASes'].\
+                            isnull()) &\
+                            (routingStatsObj.bgp_handler.bgp_df['middleASes'].\
+                            str.contains(str(asn)))]['prefix']))
                 
         if TEMPORAL_DATA:
             daysUsable = (today-del_date).days + 1
@@ -826,7 +803,7 @@ def main(argv):
     EXTENDED = True
     startDate = '20000101'
     endDate = '20000131'
-    routing_date = '20170430'
+    routing_date = '20170501'
     archive_folder = files_path
     ext = 'readable'
     
@@ -1145,11 +1122,12 @@ def main(argv):
         sys.stderr.write("Stats for prefixes computed successfully!\n")
         sys.stderr.write("Prefixes statistics computation took {} seconds\n".format(end_time-start_time))
         
-        routingStatsObj.orgHeuristics.dumpToPickleFiles()
+        if routingStatsObj.orgHeuristics is not None:        
+            routingStatsObj.orgHeuristics.dumpToPickleFiles()
         
-        sys.stderr.write(
-            "OrgHeuristics was invoked {} times, consuming in total {} seconds.\n"\
-                .format(routingStatsObj.orgHeuristics.invokedCounter,
+            sys.stderr.write(
+                "OrgHeuristics was invoked {} times, consuming in total {} seconds.\n"\
+                    .format(routingStatsObj.orgHeuristics.invokedCounter,
                         routingStatsObj.orgHeuristics.totalTimeConsumed))
         # TODO Si es demasiado el tiempo consumido, guardar parejas de prefijos
         # y sus ASes de origen en una estructura y aplicar heurística aparte.
@@ -1191,7 +1169,8 @@ def main(argv):
         sys.stderr.write("Stats for ASes computed successfully!\n")
         sys.stderr.write("ASes statistics computation took {} seconds\n".format(end_time-start_time))   
 
-        routingStatsObj.db_handler.close()
+        if TEMPORAL_DATA:
+            routingStatsObj.db_handler.close()
 
         ases_stats_df = pd.read_csv(ases_stats_file, sep = ',')
         ases_json_filename = '{}_ases.json'.format(file_name)
