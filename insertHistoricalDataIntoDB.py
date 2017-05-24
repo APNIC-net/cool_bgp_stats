@@ -10,16 +10,14 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from BGPDataHandler import BGPDataHandler
 from time import time
 
-def storeFile(routing_file, bgp_handler):
+def storeReadableFile(routing_file, bgp_handler):
     if routing_file.endswith('readable'):
         RIBfiles = False
         READABLE = True
         COMPRESSED = False
         
         bgp_handler.storeHistoricalDataFromFile(routing_file, READABLE, RIBfiles, COMPRESSED)    
-        
-        #TODO Finish (consider other possible extensions)
-    
+            
 def storeReadables(readables_path, dates_inserted, bgp_handler):
     # Available readable files
     readable_files = []
@@ -95,13 +93,16 @@ def main(argv):
     except getopt.GetoptError:
         print 'Usage: {} -h | -n <process number [1-5]> | -f <routing file>'.format(sys.argv[0])
         print "The process number is a number from 1 to 5 that allows the script to process a subset of the available files so that different scripts can process different files."
+        print "Use -f option if you just want to insert routing data from a specific readable file."
+        print "The file must have the 'readable' extension and be in readable format."
         sys.exit()
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'Usage: {} -h | -n <process number [1-5]> | -f <routing file>'.format(sys.argv[0])
+            print 'Usage: {} -h | -n <process number [1-5]> | -f <readable routing file>'.format(sys.argv[0])
             print "The process number is a number from 1 to 5 that allows the script to process a subset of the available files so that different scripts can process different files."
-            print "Use -f option if you just want to insert routing data from a specific file."
+            print "Use -f option if you just want to insert routing data from a specific readable file."
+            print "The file must have the 'readable' extension and be in readable format."
             sys.exit()
         elif opt == '-n':
             proc_num = arg
@@ -126,7 +127,7 @@ def main(argv):
         storeBGPRibs(archive_folder, dates_inserted, bgp_handler)
         storeDumps(archive_folder, dates_inserted, bgp_handler)
     else:
-        storeFile(routing_file, bgp_handler)
+        storeReadableFile(routing_file, bgp_handler)
             
 if __name__ == "__main__":
     main(sys.argv[1:])
