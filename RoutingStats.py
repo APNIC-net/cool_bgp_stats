@@ -21,7 +21,8 @@ class RoutingStats:
     def __init__(self, files_path, DEBUG, KEEP, COMPUTE, EXTENDED, del_file,\
                 startDate, endDate, routing_date, INCREMENTAL, final_existing_date,\
                 prefixes_stats_file, ases_stats_file, TEMPORAL_DATA):
-                        
+        
+        self.files_path = files_path
         self.bgp_handler = BGPDataHandler(DEBUG, files_path)
         
         if COMPUTE: 
@@ -32,9 +33,14 @@ class RoutingStats:
             if TEMPORAL_DATA:
                 self.db_handler = VisibilityDBHandler(routing_date)
             
-            self.orgHeuristics = OrgHeuristics(files_path)
+            # We just declare the orgHeuristics variable
+            # The class will be instantiated the first time it is needed
+            self.orgHeuristics = None
             
-            self.ASrels = self.getASrelInfo(serial=2, files_path=files_path, KEEP=KEEP)
+            # We comment this line out as the URL to download CAIDA's AS relationships
+            # dataset does not always work. It is not conceived to be automatically
+            # downloaded but access to the data has to be requested.
+#            self.ASrels = self.getASrelInfo(serial=2, files_path=files_path, KEEP=KEEP)
                             
             # isRoutedIntact: Boolean variable that will be True is the prefix that
             # was delegated appears as-is in the routing table
@@ -187,7 +193,7 @@ class RoutingStats:
                 
             other_data_columns = ['prefix', 'del_date', 'resource_type', 'status',
                                   'opaque_id', 'cc', 'region', 'routing_date',
-                                  'lastSeen', 'lastSeenIntact']
+                                  'prefLength', 'lastSeen', 'lastSeenIntact']
             
             self.allAttr_pref = other_data_columns + booleanKeys_pref +\
                             valueKeys_pref + counterKeys_pref
@@ -233,7 +239,10 @@ class RoutingStats:
                     
             self.def_dict_ases = self.getDictionaryWithDefaults(booleanKeys_ases,
                                                       valueKeys_ases, counterKeys_ases)
-                                                  
+    
+    def instantiateOrgHeuristics(self):
+        self.orgHeuristics = OrgHeuristics(self.files_path)
+        
     # This function downloads information about relationships between ASes inferred
     # by CAIDA and stores it in a dictionary in which all the active ASes appear as keys
     # and the value is another dictionary that also has an AS as key and a string
