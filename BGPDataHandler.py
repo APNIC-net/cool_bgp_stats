@@ -15,6 +15,7 @@ import pandas as pd
 import ipaddress
 from VisibilityDBHandler import VisibilityDBHandler
 from time import time
+import resource
 
 # For some reason in my computer os.getenv('PATH') differs from echo $PATH
 # /usr/local/bin is not in os.getenv('PATH')
@@ -26,6 +27,10 @@ class BGPDataHandler:
     files_path = ''
   
     # STRUCTURES WITH CURRENT ROUTING DATA
+  
+    # DataFrame with routing data from routing files
+    bgp_df = pd.DataFrame()
+    
     # Radix indexed by routed IPv4 prefix containing the routing data from the
     # routing file being considered
     ipv4Prefixes_radix = radix.Radix()
@@ -33,12 +38,6 @@ class BGPDataHandler:
     # Radix indexed by routed IPv6 prefix containing the routing data from the
     # routing file being considered
     ipv6Prefixes_radix = radix.Radix()
-    
-    # Dictionary indexed by AS containing all the prefixes originated by each AS
-    ASes_originated_prefixes_dic = dict()
-
-    # Dictionary indexed by AS containing all the prefixes propagated by each AS
-    ASes_propagated_prefixes_dic = dict()
 
     # Numeric variable with the longest IPv4 prefix length
     ipv4_longest_pref = -1
@@ -56,41 +55,38 @@ class BGPDataHandler:
     def __init__(self, DEBUG, files_path):
         self.DEBUG = DEBUG
         self.files_path = files_path
+        self.output_file = '{}/BGPDataHandler.output'.format(files_path)
 
-        sys.stderr.write("BGPDataHandler instantiated successfully! Remember to load the data structures.\n")
+        sys.stdout.write("BGPDataHandler instantiated successfully! Remember to load the data structures.\n")
     
    
     # This function loads the data structures of the class from previously
     # generated pickle files containing the result of already processed routing data
-    def loadStructuresFromFiles(self, r_date, ipv4_prefixes_file, ipv6_prefixes_file,\
-                                ASes_originated_prefixes_file,\
-                                ASes_propagated_prefixes_file):
+    def loadStructuresFromFiles(self, r_date, bgp_df_file, ipv4_prefixes_file,
+                                ipv6_prefixes_file):
      
         self.routingDate = r_date
+        self.bgp_df = pickle.load(open(bgp_df_file, "rb"))
         self.ipv4Prefixes_radix = pickle.load(open(ipv4_prefixes_file, "rb"))
         self.ipv6Prefixes_radix = pickle.load(open(ipv6_prefixes_file, "rb"))
-        self.ASes_originated_prefixes_dic = pickle.load(open(ASes_originated_prefixes_file, "rb"))
-        self.ASes_propagated_prefixes_dic = pickle.load(open(ASes_propagated_prefixes_file, "rb"))
         self.setLongestPrefixLengths()
-        sys.stderr.write("Class data structures were loaded successfully!\n")
+        sys.stdout.write("Class data structures were loaded successfully!\n")
         return True
     
     # This function processes the routing data contained in the files to which
     # the URLs in the urls_file point, and loads the data structures of the class
     # with the results from this processing
     def loadStructuresFromURLSfile(self, urls_file, READABLE, RIBfiles):
-        files_date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
-            ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+        files_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ipv4_longest_pref, ipv6_longest_pref  =\
                         self.processMultipleFiles(files_list=urls_file,\
                                                 isList=False, containsURLs=True,\
                                                 RIBfiles=RIBfiles, areReadable=READABLE)
                     
         self.routingDate = files_date
+        self.bgp_df = bgp_df
         self.ipv4Prefixes_radix = ipv4Prefixes_radix
         self.ipv6Prefixes_radix = ipv6Prefixes_radix
-        self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
-        self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
         
         if ipv4_longest_pref != -1:
             self.ipv4_longest_pref = ipv4_longest_pref
@@ -101,7 +97,7 @@ class BGPDataHandler:
         else:
             self.ipv6_longest_pref = 64
 
-        sys.stderr.write("Class data structures were loaded successfully!\n")
+        sys.stdout.write("Class data structures were loaded successfully!\n")
         return True
 
     # This function processes the routing data contained in the routing_file
@@ -112,26 +108,22 @@ class BGPDataHandler:
         else:
             readable_file_name = routing_file
         
+        bgp_df = pd.DataFrame()
         ipv4Prefixes_radix = radix.Radix()
         ipv6Prefixes_radix = radix.Radix()
-        ASes_originated_prefixes_dic = dict()
-        ASes_propagated_prefixes_dic = dict()
         
         if readable_file_name != '':
-            routing_date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
-                ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+            routing_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
                 ipv4_longest_pref, ipv6_longest_pref =\
                                     self.processReadableDF(readable_file_name,
+                                                           bgp_df,
                                                            ipv4Prefixes_radix,
-                                                           ipv6Prefixes_radix,
-                                                           ASes_originated_prefixes_dic,
-                                                           ASes_propagated_prefixes_dic)
+                                                           ipv6Prefixes_radix)
         
-            self.routingDate = routing_date              
+            self.routingDate = routing_date 
+            self.bgp_df = bgp_df             
             self.ipv4Prefixes_radix = ipv4Prefixes_radix
             self.ipv6Prefixes_radix = ipv6Prefixes_radix
-            self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
-            self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
             
             if ipv4_longest_pref != -1:
                 self.ipv4_longest_pref = ipv4_longest_pref
@@ -142,7 +134,7 @@ class BGPDataHandler:
             else:
                 self.ipv6_longest_pref = 64
     
-            sys.stderr.write("Class data structures were loaded successfully!\n")
+            sys.stdout.write("Class data structures were loaded successfully!\n")
             return True
         else:
             sys.stderr.write("Could not process routing file.\n")
@@ -172,8 +164,7 @@ class BGPDataHandler:
                 sys.stderr.write("There is no routing file in the archive for the date provided.\n")
                 return False
                     
-        files_date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
-            ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+        files_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ipv4_longest_pref, ipv6_longest_pref  =\
                         self.processMultipleFiles(files_list=routing_files,
                                                 isList=True, containsURLs=False,
@@ -181,10 +172,9 @@ class BGPDataHandler:
                                                 COMPRESSED=COMPRESSED)
                     
         self.routingDate = files_date
+        self.bgp_df = bgp_df
         self.ipv4Prefixes_radix = ipv4Prefixes_radix
         self.ipv6Prefixes_radix = ipv6Prefixes_radix
-        self.ASes_originated_prefixes_dic = ASes_originated_prefixes_dic
-        self.ASes_propagated_prefixes_dic = ASes_propagated_prefixes_dic
         
         if ipv4_longest_pref != -1:
             self.ipv4_longest_pref = ipv4_longest_pref
@@ -195,7 +185,7 @@ class BGPDataHandler:
         else:
             self.ipv6_longest_pref = 64
 
-        sys.stderr.write("Class data structures were loaded successfully!\n")
+        sys.stdout.write("Class data structures were loaded successfully!\n")
             
         return True
         
@@ -215,7 +205,7 @@ class BGPDataHandler:
         else:
             self.storeHistoricalData(historical_files, READABLE, RIBfiles,
                                      COMPRESSED)
-            sys.stderr.write("Historical data inserted into visibility database successfully!\n")
+            sys.stdout.write("Historical data inserted into visibility database successfully!\n")
 
     
     # This function returns a list of paths to the routing files from the files
@@ -319,7 +309,7 @@ class BGPDataHandler:
         i = 0
         for hist_file in historical_files:
              # If we work with several routing files
-            sys.stderr.write("Starting to work with %s\n" % hist_file)
+            sys.stdout.write("Starting to work with %s\n" % hist_file)
 
             self.storeHistoricalDataFromFile(hist_file, areReadable, RIBfiles,
                                              COMPRESSED)
@@ -327,100 +317,142 @@ class BGPDataHandler:
             i += 1
             if self.DEBUG and i > 1:
                 break
-                    
+
+    # This function checks for existing prefixes, origin ASes or middle ASes
+    # in the corresponding table for the provided date. If the number of
+    # existing rows is not zero and is different from the number of rows
+    # to insert, all the rows for that date are removed from the table.
+    # The rows will be inserted using the COPY method from Postgres,
+    # which will stop if it finds any duplicated row. That's why if the
+    # number of rows in the DB is different from the number of rows we have
+    # to insert, we remove the existing rows and insert the full set of rows.
+    # The number of existing rows is returned.
+    @staticmethod
+    def prepareTableForInsert(table, routing_date, numOfRows, visibilityDB, output_file):
+        start = time()
+        if table == 'prefixes':
+            existingRows = visibilityDB.getPrefixCountForDate(routing_date)
+        
+            if existingRows != 0 and existingRows != numOfRows:
+                visibilityDB.dropPrefixesForDate(routing_date)
+                existingRows = 0
+        
+        elif table == 'originASes':
+            existingRows = visibilityDB.getOriginASCountForDate(routing_date)
+        
+            if existingRows != 0 and existingRows != numOfRows:
+                visibilityDB.dropOriginASesForDate(routing_date)
+                existingRows = 0
+        
+        elif table == 'middleASes':
+            existingRows = visibilityDB.getMiddleASCountForDate(routing_date)
+        
+            if existingRows != 0 and existingRows != numOfRows:
+                visibilityDB.dropMiddleASesForDate(routing_date)
+                existingRows = 0
+
+        end = time()
+        with open(output_file, 'a') as output:
+            output.write('Check for existing {} for this date and delete records if necessary|{}|seconds.\n'.format(table, end-start))
+        
+        return existingRows
+    
+
+
     # This function stores the routing data from the routing_file provided
     # into the visibility database
     def storeHistoricalDataFromFile(self, routing_file, isReadable, RIBfile, COMPRESSED):
         prefixes, originASes, middleASes, routing_date =\
                         self.getPrefixesASesAndDate(routing_file, isReadable,\
                                                     RIBfile, COMPRESSED)
+        
+        with open(self.output_file, 'a') as output:
+            output.write('Prefixes to be inserted|{}\n'.format(len(prefixes)))
+            output.write('Origin ASes to be inserted|{}\n'.format(len(originASes)))
+            output.write('Middle ASes to be inserted|{}\n'.format(len(middleASes)))
 
         visibilityDB = VisibilityDBHandler(routing_date)
 
-        start = time()
-        prefixesInDBForDate = visibilityDB.getPrefixCountForDate(routing_date)
-    
-        if prefixesInDBForDate != 0 and prefixesInDBForDate != len(prefixes):
-            visibilityDB.dropPrefixesForDate(routing_date)
+        existingRows = self.prepareTableForInsert('prefixes',
+                                                  routing_date,
+                                                  len(prefixes),
+                                                  visibilityDB,
+                                                  self.output_file)
         
-        prefixesInDBForDate = visibilityDB.getPrefixCountForDate(routing_date)
-        end = time()
-        sys.stderr.write('It took {} seconds to check for existing prefixes for this date and delete records if necessary.\n'.format(end-start))
+        self.printUsage(self.output_file)
 
         start = time()
-        if prefixesInDBForDate == 0:
+        if existingRows == 0:
             visibilityDB.storeListOfPrefixesSeen(prefixes, routing_date)
         end = time()
-        sys.stderr.write('It took {} seconds insert the list of prefixes for this date into the DB.\n'.format(end-start))
-
-        start = time()
-        cleanOriginASes = []
-        for originAS in originASes:
-            if originAS is None or originAS == 'nan':
-                continue
-            elif '{' in str(originAS):
-                # If the asn field contains a bracket ({}), there is an as-set
-                # in first place in the AS path, therefore, we split it
-                # (leaving the brackets out) and consider each AS separately.
-                cleanOriginASes.extend(originAS.replace('{', '').replace('}', '').split(','))
-            elif '(' in str(originAS):
-                cleanOriginASes.extend(originAS.replace('(', '').replace(')', '').split(','))
-            else:
-                cleanOriginASes.append(originAS)
         
-        cleanOriginASes = list(set(cleanOriginASes))
-        end = time()
-        sys.stderr.write('It took {} seconds to clean the list of origin ASes.\n'.format(end-start))
+        with open(self.output_file, 'a') as output:
+            output.write('Insert the list of prefixes for this date into the DB|{}|seconds\n'.format(end-start))
 
-        start = time()
-        originASesInDBForDate = visibilityDB.getOriginASCountForDate(routing_date)
+        self.printUsage(self.output_file)
+
+        existingRows = self.prepareTableForInsert('originASes',
+                                                  routing_date,
+                                                  len(originASes),
+                                                  visibilityDB,
+                                                  self.output_file)
         
-        if originASesInDBForDate != 0 and originASesInDBForDate != len(cleanOriginASes):
-            visibilityDB.dropOriginASesForDate(routing_date)
-
-        originASesInDBForDate = visibilityDB.getOriginASCountForDate(routing_date)
-        end = time()
-        sys.stderr.write('It took {} seconds to check for existing origin ASes for this date and delete records if necessary.\n'.format(end-start))
-
-        start = time()
-        if originASesInDBForDate == 0:
-            visibilityDB.storeListOfASesSeen(cleanOriginASes, True, routing_date)
-        end = time()
-        sys.stderr.write('It took {} seconds to insert the list of origin ASes for this date into the DB.\n'.format(end-start))
-
-        start = time()
-        cleanMiddleASes = []                
-        for middleAS in middleASes:
-            if middleAS is None or middleAS == 'nan':
-                continue
-            elif '{' in str(middleAS):
-                cleanMiddleASes.extend(middleAS.replace('{', '').replace('}', '').split(','))
-            elif '(' in str(middleAS):
-                cleanMiddleASes.extend(middleAS.replace('(', '').replace(')', '').split(','))
-            else:
-                cleanMiddleASes.append(middleAS)
+        self.printUsage(self.output_file)
         
-        cleanMiddleASes = list(set(cleanMiddleASes))
-        end = time()
-        sys.stderr.write('It took {} seconds to clean the list of middle ASes.\n'.format(end-start))
-
         start = time()
-        middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(routing_date)
+        if existingRows == 0:
+            visibilityDB.storeListOfASesSeen(originASes, True, routing_date)
+        end = time()
         
-        if middleASesInDBForDate != 0 and middleASesInDBForDate != len(cleanMiddleASes):
-            visibilityDB.dropMiddleASesForDate(routing_date)
+        with open(self.output_file, 'a') as output:
+            output.write('Insert the list of origin ASes for this date into the DB|{}|seconds\n'.format(end-start))
+        
+        self.printUsage(self.output_file)
+        
+        existingRows = self.prepareTableForInsert('middleASes',
+                                                  routing_date,
+                                                  len(middleASes),
+                                                  visibilityDB,
+                                                  self.output_file)
 
-        middleASesInDBForDate = visibilityDB.getMiddleASCountForDate(routing_date)
-        end = time()
-        sys.stderr.write('It took {} seconds to check for existing middle ASes for this date and delete records if necessary.\n'.format(end-start))
-
+        self.printUsage(self.output_file)
+        
         start = time()
-        if middleASesInDBForDate == 0:
-            visibilityDB.storeListOfASesSeen(cleanMiddleASes, False, routing_date)
+        if existingRows == 0:
+            visibilityDB.storeListOfASesSeen(middleASes, False, routing_date)
         end = time()
-        sys.stderr.write('It took {} seconds to insert the list of middle ASes for this date into the DB.\n'.format(end-start))
 
+        with open(self.output_file, 'a') as output:
+            output.write('Insert the list of middle ASes for this date into the DB|{}|seconds\n'.format(end-start))
+
+        self.printUsage(self.output_file)
+        
         visibilityDB.close()
+        
+    @staticmethod
+    def cleanListOfASes(ases_list, output_file):
+        start = time()
+        cleanListOfASes = []
+        for asn in ases_list:
+            if asn is None or asn == 'nan':
+                continue
+            # If the asn contains a bracket ({) or parenthesis ((),
+            # it is an as-set, therefore, we split it (leaving the brackets out)
+            # and consider each AS separately.
+            elif '{' in str(asn):
+                cleanListOfASes.extend(asn.replace('{', '').replace('}', '').split(','))
+            elif '(' in str(asn):
+                cleanListOfASes.extend(asn.replace('(', '').replace(')', '').split(','))
+            else:
+                cleanListOfASes.append(asn)
+        
+        cleanListOfASes = list(set(cleanListOfASes))
+        end = time()
+        
+        with open(output_file, 'a') as output:
+            output.write('Clean the list of ASes|{}|seconds\n'.format(end-start))
+
+        return cleanListOfASes
 
     
     # This function returns a list of prefixes for which the routing_file has
@@ -438,7 +470,11 @@ class BGPDataHandler:
         else:
             readable_file_name = routing_file
         end = time()
-        sys.stderr.write('It took {} seconds to get a readable file.\n'.format(end-start))
+        
+        with open(self.output_file, 'a') as output:
+            output.write('It took {} seconds to get a readable file.\n'.format(end-start))
+        
+        self.printUsage(self.output_file)
         
         if readable_file_name == '':
             return [], [], ''
@@ -452,7 +488,11 @@ class BGPDataHandler:
                                         'ASpath',\
                                         'origin'])
         end = time()
-        sys.stderr.write('It took {} seconds to load the readable file into a DataFrame.\n'.format(end-start))
+        
+        with open(self.output_file, 'a') as output:
+            output.write('It took {} seconds to load the readable file into a DataFrame.\n'.format(end-start))
+        
+        self.printUsage(self.output_file)
         
         if self.DEBUG:
             bgp_df = bgp_df[0:10]
@@ -463,14 +503,19 @@ class BGPDataHandler:
         # To get the origin ASes and middle ASes we split the ASpath column
         paths_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
 
-        prefixes = set(bgp_df['prefix'].tolist())
-        originASes = set(paths_parts[1].tolist())
+        prefixes = set(bgp_df['prefix'])
+        originASes = set(paths_parts[1])
         middleASes = set([item for sublist in paths_parts[0].tolist() for item in\
                         str(sublist).split()])
         end = time()
-        sys.stderr.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
         
-        return prefixes, originASes, middleASes, routing_date
+        with open(self.output_file, 'a') as output:
+            output.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
+        
+        self.printUsage(self.output_file)
+        
+        return prefixes, self.cleanListOfASes(originASes, self.output_file),\
+                self.cleanListOfASes(middleASes, self.output_file), routing_date
 
     # Reading the readable routing file line by line and char by char takes
     # much longer than loading the routing file into a DataFrame, that's why
@@ -484,7 +529,7 @@ class BGPDataHandler:
 #        else:
 #            readable_file_name = routing_file
 #        end = time()
-#        sys.stderr.write('It took {} seconds to get a readable file.\n'.format(end-start))
+#        sys.stdout.write('It took {} seconds to get a readable file.\n'.format(end-start))
 #        
 #        if readable_file_name == '':
 #            return [], [], ''
@@ -536,7 +581,7 @@ class BGPDataHandler:
 #                line = readable_f.readline()
 #
 #        end = time()
-#        sys.stderr.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
+#        sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
 #        
 #        return prefixes, originASes, middleASes, file_date
 
@@ -552,7 +597,7 @@ class BGPDataHandler:
 #        else:
 #            readable_file_name = routing_file
 #        end = time()
-#        sys.stderr.write('It took {} seconds to get a readable file.\n'.format(end-start))
+#        sys.stdout.write('It took {} seconds to get a readable file.\n'.format(end-start))
 #        
 #        if readable_file_name == '':
 #            return [], [], ''
@@ -586,7 +631,7 @@ class BGPDataHandler:
 #                line = readable_f.readline()
 #
 #        end = time()
-#        sys.stderr.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
+#        sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
 #        
 #        return prefixes, originASes, middleASes, file_date
         
@@ -597,11 +642,10 @@ class BGPDataHandler:
                                 areReadable, COMPRESSED):
         if not isList:
             files_list = open(files_list, 'r')
-                    
+   
+        bgp_df = pd.DataFrame()                 
         ipv4Prefixes_radix = radix.Radix()
         ipv6Prefixes_radix = radix.Radix()
-        ASes_originated_prefixes_dic = dict()
-        ASes_propagated_prefixes_dic = dict()
         ipv4_longest_pref = -1
         ipv6_longest_pref = -1
         routingDate = datetime.strptime('1970', '%Y').date()
@@ -610,7 +654,7 @@ class BGPDataHandler:
         for line in files_list:
             if not line.startswith('#') and line.strip() != '':
                 # If we work with several routing files
-                sys.stderr.write("Starting to work with %s\n" % line)
+                sys.stdout.write("Starting to work with %s\n" % line)
 
                 # We obtain partial data structures
                 if containsURLs:
@@ -622,14 +666,12 @@ class BGPDataHandler:
                     else:
                         readable_file_name = line.strip()
                     
-                    file_date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
-                        ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+                    file_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
                         ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
                                 self.processReadableDF(readable_file_name,
+                                                       bgp_df,
                                                        ipv4Prefixes_radix,
-                                                       ipv6Prefixes_radix,
-                                                       ASes_originated_prefixes_dic,
-                                                       ASes_propagated_prefixes_dic)
+                                                       ipv6Prefixes_radix)
                 else:
                     if not areReadable:
                         readable_file_name =  self.getReadableFile(line.strip(), False, RIBfiles, COMPRESSED)
@@ -639,14 +681,12 @@ class BGPDataHandler:
                     else:
                         readable_file_name = line.strip()
                     
-                    file_date, ipv4Prefixes_radix, ipv6Prefixes_radix,\
-                        ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
+                    file_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
                         ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
                                 self.processReadableDF(readable_file_name,
+                                                       bgp_df,
                                                        ipv4Prefixes_radix,
-                                                       ipv6Prefixes_radix,
-                                                       ASes_originated_prefixes_dic,
-                                                       ASes_propagated_prefixes_dic)
+                                                       ipv6Prefixes_radix)
                 
                 if file_date > routingDate:
                     routingDate = file_date
@@ -664,9 +704,8 @@ class BGPDataHandler:
         if not isList:        
             files_list.close()
         
-        return routingDate, ipv4Prefixes_radix, ipv6Prefixes_radix,\
-            ASes_originated_prefixes_dic, ASes_propagated_prefixes_dic,\
-            ipv4_longest_pref, ipv6_longest_pref
+        return routingDate, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
+                ipv4_longest_pref, ipv6_longest_pref
     
     
     def completeRadixesFromRoutingFile(self, r_file, isReadable, RIBfile, COMPRESSED,
@@ -753,9 +792,8 @@ class BGPDataHandler:
  
     # This function processes a readable file with routing info
     # putting all the info into a Data Frame  
-    def processReadableDF(self, readable_file_name, ipv4Prefixes_radix,
-                          ipv6Prefixes_radix, ASes_originated_prefixes_dic,
-                          ASes_propagated_prefixes_dic):
+    def processReadableDF(self, readable_file_name, existing_bgp_df,
+                          ipv4Prefixes_radix, ipv6Prefixes_radix):
         
         routing_date = None
         
@@ -782,10 +820,7 @@ class BGPDataHandler:
             
             ASpath_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
             bgp_df['originAS'] = ASpath_parts[1]            
-            bgp_df['middleASes'] = ASpath_parts[0]            
-            
-            middleASes_set = set([item for middleASes_list in bgp_df['middleASes'].tolist()\
-                                    for item in str(middleASes_list).split()])
+            bgp_df['middleASes'] = ASpath_parts[0]
             
             for prefix, prefix_subset in bgp_df.groupby('prefix'):
                 network = ipaddress.ip_network(unicode(prefix, 'utf-8'))
@@ -799,8 +834,7 @@ class BGPDataHandler:
                         ipv6_longest_prefix = network.prefixlen 
                     prefixes_radix = ipv6Prefixes_radix
                 
-                # TODO Arreglar esto. Da error porque en algún caso la lista de ASpaths tiene valores nulos
-                # ValueError: cannot index with vector containing NA / NaN values
+
                 ASpaths = set(prefix_subset['ASpath'])
                 originASes = set(prefix_subset['originAS'])
                 
@@ -813,89 +847,12 @@ class BGPDataHandler:
                     node.data['ASpaths'] = node.data['ASpaths'].union(ASpaths)
                     node.data['OriginASes'] = node.data['OriginASes'].union(originASes)
                     
-                            
-            for middleAS in middleASes_set:
-                prefixes = set(bgp_df[bgp_df['middleASes'].str.contains(str(middleAS))]['prefix'])
-                
-                if middleAS is None or middleAS == 'nan':
-                    continue
-                
-                elif '{' in str(middleAS):
-                    # If the asn field contains a bracket ({}), there is an as-set
-                    # in first place in the AS path, therefore, we split it
-                    # (leaving the brackets out) and consider each AS separately.
-                    asnList = middleAS.replace('{', '').replace('}', '').split(',')
-                    for asn in asnList:
-                        asn = int(asn)
-                        if asn in ASes_propagated_prefixes_dic.keys():
-                            ASes_propagated_prefixes_dic[asn] =\
-                                ASes_propagated_prefixes_dic[asn].union(prefixes)
-                        else:
-                            ASes_propagated_prefixes_dic[asn] = prefixes
-                elif '(' in str(middleAS):
-                    asnList = middleAS.replace('(', '').replace(')', '').split(',')
-                    for asn in asnList:
-                        asn = int(asn)
-                        if asn in ASes_propagated_prefixes_dic.keys():
-                            ASes_propagated_prefixes_dic[asn] =\
-                                ASes_propagated_prefixes_dic[asn].union(prefixes)
-                        else:
-                            ASes_propagated_prefixes_dic[asn] = prefixes
-                else:
-                    middleAS= int(middleAS)
-                    if asn in ASes_propagated_prefixes_dic.keys():
-                        ASes_propagated_prefixes_dic[middleAS] =\
-                            ASes_propagated_prefixes_dic[middleAS].union(prefixes)
-                    else:
-                        ASes_propagated_prefixes_dic[middleAS] = prefixes
+            sys.stdout.write('Finished loading Radix trees with prefixes.\n')
             
-            for originAS, originAS_subset in bgp_df.groupby('originAS'):
-                prefixes = set(originAS_subset['prefix'])
-                
-                if originAS is None or originAS == 'nan':
-                    continue
-                elif '{' in str(originAS):
-                    # If the asn field contains a bracket ({}), there is an as-set
-                    # in first place in the AS path, therefore, we split it
-                    # (leaving the brackets out) and consider each AS separately.
-                    asnList = originAS.replace('{', '').replace('}', '').split(',')
-                    
-                    for originAS in asnList:
-                        originAS = int(originAS)
-
-                        if originAS in ASes_originated_prefixes_dic:
-                           ASes_originated_prefixes_dic[originAS] =\
-                               ASes_originated_prefixes_dic[originAS].union(\
-                               prefixes) 
-
-                        else:
-                            ASes_originated_prefixes_dic[originAS] = prefixes
-
-                elif '(' in str(originAS):
-                    asnList = originAS.replace('(', '').replace(')', '').split(',')
-                    
-                    for originAS in asnList:
-                        originAS = int(originAS)
-
-                        if originAS in ASes_originated_prefixes_dic:
-                            ASes_originated_prefixes_dic[originAS] =\
-                                ASes_originated_prefixes_dic[originAS].union(\
-                                prefixes)
-                        else:
-                            ASes_originated_prefixes_dic[originAS] = prefixes
-
-                else:
-                    originAS = int(originAS)
-                    
-                    if originAS in ASes_originated_prefixes_dic:
-                        ASes_originated_prefixes_dic[originAS] =\
-                            ASes_originated_prefixes_dic[originAS].union(\
-                            prefixes)
-                    else:
-                        ASes_originated_prefixes_dic[originAS] = prefixes
+            bgp_df = pd.concat([existing_bgp_df, bgp_df])
             
-        return routing_date, ipv4Prefixes_radix, ipv6Prefixes_radix, ASes_originated_prefixes_dic,\
-                ASes_propagated_prefixes_dic, ipv4_longest_prefix, ipv6_longest_prefix
+        return routing_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
+                ipv6_longest_prefix
 
     # This function downloads a routing file if the source provided is a URL
     # If the file is COMPRESSED, it is unzipped
@@ -1041,25 +998,14 @@ class BGPDataHandler:
         ipv4_radix_file_name = '%s/ipv4Prefixes_%s.pkl' % (self.files_path, today)
         with open(ipv4_radix_file_name, 'wb') as f:
             pickle.dump(self.ipv4Prefixes_radix, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing Radix with routing data for each IPv4 prefix.\n" % ipv4_radix_file_name)
+            sys.stdout.write("Saved to disk %s pickle file containing Radix with routing data for each IPv4 prefix.\n" % ipv4_radix_file_name)
 
         ipv6_radix_file_name = '%s/ipv6Prefixes_%s.pkl' % (self.files_path, today)
         with open(ipv6_radix_file_name, 'wb') as f:
             pickle.dump(self.ipv6Prefixes_radix, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing Radix with routing data for each IPv6 prefix.\n" % ipv6_radix_file_name)
+            sys.stdout.write("Saved to disk %s pickle file containing Radix with routing data for each IPv6 prefix.\n" % ipv6_radix_file_name)
 
-        o_ases_dic_file_name = '%s/ASes_originated_prefixes_%s.pkl' % (self.files_path, today)
-        with open(o_ases_dic_file_name, 'wb') as f:
-            pickle.dump(self.ASes_originated_prefixes_dic, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing dictionary with prefixes originated by each AS.\n" % o_ases_dic_file_name)
-        
-        p_ases_dic_file_name = '%s/ASes_propagated_prefixes_%s.pkl' % (self.files_path, today)
-        with open(p_ases_dic_file_name, 'wb') as f:
-            pickle.dump(self.ASes_propagated_prefixes_dic, f, pickle.HIGHEST_PROTOCOL)
-            sys.stderr.write("Saved to disk %s pickle file containing dictionary with prefixes propagated by each AS.\n" % p_ases_dic_file_name)
-        
-        return ipv4_radix_file_name, ipv6_radix_file_name,\
-                o_ases_dic_file_name, p_ases_dic_file_name
+        return ipv4_radix_file_name, ipv6_radix_file_name
 
     # This function sets the ipv4_longest_pref and ipv6_longest_pref class variables
     # with the corresponding maximum prefix lengths in the ipv4_prefixes_indexes
@@ -1137,3 +1083,42 @@ class BGPDataHandler:
             return pref_node.data['ASpaths']
         else:
             return set()
+    
+    
+    @staticmethod
+    def printUsage(output_file):
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+    
+        '''
+        Index	Field	Resource
+        0	ru_utime	time in user mode (float)
+        1	ru_stime	time in system mode (float)
+        2	ru_maxrss	maximum resident set size
+        3	ru_ixrss	shared memory size
+        4	ru_idrss	unshared memory size
+        5	ru_isrss	unshared stack size
+        6	ru_minflt	page faults not requiring I/O
+        7	ru_majflt	page faults requiring I/O
+        8	ru_nswap	number of swap outs
+        9	ru_inblock	block input operations
+        10	ru_oublock	block output operations
+        11	ru_msgsnd	messages sent
+        12	ru_msgrcv	messages received
+        13	ru_nsignals	signals received
+        14	ru_nvcsw	voluntary context switches
+        15	ru_nivcsw	involuntary context switches
+        '''
+    
+        with open(output_file, 'a') as output:
+            for name, desc in [
+                ('ru_utime', 'User time'),
+                ('ru_stime', 'System time'),
+                ('ru_maxrss', 'Max. Resident Set Size'),
+                ('ru_ixrss', 'Shared Memory Size'),
+                ('ru_idrss', 'Unshared Memory Size'),
+                ('ru_isrss', 'Stack Size'),
+                ('ru_nswap', 'Num. of Swap outs'),
+                ('ru_inblock', 'Block inputs'),
+                ('ru_oublock', 'Block outputs'),
+                ]:
+                output.write('{} ({})|{}\n'.format(desc, name, getattr(usage, name)))
