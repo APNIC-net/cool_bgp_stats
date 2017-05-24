@@ -716,13 +716,19 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
 
         try:
             statsForAS['numOfPrefixesOriginated'] =\
-                                len(routingStatsObj.bgp_handler.ASes_originated_prefixes_dic[asn])
+                                len(set(routingStatsObj.bgp_handler.bgp_df[\
+                                routingStatsObj.bgp_handler.bgp_df['originAS'] ==\
+                                str(asn)]['prefix']))
         except KeyError:
             statsForAS['numOfPrefixesOriginated'] = 0
        
         try:
             statsForAS['numOfPrefixesPropagated'] =\
-                                len(routingStatsObj.bgp_handler.ASes_propagated_prefixes_dic[asn])
+                                len(set(routingStatsObj.bgp_handler.bgp_df[\
+                                (~routingStatsObj.bgp_handler.bgp_df['middleAS'].\
+                                isnull()) & 
+                                (routingStatsObj.bgp_handler.bgp_df['middleAS'].\
+                                str.contains(str(asn)))]['prefix']))
         except KeyError:
             statsForAS['numOfPrefixesPropagated'] = 0
                 
@@ -801,8 +807,6 @@ def main(argv):
     fromFiles = False
     ipv4_prefixes_file = ''
     ipv6_prefixes_file = ''
-    ASes_originated_prefixes_file = ''
-    ASes_propagated_prefixes_file = ''
     routing_date = ''
     archive_folder = '' 
     ext = ''
@@ -827,24 +831,23 @@ def main(argv):
     ext = 'readable'
     
     try:
-        opts, args = getopt.getopt(argv, "hf:u:r:H:e:S:E:TNocknd:xp:a:4:6:O:P:R:D:",
+        opts, args = getopt.getopt(argv, "hf:u:r:H:e:S:E:TNocknd:xp:a:4:6:B:R:D:",
                                         ["files_path=", "urls_file=", "routing_file=",
                                         "Historcial_data_folder=", "extension=",
                                         "StartDate=", "EndDate=", "delegated_file=",
                                         "prefixes_stats_file=", "ases_stats_file=",
                                         "IPv4_prefixes_ASes_file=",
                                         "IPv6_prefixes_ASes_file=",
-                                        "ASes_Originated_prefixes_file=",
-                                        "ASes_Propagated_prefixes_file=",
+                                        "BGP_df_file=",
                                         "Routing date=",
                                         "ElasticsearchDB_host="])
     except getopt.GetoptError:
-        print 'Usage: computeRoutingStats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -e <extension>] [-S <Start date>] [-E <End Date>] [-T] [-N] [-o] [-c] [-k] [-n] [-d <delegated file>] [-x] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>] [-D <Elasticsearch Database host>]'
+        print 'Usage: computeRoutingStats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -e <extension>] [-S <Start date>] [-E <End Date>] [-T] [-N] [-o] [-c] [-k] [-n] [-d <delegated file>] [-x] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -B <BGP DataFrame file> -R <Routing data date>] [-D <Elasticsearch Database host>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: computeRoutingStats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -e <extension>] [-S <Start date>] [-E <End Date>] [-T] [-N] [-o] [-c] [-k] [-n] [-d <delegated file>] [-x] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -O <ASes_Originated_prefixes file> -P <ASes_Propagated_prefixes file> -R <Routing data date>] [-D <Elasticsearch Database host>]'
+            print 'Usage: computeRoutingStats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -e <extension>] [-S <Start date>] [-E <End Date>] [-T] [-N] [-o] [-c] [-k] [-n] [-d <delegated file>] [-x] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -B <BGP DataFrame file> -R <Routing data date>] [-D <Elasticsearch Database host>]'
             print 'h = Help'
             print "f = Path to folder in which Files will be saved. (MANDATORY)"
             print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
@@ -873,12 +876,11 @@ def main(argv):
             print "If options -p and -a are used, the corresponding paths to files with existing statistics for prefixes and ASes respectively MUST be provided."
             print "4 = IPv4 prefixes file. Path to pickle file containing IPv4 prefixes Radix."
             print "6 = IPv6 prefixes file. Path to pickle file containing IPv6 prefixes Radix."
-            print "O = ASes_Originated_prefixes file. Path to pickle file containing ASes_Originated_prefixes dictionary."
-            print "P = ASes_Propagated_prefixes file. Path to pickle file containing ASes_Propagated_prefixes dictionary."
+            print "B = BGP DataFrame file. Path to pickle file containing DataFrame with routing data from routing file."
             print "R = Routing data Date in format YYYYmmdd. Date for which routing stats will be computed."
             print "If a routing date is not provided, statistics for the day before today will be computed."
-            print "If you use the options -4, -6, -O and -P you MUST provide the date for the routing data in these files."
-            print "If you want to work with BGP data from files, the five options -4, -6, -O, -P and -R must be used."
+            print "If you use the options -4, -6 and -B you MUST provide the date for the routing data in these files."
+            print "If you want to work with BGP data from files, the four options -4, -6, -B and -R must be used."
             print "If not, none of these five options should be used."
             print "D = Elasticsearch Database host. Host running Elasticsearch into which computed stats will be stored."
             sys.exit()
@@ -957,19 +959,12 @@ def main(argv):
             else:
                 print "If option -6 is used, the path to a pickle file containing IPv6 prefixes Radix MUST be provided."
                 sys.exit()
-        elif opt == '-O':
+        elif opt == '-B':
             if arg != '':
-                ASes_originated_prefixes_file = os.path.abspath(arg)
+                bgp_df_file = os.path.abspath(arg)
                 fromFiles = True
             else:
-                print "If option -O is used, the path to a pickle file containing ASes_Originated_prefixes dictionary MUST be provided."
-                sys.exit()
-        elif opt == '-P':
-            if arg != '':
-                ASes_propagated_prefixes_file = os.path.abspath(arg)
-                fromFiles = True
-            else:
-                print "If option -O is used, the path to a pickle file containing ASes_Propagated_prefixes dictionary MUST be provided."
+                print "If option -B is used, the path to a pickle file containing a BGP DataFrame MUST be provided."
                 sys.exit()
         elif opt == '-R':
             try:
@@ -1101,9 +1096,8 @@ def main(argv):
         ases_stats_file = '{}_ases.csv'.format(file_name)
     
     if fromFiles and (ipv4_prefixes_file == '' or\
-        ipv6_prefixes_file == '' or ASes_originated_prefixes_file == '' or\
-        ASes_propagated_prefixes_file == '' or routing_date == ''):
-        print "If you want to work with BGP data from files, the five options -4, -6, -O, -P and -R must be used."
+        ipv6_prefixes_file == '' or bgp_df_file == '' or routing_date == ''):
+        print "If you want to work with BGP data from files, the four options -4, -6 and -R must be used."
         print "If not, none of these five options should be used."
         sys.exit()
     
@@ -1118,10 +1112,9 @@ def main(argv):
             
         if fromFiles:
             loaded = routingStatsObj.bgp_handler.loadStructuresFromFiles(
-                                                    routing_date, ipv4_prefixes_file,
-                                                    ipv6_prefixes_file,
-                                                    ASes_originated_prefixes_file,
-                                                    ASes_propagated_prefixes_file)
+                                                    routing_date, bgp_df_file,
+                                                    ipv4_prefixes_file,
+                                                    ipv6_prefixes_file)
                                     
         else:
             if routing_file == '' and archive_folder == '':
