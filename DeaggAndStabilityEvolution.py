@@ -31,7 +31,7 @@ DEBUG = False
 #INCREMENTAL = False
 #final_existing_date = ''
 files_path = '/home/sofia/BGP_stats_files'
-KEEP = True
+#KEEP = True
 
 # TODO Para mi projecto, analizar solo los bloques del delegated file
 #del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file,
@@ -40,7 +40,7 @@ KEEP = True
 
 archive_folder = '/home/sofia/BGP_stats_files'
 
-bgp_handler = BGPDataHandler(DEBUG, files_path, KEEP)
+bgp_handler = BGPDataHandler(DEBUG, files_path)
 
 # TODO Repetir luego con ext = '' para las fechas faltantes para que se complete con los arhivos para los que no tengo readable
 routing_files_dict = dict()
