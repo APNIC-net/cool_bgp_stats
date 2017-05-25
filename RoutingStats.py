@@ -122,10 +122,13 @@ class RoutingStats:
             
             # The rest of the variables correspond to concepts defined in [1] and [2].
             
-            booleanGralKeys_pref = ['isRoutedIntact', 'isDead', 'isDeadIntact',
-                                'originatedByDiffOrg', 'hasFragmentsOriginatedByDiffOrg',\
-                                'hasLessSpecificsOriginatedByDiffOrg', 'onlyRoot', 'rootMSCompl',
-                                'rootMSIncompl', 'noRootMSCompl', 'noRootMSIncompl']
+            booleanGralKeys_pref = ['isRoutedIntact', 'originatedByDiffOrg',
+                                    'hasFragmentsOriginatedByDiffOrg',
+                                    'hasLessSpecificsOriginatedByDiffOrg',
+                                    'onlyRoot', 'rootMSCompl', 'rootMSIncompl',
+                                    'noRootMSCompl', 'noRootMSIncompl']
+            
+            booleanGralKeysTemp_pref = ['isDead', 'isDeadIntact']
             
             self.prefix_variables = {'top': 'isTop',
                                      'lonely': 'isLonely',
@@ -137,16 +140,10 @@ class RoutingStats:
                                        
             booleanKeys_pref = booleanGralKeys_pref + self.prefix_variables.values()
             
-            valueKeys_pref = ['UsageLatencyGral', 'UsageLatencyIntact',
-                              'relUsedTimeIntact', 'avgRelUsedTimeGral',
-                              'effectiveUsageIntact', 'avgEffectiveUsageGral',
-                              'timeFragmentationIntact', 'avgTimeFragmentationGral',
-                              'avgPeriodLengthIntact', 'stdPeriodLengthIntact',
-                              'maxPeriodLengthIntact', 'minPeriodLengthIntact',
-                              'avgPeriodLengthGral', 'stdPeriodLengthGral',
-                              'maxPeriodLengthGral', 'minPeriodLengthGral',
-                              'avgVisibility', 'stdVisibility', 'maxVisibility',
-                              'minVisibility', 'avgASPathLengthIntact',
+            if TEMPORAL_DATA:
+                booleanKeys_pref = booleanKeys_pref + booleanGralKeysTemp_pref
+            
+            valueKeys_pref = ['avgASPathLengthIntact',
                               'stdASPathLengthIntact', 'maxASPathLengthIntact',
                               'minASPathLengthIntact', 'avgNumOfOriginASesMoreSpec',
                               'stdNumOfOriginASesMoreSpec', 'minNumOfOriginASesMoreSpec',
@@ -167,6 +164,20 @@ class RoutingStats:
                               'avgLevenshteinDistLessSpec', 'stdLevenshteinDistLessSpec',
                               'minLevenshteinDistLessSpec', 'maxLevenshteinDistLessSpec',
                               'currentVisibility']
+            
+            valueKeysTemp_pref = ['UsageLatencyGral', 'UsageLatencyIntact',
+                                  'relUsedTimeIntact', 'avgRelUsedTimeGral',
+                                  'effectiveUsageIntact', 'avgEffectiveUsageGral',
+                                  'timeFragmentationIntact', 'avgTimeFragmentationGral',
+                                  'avgPeriodLengthIntact', 'stdPeriodLengthIntact',
+                                  'maxPeriodLengthIntact', 'minPeriodLengthIntact',
+                                  'avgPeriodLengthGral', 'stdPeriodLengthGral',
+                                  'maxPeriodLengthGral', 'minPeriodLengthGral',
+                                  'avgVisibility', 'stdVisibility', 'maxVisibility',
+                                  'minVisibility']
+            
+            if TEMPORAL_DATA:
+                valueKeys_pref = valueKeys_pref + valueKeysTemp_pref
                               
             gralCounterKeys_pref = ['numOfOriginASesIntact', 'numOfASPathsIntact',
                                 'numOfLessSpecificsRouted', 'numOfMoreSpecificsRouted']
@@ -190,10 +201,15 @@ class RoutingStats:
             counterKeys_pref = gralCounterKeys_pref +\
                                 self.moreSpec_variables.values() +\
                                 self.lessSpec_variables.values()
+            
                 
             other_data_columns = ['prefix', 'del_date', 'resource_type', 'status',
                                   'opaque_id', 'cc', 'region', 'routing_date',
-                                  'prefLength', 'lastSeen', 'lastSeenIntact']
+                                  'prefLength']
+            other_data_columnsTemp = ['lastSeen', 'lastSeenIntact']
+            
+            if TEMPORAL_DATA:
+                other_data_columns = other_data_columns + other_data_columnsTemp
             
             self.allAttr_pref = other_data_columns + booleanKeys_pref +\
                             valueKeys_pref + counterKeys_pref
@@ -211,17 +227,29 @@ class RoutingStats:
             
             self.def_dict_pref = self.getDictionaryWithDefaults(booleanKeys_pref, valueKeys_pref, counterKeys_pref)
  
-            valueKeys_ases = ['UsageLatency', 'relUsedTime', 'effectiveUsage',
-                                'timeFragmentation', 'avgPeriodLength', 'stdPeriodLength',
-                                'minPeriodLength', 'maxPeriodLength']
+            if TEMPORAL_DATA:            
+                valueKeys_ases = ['UsageLatency', 'relUsedTime', 'effectiveUsage',
+                                  'timeFragmentation', 'avgPeriodLength',
+                                  'stdPeriodLength', 'minPeriodLength',
+                                  'maxPeriodLength']
+            else:
+                valueKeys_ases = []
     
             counterKeys_ases = ['numOfPrefixesOriginated',
                                 'numOfPrefixesPropagated']
-            booleanKeys_ases = ['isDead']
+            
+            if TEMPORAL_DATA:                   
+                booleanKeys_ases = ['isDead']
+            else:
+                booleanKeys_ases = []
             
             expanded_del_asn_df_columns = ['asn', 'del_date', 'asn_type',
                                             'opaque_id', 'cc', 'region']
-            other_ases_data_columns = ['routing_date', 'lastSeen']
+            
+            if TEMPORAL_DATA:
+                other_ases_data_columns = ['routing_date', 'lastSeen']
+            else:
+                other_ases_data_columns = ['routing_date']
     
             self.allAttr_ases = expanded_del_asn_df_columns + other_ases_data_columns +\
                                 booleanKeys_ases + valueKeys_ases + counterKeys_ases
