@@ -10,6 +10,8 @@ from iter_file import IteratorFile
 import sys, datetime
 import psycopg2
 import psycopg2.extras
+from datetime import date
+from itertools import chain
 
  # Radix indexed by routed IPv4 prefix containing as values dictionaries
     # with the following keys:
@@ -27,14 +29,18 @@ class VisibilityDBHandler:
     dbname = 'sofia'
     user = 'postgres'
     host = 'localhost'
-    routing_date = ''
 
-    def __init__(self, routing_date):
-        self.routing_date = routing_date
+    def __init__(self, routing_date=''):
+        if routing_date == '':
+            self.routing_date = date.today()
+        else:
+            self.routing_date = routing_date
         
         # Try to connect
         try:
-            self.conn = psycopg2.connect("dbname='{}' user='{}' host='{}'"\
+            # TODO Check if there is any case in which I need to increment timeout.
+            # If there is, add: "options='-c statement_timeout=1000'" to connection statement
+            self.conn = psycopg2.connect("dbname='{}' user='{}' host='{}' "\
                                     .format(self.dbname, self.user, self.host))
             self.cur = self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             psycopg2.extras.register_inet()
@@ -201,7 +207,7 @@ class VisibilityDBHandler:
             self.cur.execute("""select count(*) from prefixes where dateSeen = %s;""", (date,))
             return self.cur.fetchone()[0]
         except:
-            sys.stderr.write("Unable to get the number of prefixes seen on {}".format(date))
+            sys.stderr.write("Unable to get the number of prefixes seen on {}\n".format(date))
             return -1
             
     def getOriginASCountForDate(self, date):
@@ -209,7 +215,7 @@ class VisibilityDBHandler:
             self.cur.execute("""select count(*) from asns where isorigin = %s and dateSeen = %s;""", (True, date))
             return self.cur.fetchone()[0]
         except:
-            sys.stderr.write("Unable to get the number of origin ASes seen on {}".format(date))
+            sys.stderr.write("Unable to get the number of origin ASes seen on {}\n".format(date))
             return -1        
     
     def getMiddleASCountForDate(self, date):
@@ -217,7 +223,7 @@ class VisibilityDBHandler:
             self.cur.execute("""select count(*) from asns where isorigin = %s and dateSeen = %s;""", (False, date))
             return self.cur.fetchone()[0]
         except:
-            sys.stderr.write("Unable to get the number of middle ASes seen on {}".format(date))
+            sys.stderr.write("Unable to get the number of middle ASes seen on {}\n".format(date))
             return -1
     
     def dropPrefixesForDate(self, date):
@@ -249,6 +255,30 @@ class VisibilityDBHandler:
         except (Exception, psycopg2.DatabaseError) as error:
             print(error)
             return False
+    
+    def getListOfDatesForPrefixes(self):
+        try:
+            self.cur.execute("SELECT distinct(dateseen) from prefixes")
+            return list(chain(*self.cur.fetchall()))
+        except:
+            sys.stderr.write("Unable to get the list of distinct dates for the prefixes in the DB.")
+            return []
+
+    def getListOfDatesForOriginASes(self):
+        try:
+            self.cur.execute("SELECT distinct(dateseen) from asns where isorigin = True")
+            return list(chain(*self.cur.fetchall()))
+        except:
+            sys.stderr.write("Unable to get the list of distinct dates for the origin ASes in the DB.")
+            return []
+
+    def getListOfDatesForMiddleASes(self):
+        try:
+            self.cur.execute("SELECT distinct(dateseen) from asns where isorigin = False")
+            return list(chain(*self.cur.fetchall()))
+        except:
+            sys.stderr.write("Unable to get the list of distinct dates for the middle ASes in the DB.")
+            return []
             
     @staticmethod    
     def getListOfDateTuples(datesList, isDict):
