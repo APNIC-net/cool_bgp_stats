@@ -138,7 +138,7 @@ def generateFilesForItem(name, item_list, files_path, routing_date):
     writeCSVandCTLfiles(filename_woExt, tuples, ctl_str)
     
     end = time()
-    sys.stderr.write('It took {} seconds to generate the CSV and CTL files for the insertion of {}.\n'.format(end-start, name))
+    sys.stdout.write('It took {} seconds to generate the CSV and CTL files for the insertion of {} for {}.\n'.format(end-start, name, routing_date))
     
 def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler):
     isReadable = True
@@ -150,7 +150,7 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler):
                         bgp_handler.getPrefixesASesAndDate(routing_file, isReadable,\
                                                     RIBfile, COMPRESSED)
     end = time()
-    sys.stderr.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes.\n'.format(end-start))
+    sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
 
     try:
         generateFilesForItem('prefixes', prefixes, files_path, routing_date)
