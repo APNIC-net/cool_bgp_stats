@@ -416,18 +416,15 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
                                                         coveringPrefASpaths))
                     
     # If there are no less specific blocks being routed
-    else:  
-        # the prefix is classified as top
-        if isDelegated:
-            statsForPrefix[variables['top']] = True
-        else:
-            statsForPrefix[variables['top']] += 1
-            
+    else:              
         # If the list of more specific blocks being routed only
         # includes the block itself, taking into account we are 
         # under the case of the block not having less specific
-        # blocks being routed,
-        if routedPrefix in net_more_specifics and len(net_more_specifics) == 1:
+        # blocks being routed
+        # This function is called only for routed prefixes, that is why
+        # checking for the length of the list of more specific prefixes
+        # being 1 is enough.
+        if len(net_more_specifics) == 1:
             # the block is a Lonely prefix
             # • Lonely: a prefix that does not overlap
             # with any other prefix.
@@ -436,8 +433,7 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
             else:
                 statsForPrefix[variables['lonely']] += 1
                 
-        elif (routedPrefix not in net_more_specifics and len(net_more_specifics) > 0)\
-            or (routedPrefix in net_more_specifics and len(net_more_specifics) > 1):
+        else:
         # If there are more specific blocks being routed apart from
         # the block itself, taking into account we are under the case
         # of the block not having less specific blocks being routed,
@@ -557,6 +553,10 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
             more_specifics_wo_prefix = copy.copy(more_specifics)
 
             if prefix in more_specifics:
+                # For the statistics we do not want to count the prefix itself
+                # as a more specific prefix routed
+                statsForPrefix['numOfMoreSpecificsRouted'] = len(more_specifics) - 1
+                
                 levenshteinDists = []
                 # For the delegated prefix it doesn't make sense to have a list
                 # of numbers of Origin ASes, numbers of AS paths or AS paths
@@ -607,10 +607,12 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                 # so that IPs contained in overlapping announcements are not
                 # counted more than once
                 ips_routed = len(aggr_more_spec)
-                                    
-                # The visibility of the block is the percentaje of IPs
-                # that are visible
-                statsForPrefix['currentVisibility'] = float(ips_routed*100)/ips_delegated
+
+                # If there are no less specific prefixes being routed                
+                if len(less_specifics) == 0:
+                    # The visibility of the block is the percentaje of IPs
+                    # from more specific prefixes that are visible
+                    statsForPrefix['currentVisibility'] = float(ips_routed*100)/ips_delegated
         
                 if len(more_specifics) >= 2 and IPNetwork(prefix) in aggr_more_spec:
                     # • no root/MS-complete: The root prefix is not announced.
@@ -793,19 +795,6 @@ def main(argv):
     TEMPORAL_DATA = False
     READABLE = True
     es_host = ''
-    
-    # For DEBUG
-    RIBfiles = False
-    files_path = '/Users/sofiasilva/BGP_files'
-    KEEP = True
-    COMPUTE = True
-    DEBUG = False
-    EXTENDED = True
-    startDate = '20000101'
-    endDate = '20000131'
-    routing_date = '20170501'
-    archive_folder = files_path
-    ext = 'readable'
     
     try:
         opts, args = getopt.getopt(argv, "hf:u:r:H:e:S:E:TNocknd:xp:a:4:6:B:R:D:",
