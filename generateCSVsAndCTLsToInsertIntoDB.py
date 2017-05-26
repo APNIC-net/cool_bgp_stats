@@ -134,7 +134,7 @@ def generateFilesForItem(name, item_list, files_path, routing_date):
         tuples = zip(item_list, [True]*len(item_list), [routing_date]*len(item_list))
         ctl_str = asns_ctl_str
 
-    filename_woExt = '{}/{}_{}'.format(name, files_path, routing_date)
+    filename_woExt = '{}/{}_{}'.format(files_path, name, routing_date)
     writeCSVandCTLfiles(filename_woExt, tuples, ctl_str)
     
     end = time()
