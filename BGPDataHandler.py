@@ -354,6 +354,7 @@ class BGPDataHandler:
                 existingRows = 0
 
         end = time()
+        
         with open(output_file, 'a') as output:
             output.write('Check for existing {} for this date and delete records if necessary|{}|seconds.\n'.format(table, end-start))
         
@@ -368,10 +369,11 @@ class BGPDataHandler:
                         self.getPrefixesASesAndDate(routing_file, isReadable,\
                                                     RIBfile, COMPRESSED)
         
-        with open(self.output_file, 'a') as output:
-            output.write('Prefixes to be inserted|{}\n'.format(len(prefixes)))
-            output.write('Origin ASes to be inserted|{}\n'.format(len(originASes)))
-            output.write('Middle ASes to be inserted|{}\n'.format(len(middleASes)))
+        if self.DEBUG:
+            with open(self.output_file, 'a') as output:
+                output.write('Prefixes to be inserted|{}\n'.format(len(prefixes)))
+                output.write('Origin ASes to be inserted|{}\n'.format(len(originASes)))
+                output.write('Middle ASes to be inserted|{}\n'.format(len(middleASes)))
 
         visibilityDB = VisibilityDBHandler(routing_date)
 
@@ -388,8 +390,9 @@ class BGPDataHandler:
             visibilityDB.storeListOfPrefixesSeen(prefixes, routing_date)
         end = time()
         
-        with open(self.output_file, 'a') as output:
-            output.write('Insert the list of prefixes for this date into the DB|{}|seconds\n'.format(end-start))
+        if self.DEBUG:
+            with open(self.output_file, 'a') as output:
+                output.write('Insert the list of prefixes for this date into the DB|{}|seconds\n'.format(end-start))
 
         self.printUsage(self.output_file)
 
@@ -406,8 +409,9 @@ class BGPDataHandler:
             visibilityDB.storeListOfASesSeen(originASes, True, routing_date)
         end = time()
         
-        with open(self.output_file, 'a') as output:
-            output.write('Insert the list of origin ASes for this date into the DB|{}|seconds\n'.format(end-start))
+        if self.DEBUG:
+            with open(self.output_file, 'a') as output:
+                output.write('Insert the list of origin ASes for this date into the DB|{}|seconds\n'.format(end-start))
         
         self.printUsage(self.output_file)
         
@@ -424,8 +428,9 @@ class BGPDataHandler:
             visibilityDB.storeListOfASesSeen(middleASes, False, routing_date)
         end = time()
 
-        with open(self.output_file, 'a') as output:
-            output.write('Insert the list of middle ASes for this date into the DB|{}|seconds\n'.format(end-start))
+        if self.DEBUG:
+            with open(self.output_file, 'a') as output:
+                output.write('Insert the list of middle ASes for this date into the DB|{}|seconds\n'.format(end-start))
 
         self.printUsage(self.output_file)
         
@@ -465,6 +470,8 @@ class BGPDataHandler:
     # therefore the date is taken from the timestamp of the first row in the
     # bgp_df DataFrame.
     def getPrefixesASesAndDate(self, routing_file, isReadable, RIBfile, COMPRESSED):
+        sys.stdout.write("Getting lists of prefixes, origin ASes and middle ASes from {}".format(routing_file))
+
         start = time()
         if not isReadable:
             readable_file_name = self.getReadableFile(routing_file, False,\
@@ -473,8 +480,9 @@ class BGPDataHandler:
             readable_file_name = routing_file
         end = time()
         
-        with open(self.output_file, 'a') as output:
-            output.write('Get a readable file|{}|seconds\n'.format(end-start))
+        if self.DEBUG:
+            with open(self.output_file, 'a') as output:
+                output.write('Get a readable file|{}|seconds\n'.format(end-start))
         
         self.printUsage(self.output_file)
         
@@ -490,9 +498,10 @@ class BGPDataHandler:
                                         'ASpath',\
                                         'origin'])
         end = time()
-        
-        with open(self.output_file, 'a') as output:
-            output.write('Load the readable file into a DataFrame|{}|seconds\n'.format(end-start))
+
+        if self.DEBUG:        
+            with open(self.output_file, 'a') as output:
+                output.write('Load the readable file into a DataFrame|{}|seconds\n'.format(end-start))
         
         self.printUsage(self.output_file)
         
@@ -511,8 +520,9 @@ class BGPDataHandler:
                         str(sublist).split()])
         end = time()
         
-        with open(self.output_file, 'a') as output:
-            output.write('Get the lists of prefixes, origin ASes and middle ASes from the DataFrame|{}|seconds\n'.format(end-start))
+        if self.DEBUG:
+            with open(self.output_file, 'a') as output:
+                output.write('Get the lists of prefixes, origin ASes and middle ASes from the DataFrame|{}|seconds\n'.format(end-start))
         
         self.printUsage(self.output_file)
         
