@@ -231,8 +231,6 @@ def main(argv):
             sys.exit(-1)
     else:
         readables_path = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
-
-    DEBUG = False
     
     bgp_handler = BGPDataHandler(DEBUG, files_path)
     
