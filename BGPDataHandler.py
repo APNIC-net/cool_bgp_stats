@@ -290,20 +290,17 @@ class BGPDataHandler:
     
         return mostRecentFiles
         
-    def getDateFromFileName(self, filename):
-        file_date = ''
+    @staticmethod
+    def getDateFromFileName(filename):
         
-        dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]',\
+        dates = re.findall('(?P<year>[1-2][9,0][0,1,8,9][0-9])[-_]*(?P<month>[0-1][0-9])[-_]*(?P<day>[0-3][0-9])',\
                     filename)
                     
         if len(dates) > 0:
-            file_date = dates[0][0:4]+dates[0][5:7]+dates[0][8:10]
+            file_date = '{}{}{}'.format(dates[0][0], dates[0][1], dates[0][2])
+            return datetime.strptime(file_date, '%Y%m%d').date()
         else:
-            dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]',\
-                        filename)
-            if len(dates) > 0:
-                file_date = dates[0]
-        return datetime.strptime(file_date, '%Y%m%d').date()
+            return None
     
     # This function stores the routing data from the files listed in the
     # historical_files list skipping the mostRecent routing file provided,
