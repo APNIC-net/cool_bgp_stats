@@ -130,8 +130,7 @@ class RoutingStats:
             
             booleanGralKeysTemp_pref = ['isDead', 'isDeadIntact']
             
-            self.prefix_variables = {'top': 'isTop',
-                                     'lonely': 'isLonely',
+            self.prefix_variables = {'lonely': 'isLonely',
                                      'delegated': 'isDelegated',
                                      'deaggregated': 'isDeaggregated',                                     
                                      'coveredLevel1': 'isCoveredLevel1',
@@ -182,16 +181,14 @@ class RoutingStats:
             gralCounterKeys_pref = ['numOfOriginASesIntact', 'numOfASPathsIntact',
                                 'numOfLessSpecificsRouted', 'numOfMoreSpecificsRouted']
                                        
-            self.moreSpec_variables = {'top': 'numOfTopMoreSpec',
-                                       'lonely': 'numOfLonelyMoreSpec',
+            self.moreSpec_variables = {'lonely': 'numOfLonelyMoreSpec',
                                        'delegated': 'numOfDelegatedMoreSpec',
                                        'deaggregated': 'numOfDeaggregatedMoreSpec',
                                        'coveredLevel1': 'numOfCoveredLevel1MoreSpec',
                                        'coveredLevel2plus': 'numOfCoveredLevel2plusMoreSpec',
                                        'covering': 'numOfCoveringMoreSpec'}
             
-            self.lessSpec_variables = {'top': 'numOfTopLessSpec',
-                                       'lonely': 'numOfLonelyLessSpec',
+            self.lessSpec_variables = {'lonely': 'numOfLonelyLessSpec',
                                        'delegated': 'numOfDelegatedLessSpec',
                                        'deaggregated': 'numOfDeaggregatedLessSpec',
                                        'coveredLevel1': 'numOfCoveredLevel1LessSpec',
