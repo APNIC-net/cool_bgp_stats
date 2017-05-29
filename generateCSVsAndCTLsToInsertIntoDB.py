@@ -216,7 +216,11 @@ def main(argv):
         elif opt == '-A':
             archive_folder = os.path.abspath(arg)
         elif opt == '-n':
-            proc_num = arg
+            try:
+                proc_num = int(arg)
+            except ValueError:
+                print "The process number MUST be a number."
+                sys.exit(-1)
         elif opt == '-f':
             routing_file = os.path.abspath(arg)
         elif opt == '-D':
