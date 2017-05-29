@@ -9,8 +9,8 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from BGPDataHandler import BGPDataHandler
 from VisibilityDBHandler import VisibilityDBHandler
 from time import time
-from datetime import datetime
-import csv
+from datetime import datetime, timedelta
+import csv, re
 
 prefixes_ctl_str = '''LOAD CSV  
                           FROM '{}'
@@ -64,10 +64,10 @@ asns_ctl_str = '''LOAD CSV
                           maintenance_work_mem to '1GB', 
                           standard_conforming_strings to 'on';'''
                           
-def getDatesOfExistingCTLs(files_path, existing_dates):
+def getDatesOfExistingCSVs(files_path, existing_dates):
     for existing_file in os.listdir(files_path):
-        if existing_file.endswith('.ctl'):
-            existing_dates.add(getDateFromFile('{}/{}'.format(files_path, existing_file)))
+        if existing_file.endswith('.csv'):
+            existing_dates.add(getDateFromFileName(existing_file))
     
     return existing_dates
             
@@ -76,13 +76,13 @@ def generateFilesFromReadables(readables_path, existing_dates, files_path,
     for readable_file in os.listdir(readables_path):
         if readable_file.endswith('readable'):
             file_path = '{}/{}'.format(readables_path, readable_file)
-            file_date = getDateFromFile(file_path)
+            routing_date = getDateFromFile(file_path)
             
-            if file_date not in existing_dates:
+            if routing_date not in existing_dates:
                 generateFilesFromReadableRoutingFile(files_path,
                                                      file_path,
                                                      bgp_handler)
-                existing_dates.add(file_date)
+                existing_dates.add(routing_date)
     
     return existing_dates
     
@@ -95,23 +95,36 @@ def generateFilesFromOtherRoutingFiles(archive_folder, existing_dates,
     # inserted into the DB yet
     for root, subdirs, files in os.walk(archive_folder):
         for filename in files:
-            full_filename = os.path.join(root, filename)
-            date = getDateFromFile(full_filename)
+            date = getDateFromFileName(filename)
         
             # For paralelization we check for the year of the file, so that
             # different files are processed by different scripts
-            if filename.endswith(extension) and date not in existing_dates and\
+            # We process the file if the date from its name is not in the
+            # existing_dates set or if the date minus one day is not in the
+            # set as some routing files have in their name the date of the
+            # next day to the rouing date.
+            # Once we have the readable file, we get the real date from the
+            # content of the file and if we skip it if the real date is in
+            # the existing_dates set
+            if filename.endswith(extension) and (date not in existing_dates or\
+                date - timedelta(1) not in existing_dates) and\
                 (date.year == 2006 + proc_num or date.year == 2018 - proc_num or\
                 (proc_num == 1 and date.year == 2012)):
-
+                
+                full_filename = os.path.join(root, filename)
                 readable_file = bgp_handler.getReadableFile(full_filename,
                                                             False, RIBfile,
                                                             COMPRESSED)
 
-                generateFilesFromReadableRoutingFile(files_path,
-                                                     readable_file,
-                                                     bgp_handler)
-                existing_dates.add(date)
+                routing_date = getDateFromFile(readable_file)
+                
+                if routing_date in existing_dates:
+                    continue
+                else:
+                    generateFilesFromReadableRoutingFile(files_path,
+                                                         readable_file,
+                                                         bgp_handler)
+                    existing_dates.add(date)
 
     return existing_dates
 
@@ -196,6 +209,16 @@ def getDateFromFile(file_path):
     with open(file_path, 'rb') as readable_file:
         first_line = readable_file.readline()
         return datetime.utcfromtimestamp(first_line.split('|')[1]).date()
+        
+def getDateFromFileName(filename):        
+    dates = re.findall('(?P<year>[1-2][9,0][0,1,8,9][0-9])[-_]*(?P<month>[0-1][0-9])[-_]*(?P<day>[0-3][0-9])',\
+                filename)
+                
+    if len(dates) > 0:
+        file_date = '{}{}{}'.format(dates[0][0], dates[0][1], dates[0][2])
+        return datetime.strptime(file_date, '%Y%m%d').date()
+    else:
+        return None
     
 def main(argv):
     routing_file = ''
@@ -266,7 +289,7 @@ def main(argv):
                             intersection(set(db_handler.getListOfDatesForOriginASes())).\
                             intersection(set(db_handler.getListOfDatesForMiddleASes()))
         
-        existing_dates = getDatesOfExistingCTLs(files_path, existing_dates)
+        existing_dates = getDatesOfExistingCSVs(files_path, existing_dates)
         
         existing_dates = generateFilesFromReadables(readables_path,
                                                     existing_dates,
