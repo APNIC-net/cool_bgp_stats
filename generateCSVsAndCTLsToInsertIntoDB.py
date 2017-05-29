@@ -208,7 +208,7 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler):
 def getDateFromFile(file_path):        
     with open(file_path, 'rb') as readable_file:
         first_line = readable_file.readline()
-        return datetime.utcfromtimestamp(first_line.split('|')[1]).date()
+        return datetime.utcfromtimestamp(float(first_line.split('|')[1])).date()
         
 def getDateFromFileName(filename):        
     dates = re.findall('(?P<year>[1-2][9,0][0,1,8,9][0-9])[-_]*(?P<month>[0-1][0-9])[-_]*(?P<day>[0-3][0-9])',\
