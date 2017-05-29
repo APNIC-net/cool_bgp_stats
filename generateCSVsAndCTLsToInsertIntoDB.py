@@ -9,7 +9,7 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from BGPDataHandler import BGPDataHandler
 from VisibilityDBHandler import VisibilityDBHandler
 from time import time
-from datetime import datetime, timedelta
+from datetime import datetime
 import csv, re
 
 prefixes_ctl_str = '''LOAD CSV  
@@ -85,7 +85,17 @@ def generateFilesFromReadables(readables_path, existing_dates, files_path,
                 existing_dates.add(routing_date)
     
     return existing_dates
+
+
+def getDatesForExistingReadables(files_path):
+    readable_dates = set()
     
+    for root, subdirs, files in os.walk(files_path):
+        for filename in files:
+            if filename.endswith('readable'):
+                readable_dates.add(getDateFromFileName(filename))
+
+    return readable_dates                
    
 def generateFilesFromOtherRoutingFiles(archive_folder, existing_dates,
                                        files_path, bgp_handler, proc_num,
@@ -99,15 +109,7 @@ def generateFilesFromOtherRoutingFiles(archive_folder, existing_dates,
         
             # For paralelization we check for the year of the file, so that
             # different files are processed by different scripts
-            # We process the file if the date from its name is not in the
-            # existing_dates set or if the date minus one day is not in the
-            # set as some routing files have in their name the date of the
-            # next day to the rouing date.
-            # Once we have the readable file, we get the real date from the
-            # content of the file and if we skip it if the real date is in
-            # the existing_dates set
-            if filename.endswith(extension) and (date not in existing_dates or\
-                date - timedelta(1) not in existing_dates) and\
+            if filename.endswith(extension) and date not in existing_dates and\
                 (date.year == 2006 + proc_num or date.year == 2018 - proc_num or\
                 (proc_num == 1 and date.year == 2012)):
                 
@@ -116,15 +118,10 @@ def generateFilesFromOtherRoutingFiles(archive_folder, existing_dates,
                                                             False, RIBfile,
                                                             COMPRESSED)
 
-                routing_date = getDateFromFile(readable_file)
-                
-                if routing_date in existing_dates:
-                    continue
-                else:
-                    generateFilesFromReadableRoutingFile(files_path,
-                                                         readable_file,
-                                                         bgp_handler)
-                    existing_dates.add(date)
+                generateFilesFromReadableRoutingFile(files_path,
+                                                     readable_file,
+                                                     bgp_handler)
+                existing_dates.add(date)
 
     return existing_dates
 
@@ -296,8 +293,10 @@ def main(argv):
                                                     files_path,
                                                     bgp_handler)
         
+        readable_dates = getDatesForExistingReadables(files_path)
+        
         existing_dates = generateFilesFromOtherRoutingFiles(archive_folder,
-                                                            existing_dates,
+                                                            readable_dates,
                                                             files_path,
                                                             bgp_handler,
                                                             proc_num,
@@ -305,7 +304,7 @@ def main(argv):
                                                             True, False)
         
         existing_dates = generateFilesFromOtherRoutingFiles(archive_folder,
-                                                            existing_dates,
+                                                            readable_dates,
                                                             files_path,
                                                             bgp_handler,
                                                             proc_num,
