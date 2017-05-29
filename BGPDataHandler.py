@@ -330,7 +330,8 @@ class BGPDataHandler:
     # to insert, we remove the existing rows and insert the full set of rows.
     # The number of existing rows is returned.
     @staticmethod
-    def prepareTableForInsert(table, routing_date, numOfRows, visibilityDB, output_file):
+    def prepareTableForInsert(table, routing_date, numOfRows, visibilityDB,
+                              DEBUG, output_file):
         start = time()
         if table == 'prefixes':
             existingRows = visibilityDB.getPrefixCountForDate(routing_date)
@@ -355,8 +356,9 @@ class BGPDataHandler:
 
         end = time()
         
-        with open(output_file, 'a') as output:
-            output.write('Check for existing {} for this date and delete records if necessary|{}|seconds.\n'.format(table, end-start))
+        if DEBUG:
+            with open(output_file, 'a') as output:
+                output.write('Check for existing {} for this date and delete records if necessary|{}|seconds.\n'.format(table, end-start))
         
         return existingRows
     
@@ -381,9 +383,10 @@ class BGPDataHandler:
                                                   routing_date,
                                                   len(prefixes),
                                                   visibilityDB,
+                                                  self.DEBUG,
                                                   self.output_file)
-        
-        self.printUsage(self.output_file)
+        if self.DEBUG:
+            self.printUsage(self.output_file)
 
         start = time()
         if existingRows == 0:
@@ -394,15 +397,17 @@ class BGPDataHandler:
             with open(self.output_file, 'a') as output:
                 output.write('Insert the list of prefixes for this date into the DB|{}|seconds\n'.format(end-start))
 
-        self.printUsage(self.output_file)
+            self.printUsage(self.output_file)
 
         existingRows = self.prepareTableForInsert('originASes',
                                                   routing_date,
                                                   len(originASes),
                                                   visibilityDB,
+                                                  self.DEBUG,
                                                   self.output_file)
-        
-        self.printUsage(self.output_file)
+
+        if self.DEBUG:        
+            self.printUsage(self.output_file)
         
         start = time()
         if existingRows == 0:
@@ -413,16 +418,18 @@ class BGPDataHandler:
             with open(self.output_file, 'a') as output:
                 output.write('Insert the list of origin ASes for this date into the DB|{}|seconds\n'.format(end-start))
         
-        self.printUsage(self.output_file)
-        
+            self.printUsage(self.output_file)
+            
         existingRows = self.prepareTableForInsert('middleASes',
                                                   routing_date,
                                                   len(middleASes),
                                                   visibilityDB,
+                                                  self.DEBUG,
                                                   self.output_file)
 
-        self.printUsage(self.output_file)
-        
+        if self.DEBUG:        
+            self.printUsage(self.output_file)
+            
         start = time()
         if existingRows == 0:
             visibilityDB.storeListOfASesSeen(middleASes, False, routing_date)
@@ -432,12 +439,12 @@ class BGPDataHandler:
             with open(self.output_file, 'a') as output:
                 output.write('Insert the list of middle ASes for this date into the DB|{}|seconds\n'.format(end-start))
 
-        self.printUsage(self.output_file)
-        
+            self.printUsage(self.output_file)
+            
         visibilityDB.close()
         
     @staticmethod
-    def cleanListOfASes(ases_list, output_file):
+    def cleanListOfASes(ases_list, DEBUG, output_file):
         start = time()
         cleanListOfASes = []
         for asn in ases_list:
@@ -456,8 +463,9 @@ class BGPDataHandler:
         cleanListOfASes = list(set(cleanListOfASes))
         end = time()
         
-        with open(output_file, 'a') as output:
-            output.write('Clean the list of ASes|{}|seconds\n'.format(end-start))
+        if DEBUG:
+            with open(output_file, 'a') as output:
+                output.write('Clean the list of ASes|{}|seconds\n'.format(end-start))
 
         return cleanListOfASes
 
@@ -470,7 +478,7 @@ class BGPDataHandler:
     # therefore the date is taken from the timestamp of the first row in the
     # bgp_df DataFrame.
     def getPrefixesASesAndDate(self, routing_file, isReadable, RIBfile, COMPRESSED):
-        sys.stdout.write("Getting lists of prefixes, origin ASes and middle ASes from {}".format(routing_file))
+        sys.stdout.write("Getting lists of prefixes, origin ASes and middle ASes from {}\n".format(routing_file))
 
         start = time()
         if not isReadable:
@@ -484,7 +492,7 @@ class BGPDataHandler:
             with open(self.output_file, 'a') as output:
                 output.write('Get a readable file|{}|seconds\n'.format(end-start))
         
-        self.printUsage(self.output_file)
+            self.printUsage(self.output_file)
         
         if readable_file_name == '':
             return [], [], ''
@@ -503,7 +511,7 @@ class BGPDataHandler:
             with open(self.output_file, 'a') as output:
                 output.write('Load the readable file into a DataFrame|{}|seconds\n'.format(end-start))
         
-        self.printUsage(self.output_file)
+            self.printUsage(self.output_file)
         
         if self.DEBUG:
             bgp_df = bgp_df[0:10]
@@ -524,10 +532,12 @@ class BGPDataHandler:
             with open(self.output_file, 'a') as output:
                 output.write('Get the lists of prefixes, origin ASes and middle ASes from the DataFrame|{}|seconds\n'.format(end-start))
         
-        self.printUsage(self.output_file)
+            self.printUsage(self.output_file)
         
-        return prefixes, self.cleanListOfASes(originASes, self.output_file),\
-                self.cleanListOfASes(middleASes, self.output_file), routing_date
+        return prefixes,\
+                self.cleanListOfASes(originASes, self.DEBUG, self.output_file),\
+                self.cleanListOfASes(middleASes, self.DEBUG, self.output_file),\
+                routing_date
 
     # Reading the readable routing file line by line and char by char takes
     # much longer than loading the routing file into a DataFrame, that's why
