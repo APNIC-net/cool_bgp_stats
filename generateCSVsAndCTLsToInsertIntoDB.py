@@ -9,6 +9,8 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from BGPDataHandler import BGPDataHandler
 from VisibilityDBHandler import VisibilityDBHandler
 from time import time
+from re import findall
+from datetime import strptime
 import csv
 
 prefixes_ctl_str = '''LOAD CSV  
@@ -63,11 +65,18 @@ asns_ctl_str = '''LOAD CSV
                           maintenance_work_mem to '1GB', 
                           standard_conforming_strings to 'on';'''
                           
+def getDatesOfExistingCTLs(files_path, existing_dates):
+    for existing_file in os.listdir(files_path):
+        if existing_file.endswith('.ctl'):
+            existing_dates.add(getDateFromFileName(existing_file))
+    
+    return existing_dates
+            
 def generateFilesFromReadables(readables_path, existing_dates, files_path,
                                bgp_handler):    
     for readable_file in os.listdir(readables_path):
         if readable_file.endswith('readable'):
-            file_date = bgp_handler.getDateFromFileName(readable_file)
+            file_date = getDateFromFileName(readable_file)
             
             if file_date not in existing_dates:
                 generateFilesFromReadableRoutingFile(files_path,
@@ -87,7 +96,7 @@ def generateFilesFromOtherRoutingFiles(archive_folder, existing_dates,
     # inserted into the DB yet
     for root, subdirs, files in os.walk(archive_folder):
         for filename in files:
-            date = bgp_handler.getDateFromFileName(filename)
+            date = getDateFromFileName(filename)
         
             # For paralelization we check for the year of the file, so that
             # different files are processed by different scripts
@@ -178,7 +187,16 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler):
         sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
         generateFilesForItem('middleASes', middleASes, files_path, routing_date)
         sys.exit(0)
-        
+
+def getDateFromFileName(filename):        
+    dates = findall('(?P<year>[1-2][9,0][0,1,8,9][0-9])[-_]*(?P<month>[0-1][0-9])[-_]*(?P<day>[0-3][0-9])',\
+                filename)
+                
+    if len(dates) > 0:
+        file_date = '{}{}{}'.format(dates[0][0], dates[0][1], dates[0][2])
+        return strptime(file_date, '%Y%m%d').date()
+    else:
+        return None
     
 def main(argv):
     routing_file = ''
@@ -248,6 +266,8 @@ def main(argv):
         existing_dates = set(db_handler.getListOfDatesForPrefixes()).\
                             intersection(set(db_handler.getListOfDatesForOriginASes())).\
                             intersection(set(db_handler.getListOfDatesForMiddleASes()))
+        
+        existing_dates = getDatesOfExistingCTLs(files_path, existing_dates)
         
         existing_dates = generateFilesFromReadables(readables_path,
                                                     existing_dates,
