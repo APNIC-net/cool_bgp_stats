@@ -9,8 +9,8 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from BGPDataHandler import BGPDataHandler
 from VisibilityDBHandler import VisibilityDBHandler
 from time import time
-from re import findall
-from datetime import strptime
+import re
+import datetime
 import csv
 
 prefixes_ctl_str = '''LOAD CSV  
@@ -189,12 +189,12 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler):
         sys.exit(0)
 
 def getDateFromFileName(filename):        
-    dates = findall('(?P<year>[1-2][9,0][0,1,8,9][0-9])[-_]*(?P<month>[0-1][0-9])[-_]*(?P<day>[0-3][0-9])',\
+    dates = re.findall('(?P<year>[1-2][9,0][0,1,8,9][0-9])[-_]*(?P<month>[0-1][0-9])[-_]*(?P<day>[0-3][0-9])',\
                 filename)
                 
     if len(dates) > 0:
         file_date = '{}{}{}'.format(dates[0][0], dates[0][1], dates[0][2])
-        return strptime(file_date, '%Y%m%d').date()
+        return datetime.strptime(file_date, '%Y%m%d').date()
     else:
         return None
     
