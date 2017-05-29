@@ -10,7 +10,7 @@ from BGPDataHandler import BGPDataHandler
 from VisibilityDBHandler import VisibilityDBHandler
 from time import time
 import re
-import datetime
+from datetime import datetime
 import csv
 
 prefixes_ctl_str = '''LOAD CSV  
