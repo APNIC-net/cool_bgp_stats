@@ -20,13 +20,13 @@ def createSQLFile(item, existing_dates, files_path):
         table_name = 'asns'
         
     with open(sql_file, 'wb') as f:
-        f.write('\connect sofia')
+        f.write('\connect sofia\n')
 
         for existing_file in os.listdir(files_path):
             if existing_file.endswith('.csv') and\
                 existing_file.startswith(item) and\
                 getDateFromFileName(existing_file) not in existing_dates:
-                f.write("copy {} from '{}/{}' WITH (FORMAT csv);".format(table_name, files_path, existing_file))
+                f.write("copy {} from '{}/{}' WITH (FORMAT csv);\n".format(table_name, files_path, existing_file))
 
     return sql_file
 
