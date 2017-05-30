@@ -1007,9 +1007,9 @@ class BGPDataHandler:
                                 files_dict[file_date].append(file_path)
         
         if extension == '':
-            return self.getPathsToAllHistoricalData_dict(startDate, endDate,
-                                                         archive_folder,
-                                                         'dmp.gz', files_dict)
+            return self.getPathsToHistoricalData_dict(startDate, endDate,
+                                                      archive_folder,
+                                                      'dmp.gz', files_dict)
 
         return files_dict
 
