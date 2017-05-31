@@ -95,9 +95,9 @@ def getDatesForExistingReadables(files_path, readable_dates):
 
     return readable_dates                
    
-def generateFilesFromOtherRoutingFiles(archive_folder, existing_dates,
-                                       files_path, bgp_handler, proc_num,
-                                       extension, RIBfile, COMPRESSED):
+def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates,
+                                       existing_dates, files_path, bgp_handler,
+                                       proc_num, extension, RIBfile, COMPRESSED):
     
     # Routing files in the archive folder for dates that haven't been
     # inserted into the DB yet
@@ -115,11 +115,12 @@ def generateFilesFromOtherRoutingFiles(archive_folder, existing_dates,
                 readable_file = bgp_handler.getReadableFile(full_filename,
                                                             False, RIBfile,
                                                             COMPRESSED)
-
-                generateFilesFromReadableRoutingFile(files_path,
-                                                     readable_file,
-                                                     bgp_handler)
-                existing_dates.add(date)
+                                                            
+                if getDateFromFile(readable_file.split('/')[-1]) not in existing_dates:
+                    generateFilesFromReadableRoutingFile(files_path,
+                                                         readable_file,
+                                                         bgp_handler)
+                    existing_dates.add(date)
 
     return existing_dates
 
@@ -296,6 +297,7 @@ def main(argv):
         
         existing_dates = generateFilesFromOtherRoutingFiles(archive_folder,
                                                             readable_dates,
+                                                            existing_dates,
                                                             files_path,
                                                             bgp_handler,
                                                             proc_num,
@@ -304,6 +306,7 @@ def main(argv):
         
         existing_dates = generateFilesFromOtherRoutingFiles(archive_folder,
                                                             readable_dates,
+                                                            existing_dates,
                                                             files_path,
                                                             bgp_handler,
                                                             proc_num,
