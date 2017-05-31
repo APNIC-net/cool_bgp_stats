@@ -116,7 +116,7 @@ def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates,
                                                             False, MRTfile,
                                                             COMPRESSED)
                                                             
-                if getDateFromFile(readable_file not in existing_dates:
+                if getDateFromFile(readable_file) not in existing_dates:
                     generateFilesFromReadableRoutingFile(files_path,
                                                          readable_file,
                                                          bgp_handler)
