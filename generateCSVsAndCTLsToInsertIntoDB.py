@@ -87,9 +87,7 @@ def generateFilesFromReadables(readables_path, existing_dates, files_path,
     return existing_dates
 
 
-def getDatesForExistingReadables(files_path):
-    readable_dates = set()
-    
+def getDatesForExistingReadables(files_path, readable_dates):    
     for root, subdirs, files in os.walk(files_path):
         for filename in files:
             if filename.endswith('readable'):
@@ -273,7 +271,7 @@ def main(argv):
     else:
         readables_path = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
     
-    bgp_handler = BGPDataHandler(DEBUG, files_path)
+    bgp_handler = BGPDataHandler(DEBUG, readables_path)
     
     if routing_file != '':
         generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler)
@@ -293,7 +291,8 @@ def main(argv):
                                                     files_path,
                                                     bgp_handler)
         
-        readable_dates = getDatesForExistingReadables(files_path)
+        readable_dates = set()
+        readable_dates = getDatesForExistingReadables(readables_path, readable_dates)
         
         existing_dates = generateFilesFromOtherRoutingFiles(archive_folder,
                                                             readable_dates,
