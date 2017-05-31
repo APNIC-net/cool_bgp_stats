@@ -97,7 +97,7 @@ def getDatesForExistingReadables(files_path, readable_dates):
    
 def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates,
                                        existing_dates, files_path, bgp_handler,
-                                       proc_num, extension, RIBfile, COMPRESSED):
+                                       proc_num, extension, MRTfile, COMPRESSED):
     
     # Routing files in the archive folder for dates that haven't been
     # inserted into the DB yet
@@ -113,10 +113,10 @@ def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates,
                 
                 full_filename = os.path.join(root, filename)
                 readable_file = bgp_handler.getReadableFile(full_filename,
-                                                            False, RIBfile,
+                                                            False, MRTfile,
                                                             COMPRESSED)
                                                             
-                if getDateFromFile(readable_file.split('/')[-1]) not in existing_dates:
+                if getDateFromFile(readable_file not in existing_dates:
                     generateFilesFromReadableRoutingFile(files_path,
                                                          readable_file,
                                                          bgp_handler)
@@ -162,13 +162,13 @@ def generateFilesForItem(name, item_list, files_path, routing_date):
     
 def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler):
     isReadable = True
-    RIBfile = False
+    MRTfile = False
     COMPRESSED = False
     
     start = time()
     prefixes, originASes, middleASes, routing_date =\
                         bgp_handler.getPrefixesASesAndDate(routing_file, isReadable,\
-                                                    RIBfile, COMPRESSED)
+                                                    MRTfile, COMPRESSED)
     end = time()
     sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
 
