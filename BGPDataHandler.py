@@ -777,7 +777,7 @@ class BGPDataHandler:
             routing_date = bgp_entry[8]
 #           date_part = str(file_date)[0:8]
 #           time_part = str(file_date)[8:12]
-            timestamp = timegm(datetime.strptime(routing_date, "%Y%m%d%H%M").timetuple())
+            timestamp = str(timegm(datetime.strptime(routing_date, "%Y%m%d%H%M").timetuple()))
             next_hop = bgp_entry[2]
             prefix = bgp_entry[0]
             as_path = bgp_entry[6]
@@ -802,7 +802,7 @@ class BGPDataHandler:
 
             #the order for each line is
             #TABLE_DUMP2|date|B|nexthop|NextAS|prefix|AS_PATH|Origin
-            output_file.write('TABLE_DUMP|'+str(timestamp)[:-2]+'|B|'+next_hop+'|'+nextas+'|'+prefix+'|'+" ".join(as_path)+'|'+origin+'\n')
+            output_file.write('TABLE_DUMP|'+timestamp+'|B|'+next_hop+'|'+nextas+'|'+prefix+'|'+" ".join(as_path)+'|'+origin+'\n')
     
             i += 1
             if self.DEBUG and i > 10:
@@ -813,62 +813,49 @@ class BGPDataHandler:
         return output_file_name
     
     # This function processes a readable file corresponding to an updates
-    # (bgpupd) file and returns the Radix trees with the routing info
-    # indexed by prefix
-    def processReadableUpdatesDF(self, readable_file_name, prefixes_df):        
-        if prefixes_df is None:
-            prefixes_df = pd.DataFrame(columns=['prefix', 'ip_version',
-                                                'prefLength',
-                                                'routing_date',
-                                                'numOfAnnouncements',
-                                                'numOfWithdraws'])
-        else:
-            prefixes_df.reset_index()
-            del prefixes_df['index']            
+    # (bgpupd) file and return a DataFrame with the summarized routing info:
+    # Number of announcements and number of withdraws for each prefix
+    # on a certain date
+    def processReadableUpdatesDF(self, readable_file_name):     
+        filtered_readable = '{}.filtered'.format(readable_file_name)
         
-        with open(readable_file_name, 'rb') as readable:
-            for line in readable.readlines():
-                if 'BGP4MP' in line and 'STATE' not in line:
-                    # BGP4MP|1493587722|A|202.12.28.1|4777|2a06:21c0::/29|4777 2497 6939 47869 51942|IGP|::ffff:202.12.28.1|0|0||NAG||
-                    line_parts = line.split('|')
-                    update_date = datetime.utcfromtimestamp(float(line_parts[1])).date()
-                    upd_type = line_parts[2]
-                    prefix = line_parts[5]
-                    network = IPNetwork(prefix)
-                    prefLength = network.prefixlen
-                    ip_version = network.version
-                    
-                    existing_indexes = prefixes_df[(prefixes_df['prefix'] == prefix) &\
-                                                    (prefixes_df['routing_date'] == update_date)].index
-                    
-                    if len(existing_indexes) > 0:
-                        # There won't be more than one row for a specific prefix on a certain date,
-                        # therefore, if there is any row for the prefix on the update date,
-                        # it will be only one row, that's why we use the first index of the list of indexes
-                        if upd_type == 'A':
-                            prefixes_df.loc[existing_indexes[0], 'numOfAnnouncements'] += 1
-                        elif upd_type == 'W':
-                            prefixes_df.loc[existing_indexes[0], 'numOfWithdraws'] += 1
-                        else:
-                            sys.stderr.write('Unknown update type {}\n'.format(upd_type))
-                    else:
-                        if upd_type == 'A':
-                            announcement = 1
-                            withdraw = 0
-                        elif upd_type == 'W':
-                            announcement = 0
-                            withdraw = 1
-                        else:
-                            sys.stderr.write('Unknown update type {}\n'.format(upd_type))
-                            announcement = 0
-                            withdraw = 0
+        cmd = shlex.split("grep -v STATE {}".format(readable_file_name))
+        with open(filtered_readable, 'w') as filtered:
+            p = subprocess.Popen(cmd, stdout=filtered)
+            p.wait()
+            filtered.flush()
+        
+        # BGP4MP|1493587722|A|202.12.28.1|4777|2a06:21c0::/29|4777 2497 6939 47869 51942|IGP|::ffff:202.12.28.1|0|0||NAG||
 
-                        prefixes_df.loc[prefixes_df.shape[0]] = [prefix,
-                                                                    ip_version,
-                                                                    prefLength,
-                                                                    update_date,
-                                                                    announcement,
-                                                                    withdraw]
+        updates_df = pd.read_csv(filtered_readable, header=None, sep='|',\
+                                index_col=False, usecols=[1,2,5],\
+                                names=['timestamp',\
+                                        'upd_type',\
+                                        'prefix'])
+        
+        updates_df['routing_date'] = updates_df.apply(lambda row:\
+                                        datetime.utcfromtimestamp(row['timestamp']).\
+                                        date(), axis=1)
+
+        prefixes_df = pd.DataFrame(columns=['prefix', 'ip_version',
+                                            'prefLength',
+                                            'routing_date',
+                                            'numOfAnnouncements',
+                                            'numOfWithdraws'])  
+                
+        for prefix, prefix_subset in updates_df.groupby('prefix'):
+            for routing_date, date_subset in prefix_subset.groupby('routing_date'):
+                network = IPNetwork(prefix)
+                numOfAnnouncements = len(date_subset[date_subset['upd_type'] == 'A'])
+                numOfWithdraws = len(date_subset[date_subset['upd_type'] == 'W'])
+                
+                prefixes_df.loc[prefixes_df.shape[0]] = [prefix,
+                                                            network.version,
+                                                            network.prefixlen,
+                                                            routing_date,
+                                                            numOfAnnouncements,
+                                                            numOfWithdraws]
+                
         return prefixes_df
  
     # This function processes a readable file with routing info
