@@ -817,7 +817,8 @@ class BGPDataHandler:
     # indexed by prefix
     def processReadableUpdatesDF(self, readable_file_name, prefixes_df):        
         if prefixes_df is None:
-            prefixes_df = pd.DataFrame(columns=['prefix', 'prefLength',
+            prefixes_df = pd.DataFrame(columns=['prefix', 'ip_version',
+                                                'prefLength',
                                                 'routing_date',
                                                 'numOfAnnouncements',
                                                 'numOfWithdraws'])
@@ -833,7 +834,9 @@ class BGPDataHandler:
                     update_date = datetime.utcfromtimestamp(float(line_parts[1])).date()
                     upd_type = line_parts[2]
                     prefix = line_parts[5]
-                    prefLength = int(prefix.split('/')[1])
+                    network = IPNetwork(prefix)
+                    prefLength = network.prefixlen
+                    ip_version = network.version
                     
                     existing_indexes = prefixes_df[(prefixes_df['prefix'] == prefix) &\
                                                     (prefixes_df['routing_date'] == update_date)].index
@@ -861,6 +864,7 @@ class BGPDataHandler:
                             withdraw = 0
 
                         prefixes_df.loc[prefixes_df.shape[0]] = [prefix,
+                                                                    ip_version,
                                                                     prefLength,
                                                                     update_date,
                                                                     announcement,
@@ -963,11 +967,11 @@ class BGPDataHandler:
             
             source = output_file
             source_filename = source.split('/')[-1]
+
+        readable_file_name = '%s/%s.readable' % (self.files_path, os.path.splitext(source_filename)[0])
                 
         # If the routing file is a MRT file, we process it using BGPdump
         if MRTfile:            
-            readable_file_name = '%s/%s.readable' % (self.files_path, os.path.splitext(source_filename)[0])
-
             if not os.path.exists(readable_file_name):
                 cmd = shlex.split('%s -m -O %s %s' % (bgpdump, readable_file_name, source))
                 #        cmd = shlex.split('bgpdump -m -O %s %s' % (readable_file_name, routing_file))   
