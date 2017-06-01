@@ -107,7 +107,7 @@ def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates,
         
             # For paralelization we check for the year of the file, so that
             # different files are processed by different scripts
-            if filename.endswith(extension) and date not in existing_dates and\
+            if filename.endswith(extension) and date not in readable_dates and\
                 (date.year == 2006 + proc_num or date.year == 2018 - proc_num or\
                 (proc_num == 1 and date.year == 2012)):
                 
