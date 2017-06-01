@@ -35,17 +35,19 @@ bgp_handler = BGPDataHandler(DEBUG, files_path)
 #COMPRESSED = False
 #readable_updates = bgp_handler.getReadableFile(updates_file, False, MRTfile, COMPRESSED)
 readable_updates = updates_file
-updates_df = bgp_handler.processReadableUpdatesDF(readable_updates, None)
+updates_df = bgp_handler.processReadableUpdatesDF(readable_updates)
 
-updateRates_DF = pd.DataFrame(columns=['routing_date', 'prefLength',
+updateRates_DF = pd.DataFrame(columns=['routing_date', 'ip_version', 'prefLength',
                                        'numOfAnnouncements', 'numOfWithdraws'])
 
 for prefLength, prefLength_subset in updates_df.groupby('prefLength'):
-    for routing_date, date_subset in prefLength_subset.groupby('routing_date'):
-        updateRates_DF.loc[updateRates_DF.shape[0]] = [routing_date,
-                                                        prefLength,
-                                                        sum(date_subset['numOfAnnouncements']),
-                                                        sum(date_subset['numOfWithdraws'])]
+    for ipVersion, ipver_subset in prefLength_subset.groupby('ip_version'):
+        for routing_date, date_subset in ipver_subset.groupby('routing_date'):
+            updateRates_DF.loc[updateRates_DF.shape[0]] = [routing_date,
+                                                            ipVersion,
+                                                            prefLength,
+                                                            sum(date_subset['numOfAnnouncements']),
+                                                            sum(date_subset['numOfWithdraws'])]
 
 READABLE = True
 MRTfile = False
