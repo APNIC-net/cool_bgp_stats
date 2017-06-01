@@ -7,6 +7,7 @@ import sys
 import datetime
 from collections import namedtuple
 import re
+import dateutil.parser
 #from  netaddr import IPAddress, IPNetwork
 
 def get_class_length(prefix):
@@ -372,28 +373,27 @@ class BGPRIB(dict):
         multiple_lines = False
         start_process = False
 
-        dates = re.findall('[1-2][9,0][0,1,8,9][0-9]-[0-1][0-9]-[0-3][0-9]', file_name)
-
+        dates = re.findall('''(?P<year>[1-2][9,0][0,1,8,9][0-9])[-_]*(?P<month>[0-1][0-9])[-_]*(?P<day>[0-3][0-9])''', file_name)
+       
         if len(dates) > 0:
-            year = int(dates[0][0:4])
-            month = int(dates[0][5:7])
-            day = int(dates[0][8:10])
+            year = int(dates[0][0])
+            month = int(dates[0][1])
+            day = int(dates[0][2])
             date = datetime.date(year, month, day).strftime('%Y%m%d%H%M')
         else:
-            dates = re.findall('[1-2][9,0][0,1,8,9][0-9][0-1][0-9][0-3][0-9]', file_name)
-            if len(dates) > 0:
-                year = int(dates[0][0:4])
-                month = int(dates[0][4:6])
-                day = int(+dates[0][6:8])
-                date = datetime.date(year, month, day).strftime('%Y%m%d%H%M')
-
-            else:
-                # If there is no date in the file name, we use the date of today
-                date = datetime.datetime.today().strftime('%Y%m%d%H%M')
+            # If there is no date in the file name, we use the date of today
+            date = datetime.datetime.today().strftime('%Y%m%d%H%M')
 
         with open(file_name, 'r') as file_h:
             for linecpt, line in enumerate(file_h):
                 try:
+                    # We check whether there is a date in the first line
+                    # If there is, we use that date
+                    if linecpt == 0:
+                        try:
+                            date = dateutil.parser.parse(line.strip()).date().strftime('%Y%m%d%H%M')
+                        except ValueError:
+                            pass
                     # start in the point where the first valid line is found (*)
                     if not line.strip():
                         continue
