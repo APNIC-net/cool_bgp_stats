@@ -944,11 +944,11 @@ class BGPDataHandler:
                                 os.path.splitext(source)[0].split('/')[-1])
             
             with gzip.open(source, 'rb') as gzip_file,\
-                with open(output_file, 'wb') as output:
-                    try:
-                        output.write(gzip_file.read())
-                    except IOError:
-                        return ''
+                open(output_file, 'wb') as output:
+                try:
+                    output.write(gzip_file.read())
+                except IOError:
+                    return ''
             
             source = output_file
             source_filename = source.split('/')[-1]
