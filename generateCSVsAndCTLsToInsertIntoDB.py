@@ -72,11 +72,11 @@ def getDatesOfExistingCSVs(files_path, existing_dates):
     return existing_dates
             
 def generateFilesFromReadables(readables_path, existing_dates, files_path,
-                               bgp_handler):    
+                               bgp_handler, output_file):    
     for readable_file in os.listdir(readables_path):
         if readable_file.endswith('readable'):
             file_path = '{}/{}'.format(readables_path, readable_file)
-            routing_date = getDateFromFile(file_path)
+            routing_date = getDateFromFile(file_path, output_file)
             
             if routing_date not in existing_dates:
                 generateFilesFromReadableRoutingFile(files_path,
@@ -87,7 +87,8 @@ def generateFilesFromReadables(readables_path, existing_dates, files_path,
     return existing_dates
 
 
-def getDatesForExistingReadables(files_path, readable_dates):    
+def getDatesForExistingReadables(files_path):
+    readable_dates = set()    
     for root, subdirs, files in os.walk(files_path):
         for filename in files:
             if filename.endswith('readable'):
@@ -97,7 +98,8 @@ def getDatesForExistingReadables(files_path, readable_dates):
    
 def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates,
                                        existing_dates, files_path, bgp_handler,
-                                       proc_num, extension, MRTfile, COMPRESSED):
+                                       proc_num, extension, MRTfile, COMPRESSED,
+                                       output_file):
     
     # Routing files in the archive folder for dates that haven't been
     # inserted into the DB yet
@@ -115,14 +117,21 @@ def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates,
                 readable_file = bgp_handler.getReadableFile(full_filename,
                                                             False, MRTfile,
                                                             COMPRESSED)
-                                                            
-                if getDateFromFile(readable_file) not in existing_dates:
+                if readable_file == '':
+                    with open(output_file, 'a') as output:
+                        output.write('Got an empty readable file name for file {}\n'.format(full_filename))
+                    continue
+                
+                readable_dates.add(date)
+                
+                routing_date = getDateFromFile(readable_file, output_file)
+                if routing_date not in existing_dates:
                     generateFilesFromReadableRoutingFile(files_path,
                                                          readable_file,
                                                          bgp_handler)
-                    existing_dates.add(date)
+                    existing_dates.add(routing_date)
 
-    return existing_dates
+    return existing_dates, readable_dates
 
 
 def writeCSVandCTLfiles(filename_woExt, tuples, ctl_str):
@@ -201,10 +210,26 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler):
 
 # We assume the routing files have routing info for a single date,
 # therefore we get the routing date from the first line of the file.
-def getDateFromFile(file_path):        
+def getDateFromFile(file_path, output_file):        
     with open(file_path, 'rb') as readable_file:
         first_line = readable_file.readline()
-        return datetime.utcfromtimestamp(float(first_line.split('|')[1])).date()
+        try:
+            timestamp = float(first_line.split('|')[1])
+        except IndexError:
+            timestamp = ''
+            for i in range(5):
+                line = readable_file.readline()
+                try:
+                    timestamp = float(line.split('|')[1])
+                    break
+                except IndexError:
+                    continue
+            
+            if timestamp == '':
+                with open(output_file, 'a') as output:
+                    output.write('Cannot get date from content of file {}\n'.format(file_path))
+                return None
+        return datetime.utcfromtimestamp(timestamp).date()
         
 def getDateFromFileName(filename):        
     dates = re.findall('(?P<year>[1-2][9,0][0,1,8,9][0-9])[-_]*(?P<month>[0-1][0-9])[-_]*(?P<day>[0-3][0-9])',\
@@ -263,8 +288,7 @@ def main(argv):
             DEBUG = True
         else:
             assert False, 'Unhandled option'
-        
-
+    
     if proc_num == -1:
         if routing_file == '':
             print "If you don't provide the path to a routing file you MUST provide a process number."
@@ -272,6 +296,8 @@ def main(argv):
     else:
         readables_path = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
     
+    output_file = '{}/{}_{}_{}.output'.format(files_path, sys.argv[0], proc_num, datetime.today().date())
+
     bgp_handler = BGPDataHandler(DEBUG, readables_path)
     
     if routing_file != '':
@@ -290,29 +316,33 @@ def main(argv):
         existing_dates = generateFilesFromReadables(readables_path,
                                                     existing_dates,
                                                     files_path,
-                                                    bgp_handler)
+                                                    bgp_handler,
+                                                    output_file)
         
-        readable_dates = set()
-        readable_dates = getDatesForExistingReadables(readables_path, readable_dates)
+        readable_dates = getDatesForExistingReadables(readables_path)
         
-        existing_dates = generateFilesFromOtherRoutingFiles(archive_folder,
-                                                            readable_dates,
-                                                            existing_dates,
-                                                            files_path,
-                                                            bgp_handler,
-                                                            proc_num,
-                                                            'bgprib.mrt',
-                                                            True, False)
+        existing_dates, readable_dates = generateFilesFromOtherRoutingFiles(
+                                            archive_folder,
+                                            readable_dates,
+                                            existing_dates,
+                                            files_path,
+                                            bgp_handler,
+                                            proc_num,
+                                            'bgprib.mrt',
+                                            True, False,
+                                            output_file)
         
-        existing_dates = generateFilesFromOtherRoutingFiles(archive_folder,
-                                                            readable_dates,
-                                                            existing_dates,
-                                                            files_path,
-                                                            bgp_handler,
-                                                            proc_num,
-                                                            'dmp.gz', False,
-                                                            True)
-                
+        existing_dates, readable_dates = generateFilesFromOtherRoutingFiles(
+                                            archive_folder,
+                                            readable_dates,
+                                            existing_dates,
+                                            files_path,
+                                            bgp_handler,
+                                            proc_num,
+                                            'dmp.gz',
+                                            False, True,
+                                            output_file)
+
     
 if __name__ == "__main__":
     main(sys.argv[1:])
