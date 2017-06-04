@@ -22,6 +22,8 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from BGPDataHandler import BGPDataHandler
 from netaddr import IPNetwork
 import pandas as pd
+import subprocess, shlex
+from datetime import datetime
 
 DEBUG = True
 files_path = '/Users/sofiasilva/BGP_files'
@@ -35,12 +37,13 @@ bgp_handler = BGPDataHandler(DEBUG, files_path)
 #COMPRESSED = False
 #readable_updates = bgp_handler.getReadableFile(updates_file, False, MRTfile, COMPRESSED)
 readable_updates = updates_file
-updates_df = bgp_handler.processReadableUpdatesDF(readable_updates)
+READABLE = True
+bgp_handler.loadStructuresFromUpdatesFile(updates_file, READABLE)
 
 updateRates_DF = pd.DataFrame(columns=['routing_date', 'ip_version', 'prefLength',
                                        'numOfAnnouncements', 'numOfWithdraws'])
 
-for prefLength, prefLength_subset in updates_df.groupby('prefLength'):
+for prefLength, prefLength_subset in bgp_handler.updates_df.groupby('prefLength'):
     for ipVersion, ipver_subset in prefLength_subset.groupby('ip_version'):
         for routing_date, date_subset in ipver_subset.groupby('routing_date'):
             updateRates_DF.loc[updateRates_DF.shape[0]] = [routing_date,
@@ -57,10 +60,13 @@ bgp_handler.loadStructuresFromRoutingFile(routing_file, READABLE, MRTfile, COMPR
 deaggregation_DF = pd.DataFrame(columns=['prefix', 'del_date', 'routing_date',
                                           'isRoot', 'isRootDeagg'])
 
+cmd = shlex.split("origindate -d ',' -f 1")
+
 for prefix, prefix_subset in bgp_handler.bgp_df.groupby('prefix'):
-#    del_date = ??
-    # TODO Obtener delegation date
-    # Preguntar a Geoff cómo invocar origindate desde python
+    cmd_echo = shlex.split("echo {}".format(prefix))
+    p = subprocess.Popen(cmd_echo, stdout=subprocess.PIPE)
+    output = subprocess.check_output(cmd, stdin=p.stdout)
+    del_date = datetime.strptime(output.split(',')[1], '%Y%m%d').date()
     
     network = IPNetwork(prefix)
     if network.version == 4:
