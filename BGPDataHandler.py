@@ -32,7 +32,7 @@ class BGPDataHandler:
     bgp_df = pd.DataFrame()
     
     # DataFrame with BGP updates from bgpupd file
-    updates_df = pd.Dataframe()
+    updates_df = pd.DataFrame()
     
     # Radix indexed by routed IPv4 prefix containing the routing data from the
     # routing file being considered
@@ -120,7 +120,7 @@ class BGPDataHandler:
         else:
             self.ipv6_longest_pref = 64
 
-        sys.stdout.write("Class data structures from routing files in URLs file were loaded successfully!\n")
+        sys.stdout.write("Class data structures from files in URLs file were loaded successfully!\n")
         return True
 
     # This function processes the updates from the updates file and loads
@@ -259,7 +259,7 @@ class BGPDataHandler:
 
     def storeHistoricalDataFromArchive(self, startDate, endDate,
                                         archive_folder='/data/wattle/bgplog',
-                                        extension='', READABLE, MRTfiles=True,
+                                        extension='', READABLE=True, MRTfiles=True,
                                         COMPRESSED=False):
 
         historical_files = self.getPathsToHistoricalData(startDate,
@@ -287,7 +287,7 @@ class BGPDataHandler:
     # in the archive corresponding to the provided date
     def getSpecificFilesFromArchive(self, routing_date,
                                     archive_folder='/data/wattle/bgplog',
-                                    extension='', routing_files):
+                                    extension='', routing_files=[]):
         
         # We have to add 1 to the provided date as the files in the
         # archive contain routing data corresponding to the day before to the
@@ -953,8 +953,10 @@ class BGPDataHandler:
                                                             routing_date,
                                                             numOfAnnouncements,
                                                             numOfWithdraws]
-                
-        return prefixes_df
+
+        # We assume all the updates included in the updates file correspond
+        # to the same date, but in case they don't, we take the most recent date.
+        return max(updates_df['routing_date']), prefixes_df
  
     # This function processes a readable file with routing info
     # putting all the info into a Data Frame  
@@ -1079,7 +1081,7 @@ class BGPDataHandler:
     # It returns the path to the created file
     def getPathsToHistoricalData(self, startDate, endDate,
                                  archive_folder='/data/wattle/bgplog',
-                                 extension='', files_list):
+                                 extension='', files_list=[]):
 
         if extension == '':
             files_list = self.getPathsToHistoricalData(startDate, endDate,
@@ -1152,7 +1154,7 @@ class BGPDataHandler:
     # (bgprib.mrt, dmp.gz and bgpupd.mrt files)
     def getPathsToHistoricalData_dict(self, startDate, endDate,
                                          archive_folder, extension='',
-                                         files_dict):
+                                         files_dict=[]):
                                              
         if extension == '':
             files_dict = self.getPathsToHistoricalData_dict(startDate, endDate,
