@@ -33,29 +33,23 @@ updates_file = '/Users/sofiasilva/BGP_files/2017-05-01_test.bgpupd.readable'
  
 bgp_handler = BGPDataHandler(DEBUG, files_path)
 
-#MRTfile = True
-#COMPRESSED = False
-#readable_updates = bgp_handler.getReadableFile(updates_file, False, MRTfile, COMPRESSED)
+#readable_updates = bgp_handler.getReadableFile(updates_file, False)
 readable_updates = updates_file
-READABLE = True
-bgp_handler.loadStructuresFromUpdatesFile(updates_file, READABLE)
+bgp_handler.loadStructuresFromUpdatesFile(updates_file)
 
-updateRates_DF = pd.DataFrame(columns=['routing_date', 'ip_version', 'prefLength',
+updateRates_DF = pd.DataFrame(columns=['updates_date', 'ip_version', 'prefLength',
                                        'numOfAnnouncements', 'numOfWithdraws'])
 
 for prefLength, prefLength_subset in bgp_handler.updates_df.groupby('prefLength'):
     for ipVersion, ipver_subset in prefLength_subset.groupby('ip_version'):
-        for routing_date, date_subset in ipver_subset.groupby('routing_date'):
+        for routing_date, date_subset in ipver_subset.groupby('updates_date'):
             updateRates_DF.loc[updateRates_DF.shape[0]] = [routing_date,
                                                             ipVersion,
                                                             prefLength,
                                                             sum(date_subset['numOfAnnouncements']),
                                                             sum(date_subset['numOfWithdraws'])]
 
-READABLE = True
-MRTfile = False
-COMPRESSED = False
-bgp_handler.loadStructuresFromRoutingFile(routing_file, READABLE, MRTfile, COMPRESSED)
+bgp_handler.loadStructuresFromRoutingFile(routing_file)
 
 deaggregation_DF = pd.DataFrame(columns=['prefix', 'del_date', 'routing_date',
                                           'isRoot', 'isRootDeagg'])
