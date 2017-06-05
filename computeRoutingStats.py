@@ -325,6 +325,7 @@ def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, routingStatsObj):
 def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
                                         variables, diffOrg_var, numsOfOriginASesList,
                                         numsOfASPathsList, ASPathLengthsList,
+                                        numsOfAnnouncementsList, numsOfWithdrawsList,
                                         levenshteinDists, routingStatsObj, files_path):
     
     routedNetwork = IPNetwork(routedPrefix)
@@ -332,10 +333,12 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
     blockOriginASes = routingStatsObj.bgp_handler.getOriginASesForBlock(routedNetwork)
     blockASpaths = routingStatsObj.bgp_handler.getASpathsForBlock(routedNetwork)
     
+    updates_subset = routingStatsObj.bgp_handler.updates_df[routingStatsObj.bgp_handler.updates_df['prefix'] == routedPrefix]
+
     if isDelegated:
         statsForPrefix['numOfOriginASesIntact'] = len(blockOriginASes)
         statsForPrefix['numOfASPathsIntact'] = len(blockASpaths)
-        
+
         ASpathsLengths = []
         for path in blockASpaths:
             ASpathsLengths.append(len(path.split()))
@@ -346,6 +349,13 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
             statsForPrefix['stdASPathLengthIntact'] = ASpathsLengths.std()
             statsForPrefix['minASPathLengthIntact'] = ASpathsLengths.min()
             statsForPrefix['maxASPathLengthIntact'] = ASpathsLengths.max()
+           
+        # If there are updates for this prefix in the DataFrame
+        if len(updates_subset['prefix'].tolist()) > 0:
+            updates_subset.reset_index()
+            statsForPrefix['numOfAnnouncements'] = len(updates_subset[updates_subset['upd_type'] == 'A']['prefix'].tolist())
+            statsForPrefix['numOfWithdraws'] = len(updates_subset[updates_subset['upd_type'] == 'W']['prefix'].tolist())
+
     else:
         if numsOfOriginASesList is not None:
             numsOfOriginASesList.append(len(blockOriginASes))
@@ -356,6 +366,10 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
         if ASPathLengthsList is not None:
             for path in blockASpaths:
                 ASPathLengthsList.append(len(path.split()))
+        
+        if len(updates_subset) > 0:
+            numsOfAnnouncementsList.append(len(updates_subset[updates_subset['upd_type'] == 'A']['prefix'].tolist()))
+            numsOfWithdrawsList.append(len(updates_subset[updates_subset['upd_type'] == 'W']['prefix'].tolist()))
         
     # If the delegated prefix is not already marked as being
     # announced by an AS delegated to an organization different from the
@@ -480,6 +494,7 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
         statsForPrefix['cc'] = prefix_row['cc']
         statsForPrefix['region'] = prefix_row['region']
         statsForPrefix['routing_date'] = str(routingStatsObj.bgp_handler.routingDate)
+        statsForPrefix['updates_date'] = str(routingStatsObj.bgp_handler.updatesDate)
 
         delNetwork = IPNetwork(prefix)
         
@@ -505,6 +520,8 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
             numsOfOriginASesLessSpec = []
             numsOfASPathsLessSpec = []
             ASPathLengthsLessSpec = []
+            numsOfAnnouncementsLessSpec = []
+            numsOfWithdrawsLessSpec = []
             levenshteinDists = []
             for lessSpec in less_specifics:
                 # For less specific prefixes we are not interested in the number
@@ -517,6 +534,8 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                                                  numsOfOriginASesLessSpec,
                                                  numsOfASPathsLessSpec,
                                                  ASPathLengthsLessSpec,
+                                                 numsOfAnnouncementsLessSpec,
+                                                 numsOfWithdrawsLessSpec,
                                                  levenshteinDists,
                                                  routingStatsObj, files_path)
             
@@ -548,6 +567,19 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                 statsForPrefix['minLevenshteinDistLessSpec'] = levenshteinDists.min()
                 statsForPrefix['maxLevenshteinDistLessSpec'] = levenshteinDists.max()
             
+            if len(numsOfAnnouncementsLessSpec) > 0:
+                numsOfAnnouncementsLessSpec = np.array(numsOfAnnouncementsLessSpec)
+                statsForPrefix['avgNumOfAnnouncementsLessSpec'] = numsOfAnnouncementsLessSpec.mean()
+                statsForPrefix['stdNumOfAnnouncementsLessSpec'] = numsOfAnnouncementsLessSpec.std()
+                statsForPrefix['minNumOfAnnouncementsLessSpec'] = numsOfAnnouncementsLessSpec.min()
+                statsForPrefix['maxNumOfAnnouncementsLessSpec'] = numsOfAnnouncementsLessSpec.max()
+            
+            if len(numsOfWithdrawsLessSpec) > 0:
+                numsOfWithdrawsLessSpec = np.array(numsOfWithdrawsLessSpec)
+                statsForPrefix['avgNumOfWithdrawsLessSpec'] = numsOfWithdrawsLessSpec.mean()
+                statsForPrefix['stdNumOfWithdrawsLessSpec'] = numsOfWithdrawsLessSpec.std()
+                statsForPrefix['minNumOfWithdrawsLessSpec'] = numsOfWithdrawsLessSpec.min()
+                statsForPrefix['maxNumOfWithdrawsLessSpec'] = numsOfWithdrawsLessSpec.max()
             
         if len(more_specifics) > 0:
             more_specifics_wo_prefix = copy.copy(more_specifics)
@@ -559,15 +591,17 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                 
                 levenshteinDists = []
                 # For the delegated prefix it doesn't make sense to have a list
-                # of numbers of Origin ASes, numbers of AS paths or AS paths
-                # lengths to compute average, standard deviation, minimum and
+                # of numbers of Origin ASes, numbers of AS paths, AS paths
+                # lengths, number of announcements or number of withdraws
+                # to compute average, standard deviation, minimum and
                 # maximum because it is a single prefix,
                 # that's why we use None for the parameters corresponding to the
                 # lists for those values
                 classifyPrefixAndUpdateVariables(prefix, True, statsForPrefix,
                                                  routingStatsObj.prefix_variables,
                                                  'originatedByDiffOrg', None,
-                                                 None, None, levenshteinDists,
+                                                 None, None, None, None,
+                                                 levenshteinDists,
                                                  routingStatsObj, files_path)
                 
                 if len(levenshteinDists) > 0:
@@ -628,6 +662,8 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
             numsOfOriginASesMoreSpec = []
             numsOfASPathsMoreSpec = []
             ASPathLengthsMoreSpec = [] 
+            numsOfAnnouncementsMoreSpec = []
+            numsOfWithdrawsMoreSpec = []
             levenshteinDists = []
             for moreSpec in more_specifics_wo_prefix:
                 classifyPrefixAndUpdateVariables(moreSpec, False,
@@ -637,6 +673,8 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                                                  numsOfOriginASesMoreSpec,
                                                  numsOfASPathsMoreSpec,
                                                  ASPathLengthsMoreSpec,
+                                                 numsOfAnnouncementsMoreSpec,
+                                                 numsOfWithdrawsMoreSpec,
                                                  levenshteinDists,
                                                  routingStatsObj,
                                                  files_path)
@@ -669,6 +707,20 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                 statsForPrefix['minLevenshteinDistMoreSpec'] = levenshteinDists.min()
                 statsForPrefix['maxLevenshteinDistMoreSpec'] = levenshteinDists.max()
             
+            if len(numsOfAnnouncementsMoreSpec) > 0:
+                numsOfAnnouncementsMoreSpec = np.array(numsOfAnnouncementsMoreSpec)
+                statsForPrefix['avgNumOfAnnouncementsMoreSpec'] = numsOfAnnouncementsMoreSpec.mean()
+                statsForPrefix['stdNumOfAnnouncementsMoreSpec'] = numsOfAnnouncementsMoreSpec.std()
+                statsForPrefix['minNumOfAnnouncementsMoreSpec'] = numsOfAnnouncementsMoreSpec.min()
+                statsForPrefix['maxNumOfAnnouncementsMoreSpec'] = numsOfAnnouncementsMoreSpec.max()
+            
+            if len(numsOfWithdrawsMoreSpec) > 0:
+                numsOfWithdrawsMoreSpec = np.array(numsOfWithdrawsMoreSpec)
+                statsForPrefix['avgNumOfWithdrawsMoreSpec'] = numsOfWithdrawsMoreSpec.mean()
+                statsForPrefix['stdNumOfWithdrawsMoreSpec'] = numsOfWithdrawsMoreSpec.std()
+                statsForPrefix['minNumOfWithdrawsMoreSpec'] = numsOfWithdrawsMoreSpec.min()
+                statsForPrefix['maxNumOfWithdrawsMoreSpec'] = numsOfWithdrawsMoreSpec.max()
+            
         writeStatsLineToFile(statsForPrefix, routingStatsObj.allAttr_pref, stats_filename)
         
 # This function determines whether the allocated ASNs are active
@@ -693,6 +745,8 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
         del_date = expanded_del_asns_df.ix[i]['date'].to_pydatetime().date()
         statsForAS['del_date'] = del_date
         statsForAS['routing_date'] = str(routingStatsObj.bgp_handler.routingDate)
+        statsForAS['updates_date'] = str(routingStatsObj.bgp_handler.updatesDate)
+        
         # We comment this line out as the URL to download CAIDA's AS relationships
         # dataset does not always work. It is not conceived to be automatically
         # downloaded but access to the data has to be requested.
@@ -710,6 +764,15 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
                             isnull()) &\
                             (routingStatsObj.bgp_handler.bgp_df['middleASes'].\
                             str.contains(str(asn)))]['prefix']))
+        
+        asn_subset = routingStatsObj.bgp_handler.updates_df[\
+                        routingStatsObj.bgp_handler.updates_df['originAS'] ==\
+                        str(asn)]
+                        
+        if len(asn_subset['peerAS'].tolist()) > 0:
+            asn_subset.reset_index()
+            statsForAS['numOfAnnouncements'] = len(asn_subset[asn_subset['upd_type'] == 'A']['peerAS'].tolist())
+            statsForAS['numOfWithdraws'] = len(asn_subset[asn_subset['upd_type'] == 'W']['peerAS'].tolist())
                 
         if TEMPORAL_DATA:
             daysUsable = (today-del_date).days + 1
@@ -769,13 +832,11 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
     
 def main(argv):
     
-    urls_file = './BGPoutputs.txt'
-    urls_provided = False
-    RIBfiles = True
+    urls_file = ''
     files_path = ''
     routing_file = ''
+    updates_file = ''
     KEEP = False
-    COMPUTE = True 
     DEBUG = False
     EXTENDED = False
     startDate = ''
@@ -786,56 +847,67 @@ def main(argv):
     fromFiles = False
     ipv4_prefixes_file = ''
     ipv6_prefixes_file = ''
+    bgp_df_file = ''
     routing_date = ''
-    archive_folder = '' 
-    ext = ''
-    COMPRESSED = False
+    updates_df_file = ''
+    updates_date = ''
+    archive_folder = '/data/wattle/bgplog' 
     INCREMENTAL = False
     final_existing_date = ''
     TEMPORAL_DATA = False
-    READABLE = True
     es_host = ''
     
+    # For DEBUG
+    archive_folder = ''
+    files_path = '/Users/sofiasilva/BGP_files'
+    routing_file = '/Users/sofiasilva/BGP_files/2017-05-01.bgprib.readable'
+    updates_file = '/Users/sofiasilva/BGP_files/2017-05-01.bgpupd.readable'
+    routing_date = '20170501'
+    startDate = '20161201'
+    endDate = '20161215'
+    KEEP = True
+    DEBUG = False
+    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_2017-05-23.txt'
+    EXTENDED = True
+    
     try:
-        opts, args = getopt.getopt(argv, "hf:u:r:H:e:S:E:TNocknd:xp:a:4:6:B:R:D:",
+        opts, args = getopt.getopt(argv, "hf:L:r:u:H:S:E:Tkd:xp:a:4:6:B:R:b:U:D:",
                                         ["files_path=", "urls_file=", "routing_file=",
-                                        "Historcial_data_folder=", "extension=",
+                                         "updates_file=", "Historcial_data_folder=",
                                         "StartDate=", "EndDate=", "delegated_file=",
                                         "prefixes_stats_file=", "ases_stats_file=",
                                         "IPv4_prefixes_ASes_file=",
                                         "IPv6_prefixes_ASes_file=",
                                         "BGP_df_file=",
                                         "Routing date=",
+                                        "bgp_updates_df_file=",
+                                        "Updates date=",
                                         "ElasticsearchDB_host="])
     except getopt.GetoptError:
-        print 'Usage: computeRoutingStats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -e <extension>] [-S <Start date>] [-E <End Date>] [-T] [-N] [-o] [-c] [-k] [-n] [-d <delegated file>] [-x] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -B <BGP DataFrame file> -R <Routing data date>] [-D <Elasticsearch Database host>]'
+        print 'Usage: computeRoutingStats.py -h | -f <files path> [-L <urLs file> | -r <routing file> -u <updates_file> | -H <Historical data folder>] [-S <Start date>] [-E <End Date>] [-T] [-k] [-d <delegated file>] [-x] [-R <Routing date>] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -B <BGP DataFrame file> -b <BGP updates DataFrame file> -U <Updates data date>] [-D <Elasticsearch Database host>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: computeRoutingStats.py -h | -f <files path> [-u <urls file> | -r <routing file> | -H <Historical data folder> -e <extension>] [-S <Start date>] [-E <End Date>] [-T] [-N] [-o] [-c] [-k] [-n] [-d <delegated file>] [-x] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -B <BGP DataFrame file> -R <Routing data date>] [-D <Elasticsearch Database host>]'
+            print 'Usage: computeRoutingStats.py -h | -f <files path> [-L <urLs file> | -r <routing file> -u <updates_file> | -H <Historical data folder>] [-S <Start date>] [-E <End Date>] [-T] [-k] [-d <delegated file>] [-x] [-R <Routing date>] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -B <BGP DataFrame file> -b <BGP updates DataFrame file> -U <Updates data date>] [-D <Elasticsearch Database host>]'
             print 'h = Help'
             print "f = Path to folder in which Files will be saved. (MANDATORY)"
-            print 'u = URLs file. File which contains a list of URLs of the files to be downloaded.'
-            print 'All the URLs must point either to RIB files or to files containing "show ip bgp" outputs.'
-            print 'If the URLs point to files containing "show ip bgp" outputs, the "-o" option must be used to specify this.'
-            print 'r = Use already downloaded Internet Routing data file.'
+            print 'L = URLs file. File which contains a list of URLs of the files to be downloaded.'
+            print 'r = Use existing Internet Routing data file.'
             print 'If the routing file contains a "show ip bgp" output, the "-o" option must be used to specify this.'
-            print "H = Historical data. Instead of processing a single file, process the routing data contained in the archive folder provided."
-            print "e = Extension. The extension of the files in the archive you want to work with. If no extension is provided, 'bgprib.mrt' will be used."
-            print "If none of the three options -u, -r or -H are provided, the script will try to work with routing data from URLs included ./BGPoutputs.txt"
+            print 'u = Use existing BGP updates file.'
+            print "H = Historical data. Use the routing data contained in the archive folder provided."
+            print "If none of the four options -L, -r, -u or -H are provided, the script will try to work with routing data from the archive /data/wattle/bgplog"
             print "S = Start date in format YYYY or YYYYmm or YYYYmmdd. The start date of the period of time during which the considered resources were delegated."
             print 'E = End date in format YYYY or YYYYmm or YYYYmmdd. The end date of the period of time during which the considered resources were delegated.'
             print "T = Temporal data available. Use this option if there is temporal data available in the visibility database and you want to use it, even if you don't provide the path to the archive."
-            print "N = Not readable. The routing data provided (in the files to which the URLs file points, in the routing file or in the archive are not in the 'readable' format (BGPdump output))."
-            print 'o = The routing data to be processed is in the format of "show ip bgp" outputs.'
-            print 'c = Compressed. The files containing routing data are compressed.'
             print 'k = Keep downloaded Internet routing data file.'
-            print 'n = No computation. This option MUST only be used in combination with the -H option. If this option is used, statistics will not be computed and the historical data from the archive will be stored into the database.'
             print 'd = DEBUG mode. Provide path to delegated file. If not in DEBUG mode the latest delegated file will be downloaded from ftp://ftp.apnic.net/pub/stats/apnic'
             print 'x = Use eXtended file'
             print "If option -x is used in DEBUG mode, delegated file must be a extended file."
             print "If option -x is not used in DEBUG mode, delegated file must be delegated file not extended."
+            print "R = Routing Date in format YYYYmmdd. Date for which routing stats will be computed."
+            print "If a routing date is not provided, statistics for the day before today will be computed."
             print "p = Compute incremental statistics from existing prefixes stats file (CSV)."
             print "a = Compute incremental statistics from existing ASes stats file (CSV)."
             print "Both the -p and the -a options should be used or none of them should be used."
@@ -843,34 +915,33 @@ def main(argv):
             print "4 = IPv4 prefixes file. Path to pickle file containing IPv4 prefixes Radix."
             print "6 = IPv6 prefixes file. Path to pickle file containing IPv6 prefixes Radix."
             print "B = BGP DataFrame file. Path to pickle file containing DataFrame with routing data from routing file."
-            print "R = Routing data Date in format YYYYmmdd. Date for which routing stats will be computed."
-            print "If a routing date is not provided, statistics for the day before today will be computed."
-            print "If you use the options -4, -6 and -B you MUST provide the date for the routing data in these files."
-            print "If you want to work with BGP data from files, the four options -4, -6, -B and -R must be used."
-            print "If not, none of these five options should be used."
+            print "If you use the options -4, -6 and -B you MUST use option -R to provide the date for the routing data in these files."
+            print "b = BGP updates DataFrame file. Path to a pickle file containing DataFrame with BGP updates from updates file."
+            print "U = Updates data Date in format YYYYmmdd. Date for the updates in the Updates DataFrame file. Date for which stats about BGP updates will be computed."
+            print "If you want to work with existing structures from files, the six options -4, -6, -B, -R, -b and -U must be used."
+            print "If not, none of these six options should be used."
             print "D = Elasticsearch Database host. Host running Elasticsearch into which computed stats will be stored."
             sys.exit()
-        elif opt == '-u':
+        elif opt == '-L':
             if arg != '':
                 urls_file = os.path.abspath(arg)
             else:
-                print "If option -u is used, the path to a file which contains a list of URLs of the files to be downloaded MUST be provided."
+                print "If option -L is used, the path to a file which contains a list of URLs of the files to be downloaded MUST be provided."
                 sys.exit()
-            urls_provided = True
-        elif opt == '-o':
-            RIBfiles = False
-        elif opt == '-c':
-            COMPRESSED = True
         elif opt == '-r':
             if arg != '':
                 routing_file = os.path.abspath(arg)
             else:
                 print "If option -r is used, the path to a file with Internet routing data MUST be provided."
                 sys.exit()
+        elif opt == '-u':
+            if arg != '':
+                updates_file = os.path.abspath(arg)
+            else:
+                print "If option -u is used, the path to a file with BGP updates MUST be provided."
+                sys.exit()
         elif opt == '-k':
             KEEP = True
-        elif opt == '-n':
-            COMPUTE = False
         elif opt == '-S':
             startDate = arg
             if startDate == '':
@@ -938,32 +1009,43 @@ def main(argv):
             except ValueError:
                 print "If option -R is used, a date in format YYYYmmdd MUST be provided."
                 sys.exit()
+        elif opt == '-b':
+            if arg != '':
+                updates_df_file = os.path.abspath(arg)
+                fromFiles = True
+            else:
+                print "If option -b is used, the path to a pickle file containing a Prefixes updates DataFrame MUST be provided."
+                sys.exit()
+        elif opt == '-U':
+            try:
+                updates_date = datetime.strptime(arg, '%Y%m%d').date()
+            except ValueError:
+                print "If option -U is used, a date in format YYYYmmdd MUST be provided."
+                sys.exit()
         elif opt == '-H':
             if arg != '':
                 archive_folder = os.path.abspath(arg.rstrip('/'))
             else:
                 print "If option -H is used, the path to a folder containing historical BGP data MUST be provided."
                 sys.exit()
-        elif opt == '-e':
-            ext = arg
         elif opt == '-T':
             TEMPORAL_DATA = True
-        elif opt == '-N':
-            READABLE = False
         elif opt == '-D':
             es_host = arg
         else:
             assert False, 'Unhandled option'
-    
-    if not COMPUTE and archive_folder == '':
-        print "If you just want historical data to be stored into the database, you MUST provide a path to the archive folder."
-        sys.exit()
             
-    if urls_provided and (routing_file != '' or archive_folder != '') or\
-        routing_file != '' and (urls_provided or archive_folder != '') or\
-        archive_folder != '' and (urls_provided or routing_file != ''):
+    if urls_file != '' and (routing_file != '' or updates_file != '' or\
+        archive_folder != '') or (routing_file != '' and updates_file != '') and\
+        (urls_file != '' or archive_folder != '') or\
+        archive_folder != '' and (urls_file != '' or routing_file != '' or\
+        updates_file != '') or (routing_file != '' and updates_file == '') or\
+        (routing_file == '' and updates_file != ''):
 
-        print "You MUST NOT use more than one of the -u, -r and -H options."
+        print '''You MUST provide either a URLs file (with option -L),
+                a routing file and an updates file (with options -r and -u)
+                OR the path to an archive folder containing historical data
+                (with option -H) but not more than one of these options.'''
         sys.exit()
         
     if startDate != '':
@@ -1015,6 +1097,7 @@ def main(argv):
     # If a routing date is not provided, stats are computed for the day before today
     if routing_date == '':
         routing_date = today - timedelta(1)
+        routing_date_str = routing_date
     else:
         routing_date_str = routing_date
         routing_date = datetime.strptime(routing_date_str, '%Y%m%d').date()
@@ -1062,164 +1145,132 @@ def main(argv):
         ases_stats_file = '{}_ases.csv'.format(file_name)
     
     if fromFiles and (ipv4_prefixes_file == '' or\
-        ipv6_prefixes_file == '' or bgp_df_file == '' or routing_date == ''):
-        print "If you want to work with BGP data from files, the four options -4, -6 and -R must be used."
-        print "If not, none of these five options should be used."
+        ipv6_prefixes_file == '' or bgp_df_file == '' or routing_date == '' or\
+        updates_df_file == '' or updates_date == ''):
+        print "If you want to work with BGP data from files, the six options -4, -6, -B, -R, -b and -U must be used."
+        print "If not, none of these six options should be used."
         sys.exit()
     
-    routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, COMPUTE, EXTENDED,
+    routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
                                     del_file, startDate_date, endDate_date,
                                     routing_date, INCREMENTAL,
                                     final_existing_date, prefixes_stats_file,
                                     ases_stats_file, TEMPORAL_DATA)
     
-    if COMPUTE:
-        loaded = False 
-            
-        if fromFiles:
-            loaded = routingStatsObj.bgp_handler.loadStructuresFromFiles(
-                                                    routing_date, bgp_df_file,
-                                                    ipv4_prefixes_file,
-                                                    ipv6_prefixes_file)
-                                    
-        else:
-            if routing_file == '' and archive_folder == '':
-                loaded = routingStatsObj.bgp_handler.loadStructuresFromURLSfile(\
-                            urls_file, READABLE, RIBfiles)
-    
-            elif routing_file != '':
-                loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(\
-                            routing_file, READABLE, RIBfiles, COMPRESSED)
-    
-            else: # archive_folder not null
-                if ext != '':
-                    loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
-                                archive_folder, ext, routing_date, READABLE, RIBfiles,
-                                COMPRESSED)
-                else:
-                    loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
-                                                        archive_folder=archive_folder,
-                                                        routing_date=routing_date)
-        if not loaded:
-            print "Data structures not loaded!\n"
-            sys.exit()
+    loaded = False 
         
-        start_time = time()
-        computePerPrefixStats(routingStatsObj, prefixes_stats_file, files_path,
-                              TEMPORAL_DATA)
-        end_time = time()
-        sys.stderr.write("Stats for prefixes computed successfully!\n")
-        sys.stderr.write("Prefixes statistics computation took {} seconds\n".format(end_time-start_time))
-        
-        if routingStatsObj.orgHeuristics is not None:        
-            routingStatsObj.orgHeuristics.dumpToPickleFiles()
-        
-            sys.stderr.write(
-                "OrgHeuristics was invoked {} times, consuming in total {} seconds.\n"\
-                    .format(routingStatsObj.orgHeuristics.invokedCounter,
-                        routingStatsObj.orgHeuristics.totalTimeConsumed))
-        # TODO Si es demasiado el tiempo consumido, guardar parejas de prefijos
-        # y sus ASes de origen en una estructura y aplicar heurística aparte.
-        # Ver TODO más arriba
-
-        prefixes_stats_df = pd.read_csv(prefixes_stats_file, sep = ',')
-        prefixes_json_filename = '{}_prefixes.json'.format(file_name)
-        prefixes_stats_df.to_json(prefixes_json_filename, orient='index')
-        sys.stderr.write("Prefixes stats saved to JSON and CSV files successfully!\n")
-        sys.stderr.write("Files generated:\n{}\n\nand\n\n{}\n".format(prefixes_stats_file,
-                                                        prefixes_json_filename))
-        
-        if es_host != '':
-            esImporter = ElasticSearchImporter(es_host)
-            esImporter.createIndex(prefStats_ES_properties.mapping,
-                                   prefStats_ES_properties.index_name)
-            numOfDocs = esImporter.ES.count(prefStats_ES_properties.index_name)['count']
-
-            prefixes_stats_df = prefixes_stats_df.fillna(-1)
-            
-            bulk_data, numOfDocs = esImporter.prepareData(prefixes_stats_df,
-                                                          prefStats_ES_properties.index_name,
-                                                          prefStats_ES_properties.doc_type,
-                                                          numOfDocs,
-                                                          prefStats_ES_properties.unique_index)
-                                                
-            dataImported = esImporter.inputData(prefStats_ES_properties.index_name,
-                                                bulk_data, numOfDocs)
-    
-            if dataImported:
-                sys.stderr.write("Stats about usage of prefixes delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
-            else:
-                sys.stderr.write("Stats about usage of prefixes delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
-            
-        
-        start_time = time()
-        computeASesStats(routingStatsObj, ases_stats_file, TEMPORAL_DATA)
-        end_time = time()
-        sys.stderr.write("Stats for ASes computed successfully!\n")
-        sys.stderr.write("ASes statistics computation took {} seconds\n".format(end_time-start_time))   
-
-        if TEMPORAL_DATA:
-            routingStatsObj.db_handler.close()
-
-        ases_stats_df = pd.read_csv(ases_stats_file, sep = ',')
-        ases_json_filename = '{}_ases.json'.format(file_name)
-        ases_stats_df.to_json(ases_json_filename, orient='index')
-        sys.stderr.write("ASes stats saved to JSON and CSV files successfully!\n")
-        sys.stderr.write("Files generated:\n{}\n\nand\n\n{}\n".format(ases_stats_file,
-                                                                    ases_json_filename))
-        
-        if es_host != '':
-            esImporter.createIndex(ASesStats_ES_properties.mapping,
-                                   ASesStats_ES_properties.index_name)
-            numOfDocs = esImporter.ES.count(ASesStats_ES_properties.index_name)['count']
-
-            ases_stats_df = ases_stats_df.fillna(-1)
-            
-            bulk_data, numOfDocs = esImporter.prepareData(ases_stats_df,
-                                                          ASesStats_ES_properties.index_name,
-                                                          ASesStats_ES_properties.doc_type,
-                                                          numOfDocs,
-                                                          ASesStats_ES_properties.unique_index)
-                                                
-            dataImported = esImporter.inputData(ASesStats_ES_properties.index_name,
-                                                bulk_data, numOfDocs)
-    
-            if dataImported:
-                sys.stderr.write("Stats about usage of ASNs delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
-            else:
-                sys.stderr.write("Stats about usage of ASNs delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
-                    
+    if fromFiles:
+        loaded = routingStatsObj.bgp_handler.loadStructuresFromFiles(
+                                                routing_date, updates_date,
+                                                bgp_df_file,
+                                                updates_df_file,
+                                                ipv4_prefixes_file,
+                                                ipv6_prefixes_file)
+                                                     
     else:
-        if startDate == endDate:
-            routing_files = routingStatsObj.bgp_handler.getSpecificFilesFromArchive(\
-                                                        archive_folder, 'bgprib.mrt',
-                                                        startDate)
-            if len(routing_files) == 0:
-                routing_files = routingStatsObj.bgp_handler.getSpecificFilesFromArchive(\
-                                                        archive_folder, 'dmp.gz',
-                                                        startDate)
-                if len(routing_files) == 0:
-                    sys.stderr.write("No routing file for the date provided was found in the archive.\n")
-                
-                else:
-                    for routing_file in routing_files:
-                        routingStatsObj.bgp_handler.storeHistoricalDataFromFile(\
-                                                    routing_file, False, False, True)
-            else:
-                for routing_file in routing_files:
-                    routingStatsObj.bgp_handler.storeHistoricalDataFromFile(\
-                                                    routing_file, False, True, False)
+        if routing_file == '' and updates_file == '' and archive_folder == '':
+            loaded = routingStatsObj.bgp_handler.loadStructuresFromURLSfile(\
+                        urls_file)
+
+        elif routing_file != '' and updates_file != '':
+            loaded = (routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(\
+                        routing_file) and\
+                        routingStatsObj.bgp_handler.loadStructuresFromUpdatesFile(\
+                        updates_file))
+
+        else: # archive_folder not null
+            loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
+                                                archive_folder=archive_folder,
+                                                routing_date=routing_date)
+    if not loaded:
+        print "Data structures not loaded!\n"
+        sys.exit()
+    
+    start_time = time()
+    computePerPrefixStats(routingStatsObj, prefixes_stats_file, files_path,
+                          TEMPORAL_DATA)
+    end_time = time()
+    sys.stderr.write("Stats for prefixes computed successfully!\n")
+    sys.stderr.write("Prefixes statistics computation took {} seconds\n".format(end_time-start_time))
+    
+    if routingStatsObj.orgHeuristics is not None:        
+        routingStatsObj.orgHeuristics.dumpToPickleFiles()
+    
+        sys.stderr.write(
+            "OrgHeuristics was invoked {} times, consuming in total {} seconds.\n"\
+                .format(routingStatsObj.orgHeuristics.invokedCounter,
+                    routingStatsObj.orgHeuristics.totalTimeConsumed))
+    # TODO Si es demasiado el tiempo consumido, guardar parejas de prefijos
+    # y sus ASes de origen en una estructura y aplicar heurística aparte.
+    # Ver TODO más arriba
+
+    prefixes_stats_df = pd.read_csv(prefixes_stats_file, sep = ',')
+    prefixes_json_filename = '{}_prefixes.json'.format(file_name)
+    prefixes_stats_df.to_json(prefixes_json_filename, orient='index')
+    sys.stderr.write("Prefixes stats saved to JSON and CSV files successfully!\n")
+    sys.stderr.write("Files generated:\n{}\n\nand\n\n{}\n".format(prefixes_stats_file,
+                                                    prefixes_json_filename))
+    
+    if es_host != '':
+        esImporter = ElasticSearchImporter(es_host)
+        esImporter.createIndex(prefStats_ES_properties.mapping,
+                               prefStats_ES_properties.index_name)
+        numOfDocs = esImporter.ES.count(prefStats_ES_properties.index_name)['count']
+
+        prefixes_stats_df = prefixes_stats_df.fillna(-1)
+        
+        bulk_data, numOfDocs = esImporter.prepareData(prefixes_stats_df,
+                                                      prefStats_ES_properties.index_name,
+                                                      prefStats_ES_properties.doc_type,
+                                                      numOfDocs,
+                                                      prefStats_ES_properties.unique_index)
+                                            
+        dataImported = esImporter.inputData(prefStats_ES_properties.index_name,
+                                            bulk_data, numOfDocs)
+
+        if dataImported:
+            sys.stderr.write("Stats about usage of prefixes delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
         else:
-            if ext != '':
-                routingStatsObj.bgp_handler.storeHistoricalDataFromArchive(
-                                                startDate_date, endDate_date,
-                                                archive_folder, ext, READABLE,
-                                                RIBfiles, COMPRESSED)
-            else:
-                routingStatsObj.bgp_handler.storeHistoricalDataFromArchive(
-                                                startDate=startDate_date,
-                                                endDate=endDate_date,
-                                                archive_folder=archive_folder)
+            sys.stderr.write("Stats about usage of prefixes delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
+        
+    
+    start_time = time()
+    computeASesStats(routingStatsObj, ases_stats_file, TEMPORAL_DATA)
+    end_time = time()
+    sys.stderr.write("Stats for ASes computed successfully!\n")
+    sys.stderr.write("ASes statistics computation took {} seconds\n".format(end_time-start_time))   
+
+    if TEMPORAL_DATA:
+        routingStatsObj.db_handler.close()
+
+    ases_stats_df = pd.read_csv(ases_stats_file, sep = ',')
+    ases_json_filename = '{}_ases.json'.format(file_name)
+    ases_stats_df.to_json(ases_json_filename, orient='index')
+    sys.stderr.write("ASes stats saved to JSON and CSV files successfully!\n")
+    sys.stderr.write("Files generated:\n{}\n\nand\n\n{}\n".format(ases_stats_file,
+                                                                ases_json_filename))
+    
+    if es_host != '':
+        esImporter.createIndex(ASesStats_ES_properties.mapping,
+                               ASesStats_ES_properties.index_name)
+        numOfDocs = esImporter.ES.count(ASesStats_ES_properties.index_name)['count']
+
+        ases_stats_df = ases_stats_df.fillna(-1)
+        
+        bulk_data, numOfDocs = esImporter.prepareData(ases_stats_df,
+                                                      ASesStats_ES_properties.index_name,
+                                                      ASesStats_ES_properties.doc_type,
+                                                      numOfDocs,
+                                                      ASesStats_ES_properties.unique_index)
+                                            
+        dataImported = esImporter.inputData(ASesStats_ES_properties.index_name,
+                                            bulk_data, numOfDocs)
+
+        if dataImported:
+            sys.stderr.write("Stats about usage of ASNs delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
+        else:
+            sys.stderr.write("Stats about usage of ASNs delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
+
         
 if __name__ == "__main__":
     main(sys.argv[1:])
