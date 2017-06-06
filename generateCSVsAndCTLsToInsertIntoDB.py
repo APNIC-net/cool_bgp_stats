@@ -98,8 +98,7 @@ def getDatesForExistingReadables(files_path):
    
 def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates,
                                        existing_dates, files_path, bgp_handler,
-                                       proc_num, extension, MRTfile, COMPRESSED,
-                                       output_file):
+                                       proc_num, extension, output_file):
     
     # Routing files in the archive folder for dates that haven't been
     # inserted into the DB yet
@@ -114,9 +113,7 @@ def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates,
                 (proc_num == 1 and date.year == 2012)):
                 
                 full_filename = os.path.join(root, filename)
-                readable_file = bgp_handler.getReadableFile(full_filename,
-                                                            False, MRTfile,
-                                                            COMPRESSED)
+                readable_file = bgp_handler.getReadableFile(full_filename, False)
                 if readable_file == '':
                     with open(output_file, 'a') as output:
                         output.write('Got an empty readable file name for file {}\n'.format(full_filename))
@@ -169,15 +166,10 @@ def generateFilesForItem(name, item_list, files_path, routing_date):
     end = time()
     sys.stdout.write('It took {} seconds to generate the CSV and CTL files for the insertion of {} for {}.\n'.format(end-start, name, routing_date))
     
-def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler):
-    isReadable = True
-    MRTfile = False
-    COMPRESSED = False
-    
+def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler):    
     start = time()
     prefixes, originASes, middleASes, routing_date =\
-                        bgp_handler.getPrefixesASesAndDate(routing_file, isReadable,\
-                                                    MRTfile, COMPRESSED)
+                        bgp_handler.getPrefixesASesAndDate(routing_file)
     end = time()
     sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
 
@@ -329,7 +321,6 @@ def main(argv):
                                             bgp_handler,
                                             proc_num,
                                             'bgprib.mrt',
-                                            True, False,
                                             output_file)
         
         existing_dates, readable_dates = generateFilesFromOtherRoutingFiles(
@@ -340,7 +331,6 @@ def main(argv):
                                             bgp_handler,
                                             proc_num,
                                             'dmp.gz',
-                                            False, True,
                                             output_file)
 
     
