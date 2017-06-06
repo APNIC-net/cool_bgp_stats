@@ -603,28 +603,31 @@ class BGPDataHandler:
         
         if self.DEBUG:
             bgp_df = bgp_df[0:10]
-        
-        start = time()
-        routing_date = datetime.utcfromtimestamp(max(bgp_df['timestamp'])).date()
-        
-        # To get the origin ASes and middle ASes we split the ASpath column
-        paths_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
 
-        prefixes = set(bgp_df['prefix'])
-        originASes = set(paths_parts[1])
-        middleASes = set([item for sublist in paths_parts[0].tolist() for item in\
-                        str(sublist).split()])
-        end = time()
-        
-        if self.DEBUG:
-            with open(self.output_file, 'a') as output:
-                output.write('Get the lists of prefixes, origin ASes and middle ASes from the DataFrame|{}|seconds\n'.format(end-start))
-        
-            self.printUsage(self.output_file)
-        
-        return prefixes,\
+        if bgp_df.shape[0] > 0:        
+            start = time()
+            routing_date = datetime.utcfromtimestamp(max(bgp_df['timestamp'])).date()
+            
+            # To get the origin ASes and middle ASes we split the ASpath column
+            paths_parts = bgp_df.ASpath.str.rsplit(' ', n=1, expand=True)
+    
+            prefixes = set(bgp_df['prefix'])
+            originASes = set(paths_parts[1])
+            middleASes = set([item for sublist in paths_parts[0].tolist() for item in\
+                            str(sublist).split()])
+            end = time()
+            
+            if self.DEBUG:
+                with open(self.output_file, 'a') as output:
+                    output.write('Get the lists of prefixes, origin ASes and middle ASes from the DataFrame|{}|seconds\n'.format(end-start))
+            
+                self.printUsage(self.output_file)
+            
+            return prefixes,\
                 self.cleanListOfASes(originASes), self.cleanListOfASes(middleASes),\
                 routing_date
+        else:
+            return {}, {}, {}
 
     # Reading the readable routing file line by line and char by char takes
     # much longer than loading the routing file into a DataFrame, that's why
