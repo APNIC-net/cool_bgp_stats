@@ -173,32 +173,43 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler):
     end = time()
     sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
 
-    try:
-        generateFilesForItem('prefixes', prefixes, files_path, routing_date)
-        
-    except KeyboardInterrupt:
-        sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-        generateFilesForItem('prefixes', prefixes, files_path, routing_date)
-        generateFilesForItem('originASes', originASes, files_path, routing_date)
-        generateFilesForItem('middleASes', middleASes, files_path, routing_date)
-        sys.exit(0)
-        
-    try:
-        generateFilesForItem('originASes', originASes, files_path, routing_date)
-        
-    except KeyboardInterrupt:
-        sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-        generateFilesForItem('originASes', originASes, files_path, routing_date)
-        generateFilesForItem('middleASes', middleASes, files_path, routing_date)
-        sys.exit(0)
-        
-    try:
-        generateFilesForItem('middleASes', middleASes, files_path, routing_date)
-        
-    except KeyboardInterrupt:
-        sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-        generateFilesForItem('middleASes', middleASes, files_path, routing_date)
-        sys.exit(0)
+    if len(prefixes) > 0:
+        try:
+            generateFilesForItem('prefixes', prefixes, files_path, routing_date)
+            
+        except KeyboardInterrupt:
+            sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
+            generateFilesForItem('prefixes', prefixes, files_path, routing_date)
+            
+            if len(originASes) > 0:
+                generateFilesForItem('originASes', originASes, files_path, routing_date)
+                
+            if len(middleASes) > 0:
+                generateFilesForItem('middleASes', middleASes, files_path, routing_date)
+
+            sys.exit(0)
+
+    if len(originASes) > 0:
+        try:
+            generateFilesForItem('originASes', originASes, files_path, routing_date)
+            
+        except KeyboardInterrupt:
+            sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
+            generateFilesForItem('originASes', originASes, files_path, routing_date)
+            
+            if len(middleASes) > 0:
+                generateFilesForItem('middleASes', middleASes, files_path, routing_date)
+
+            sys.exit(0)
+
+    if len(middleASes) > 0:        
+        try:
+            generateFilesForItem('middleASes', middleASes, files_path, routing_date)
+            
+        except KeyboardInterrupt:
+            sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
+            generateFilesForItem('middleASes', middleASes, files_path, routing_date)
+            sys.exit(0)
 
 # We assume the routing files have routing info for a single date,
 # therefore we get the routing date from the first line of the file.

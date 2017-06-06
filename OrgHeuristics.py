@@ -236,43 +236,48 @@ class OrgHeuristics:
         except KeyError:
             asn_org_data = None
         
+        empty = True
+        
         # If I don't have already filtered data for the ASN, I look for info
         # about it in the data coming from the Bulk WHOIS
-        if asn_org_data is None:
-            if asn in self.bulkWHOIS_data['aut-num']['data']:
-                asn_dict = self.bulkWHOIS_data['aut-num']['data'][asn]
-                # and proceed to filter it
-                asn_org_data = self.getDataOfInterest(str(asn), False, asn_dict)
-                # I add the filtered information about the ASN to the dictionary
-                # with filtered data about ASNs
-                            
-            else:
-                # We will call this function for ASNs that were delegated by APNIC.
-                # If the ASN was not delegated by APNIC, we would have obtained
-                # UNKNOWN in computeRoutingStats when trying to get the opaque id
-                # for the ASN, and we would not have called OrgHeuristics.
-                # But it could happen that the ASN was delegated by APNIC to
-                # a NIR and there is no info about it in the Bulk WHOIS but
-                # there is in the WHOIS of the NIR (tipically JPNIC), so we
-                # try to get info from the NIRs that have their own WHOIS.
-                
-                asn_org_data = dict()
-                asn_org_data['itemnames'] = set()
-                asn_org_data['remarks/descr'] = set()
-                asn_org_data['phones'] = set()
-                asn_org_data['emails'] = set()
-                
-                asn_org_data = self.queryJPNICwhois(asn, False, asn_org_data)
-                asn_org_data = self.queryKRNICwhois(asn, False, asn_org_data)
-            
-            empty = True
+        if asn_org_data is None and asn in self.bulkWHOIS_data['aut-num']['data']:
+            asn_dict = self.bulkWHOIS_data['aut-num']['data'][asn]
+            # and proceed to filter it
+            asn_org_data = self.getDataOfInterest(str(asn), False, asn_dict)
+            # I add the filtered information about the ASN to the dictionary
+            # with filtered data about ASNs
             
             for key in asn_org_data.keys():
                 if len(asn_org_data[key]) > 0:
                     empty = False
                     self.ases_filtered_data[asn] = asn_org_data
                     break
-
+                            
+        if empty or (asn_org_data is None and asn not in self.bulkWHOIS_data['aut-num']['data']):
+            # We will call this function for ASNs that were delegated by APNIC.
+            # If the ASN was not delegated by APNIC, we would have obtained
+            # UNKNOWN in computeRoutingStats when trying to get the opaque id
+            # for the ASN, and we would not have called OrgHeuristics.
+            # But it could happen that the ASN was delegated by APNIC to
+            # a NIR and there is no info about it in the Bulk WHOIS but
+            # there is in the WHOIS of the NIR (tipically JPNIC), so we
+            # try to get info from the NIRs that have their own WHOIS.
+            
+            asn_org_data = dict()
+            asn_org_data['itemnames'] = set()
+            asn_org_data['remarks/descr'] = set()
+            asn_org_data['phones'] = set()
+            asn_org_data['emails'] = set()
+            
+            asn_org_data = self.queryJPNICwhois(asn, False, asn_org_data)
+            asn_org_data = self.queryKRNICwhois(asn, False, asn_org_data)
+        
+            for key in asn_org_data.keys():
+                if len(asn_org_data[key]) > 0:
+                    empty = False
+                    self.ases_filtered_data[asn] = asn_org_data
+                    break
+            
             if empty:
                 print 'ASN {} not found!\n'.format(asn)
                 result = None

@@ -627,7 +627,7 @@ class BGPDataHandler:
                 self.cleanListOfASes(originASes), self.cleanListOfASes(middleASes),\
                 routing_date
         else:
-            return {}, {}, {}
+            return {}, {}, {}, None
 
     # Reading the readable routing file line by line and char by char takes
     # much longer than loading the routing file into a DataFrame, that's why

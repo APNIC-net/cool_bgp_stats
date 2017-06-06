@@ -765,8 +765,7 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
                             str.contains(str(asn)))]['prefix']))
         
         asn_subset = routingStatsObj.bgp_handler.updates_df[\
-                        routingStatsObj.bgp_handler.updates_df['originAS'] ==\
-                        str(asn)]
+                        routingStatsObj.bgp_handler.updates_df['peerAS'] == asn]
                         
         if len(asn_subset['peerAS'].tolist()) > 0:
             statsForAS['numOfAnnouncements'] = len(asn_subset[asn_subset['upd_type'] == 'A']['peerAS'].tolist())
