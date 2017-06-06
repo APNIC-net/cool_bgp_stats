@@ -352,7 +352,6 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
            
         # If there are updates for this prefix in the DataFrame
         if len(updates_subset['prefix'].tolist()) > 0:
-            updates_subset.reset_index()
             statsForPrefix['numOfAnnouncements'] = len(updates_subset[updates_subset['upd_type'] == 'A']['prefix'].tolist())
             statsForPrefix['numOfWithdraws'] = len(updates_subset[updates_subset['upd_type'] == 'W']['prefix'].tolist())
 
@@ -636,11 +635,11 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                 # We summarize the more specific routed blocks without the block itself
                 # to get the maximum aggregation possible of the more specifics
                 aggr_more_spec = IPSet(more_specifics_wo_prefix)
-    
+                        
                 # ips_routed is obtained from the summarized routed blocks
                 # so that IPs contained in overlapping announcements are not
                 # counted more than once
-                ips_routed = len(aggr_more_spec)
+                ips_routed = aggr_more_spec.size
 
                 # If there are no less specific prefixes being routed                
                 if len(less_specifics) == 0:
@@ -770,7 +769,6 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
                         str(asn)]
                         
         if len(asn_subset['peerAS'].tolist()) > 0:
-            asn_subset.reset_index()
             statsForAS['numOfAnnouncements'] = len(asn_subset[asn_subset['upd_type'] == 'A']['peerAS'].tolist())
             statsForAS['numOfWithdraws'] = len(asn_subset[asn_subset['upd_type'] == 'W']['peerAS'].tolist())
                 
