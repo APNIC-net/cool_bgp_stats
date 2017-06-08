@@ -185,63 +185,64 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler,\
     end = time()
     sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
 
-    if routing_date.year == 1970:
-        os.remove(routing_file)
-        file_date = getDateFromFileName(routing_file, output_file)
-        routing_file = bgp_handler.getSpecificFilesFromArchive(file_date,
-                                                               extension='bgprib.mrt')
-        start = time()
-        prefixes, originASes, middleASes, routing_date =\
-                            bgp_handler.getPrefixesASesAndDate(routing_file)
-        end = time()
-        sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
-
-    if len(prefixes) > 0 and routing_date not in existing_dates_pref:
-        try:
-            generateFilesForItem('prefixes', prefixes, files_path, routing_date)
-            existing_dates_pref.add(routing_date)
-            
-        except KeyboardInterrupt:
-            sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-            generateFilesForItem('prefixes', prefixes, files_path, routing_date)
-            existing_dates_pref.add(routing_date)
-
-            if len(originASes) > 0 and routing_date not in existing_dates_orASes:
+    if routing_date is not None:
+        if routing_date.year == 1970:
+            os.remove(routing_file)
+            file_date = getDateFromFileName(routing_file, output_file)
+            routing_file = bgp_handler.getSpecificFilesFromArchive(file_date,
+                                                                   extension='bgprib.mrt')
+            start = time()
+            prefixes, originASes, middleASes, routing_date =\
+                                bgp_handler.getPrefixesASesAndDate(routing_file)
+            end = time()
+            sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
+    
+        if len(prefixes) > 0 and routing_date not in existing_dates_pref:
+            try:
+                generateFilesForItem('prefixes', prefixes, files_path, routing_date)
+                existing_dates_pref.add(routing_date)
+                
+            except KeyboardInterrupt:
+                sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
+                generateFilesForItem('prefixes', prefixes, files_path, routing_date)
+                existing_dates_pref.add(routing_date)
+    
+                if len(originASes) > 0 and routing_date not in existing_dates_orASes:
+                    generateFilesForItem('originASes', originASes, files_path, routing_date)
+                    existing_dates_orASes.add(routing_date)
+                    
+                if len(middleASes) > 0 and routing_date not in existing_dates_midASes:
+                    generateFilesForItem('middleASes', middleASes, files_path, routing_date)
+                    existing_dates_midASes.add(routing_date)
+                    
+                sys.exit(0)
+    
+        if len(originASes) > 0 and routing_date not in existing_dates_orASes:
+            try:
                 generateFilesForItem('originASes', originASes, files_path, routing_date)
                 existing_dates_orASes.add(routing_date)
-                
-            if len(middleASes) > 0 and routing_date not in existing_dates_midASes:
+    
+            except KeyboardInterrupt:
+                sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
+                generateFilesForItem('originASes', originASes, files_path, routing_date)
+                existing_dates_orASes.add(routing_date)
+    
+                if len(middleASes) > 0 and routing_date not in existing_dates_midASes:
+                    generateFilesForItem('middleASes', middleASes, files_path, routing_date)
+                    existing_dates_midASes.add(routing_date)
+    
+                sys.exit(0)
+    
+        if len(middleASes) > 0 and routing_date not in existing_dates_midASes:        
+            try:
                 generateFilesForItem('middleASes', middleASes, files_path, routing_date)
                 existing_dates_midASes.add(routing_date)
-                
-            sys.exit(0)
-
-    if len(originASes) > 0 and routing_date not in existing_dates_orASes:
-        try:
-            generateFilesForItem('originASes', originASes, files_path, routing_date)
-            existing_dates_orASes.add(routing_date)
-
-        except KeyboardInterrupt:
-            sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-            generateFilesForItem('originASes', originASes, files_path, routing_date)
-            existing_dates_orASes.add(routing_date)
-
-            if len(middleASes) > 0 and routing_date not in existing_dates_midASes:
+    
+            except KeyboardInterrupt:
+                sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
                 generateFilesForItem('middleASes', middleASes, files_path, routing_date)
                 existing_dates_midASes.add(routing_date)
-
-            sys.exit(0)
-
-    if len(middleASes) > 0 and routing_date not in existing_dates_midASes:        
-        try:
-            generateFilesForItem('middleASes', middleASes, files_path, routing_date)
-            existing_dates_midASes.add(routing_date)
-
-        except KeyboardInterrupt:
-            sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-            generateFilesForItem('middleASes', middleASes, files_path, routing_date)
-            existing_dates_midASes.add(routing_date)
-            sys.exit(0)
+                sys.exit(0)
     
     return existing_dates_pref, existing_dates_orASes, existing_dates_midASes
 
