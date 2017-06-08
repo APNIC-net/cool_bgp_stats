@@ -189,14 +189,20 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler,\
         if routing_date.year == 1970:
             os.remove(routing_file)
             file_date = getDateFromFileName(routing_file, output_file)
-            routing_file = bgp_handler.getSpecificFilesFromArchive(file_date,
+            routing_files = bgp_handler.getSpecificFilesFromArchive(file_date,
                                                                    extension='bgprib.mrt')
-            start = time()
-            prefixes, originASes, middleASes, routing_date =\
-                                bgp_handler.getPrefixesASesAndDate(routing_file)
-            end = time()
-            sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
+            
+            if len(routing_files) > 0:
+                start = time()
+                prefixes, originASes, middleASes, routing_date =\
+                                    bgp_handler.getPrefixesASesAndDate(routing_files[0])
+                end = time()
+                sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
     
+            else:
+                return existing_dates_pref, existing_dates_orASes,\
+                    existing_dates_midASes
+                
         if len(prefixes) > 0 and routing_date not in existing_dates_pref:
             try:
                 generateFilesForItem('prefixes', prefixes, files_path, routing_date)
