@@ -128,11 +128,10 @@ class StabilityAndDeagg:
         else:
             sys.stderr.write("Stats about {} could not be saved to ElasticSearch.\n".format(stats_name))
     
-    def computeAndSaveStabilityAndDeaggDailyStats(self, bgp_handler):
-        today = datetime.today().date()
-            
+    def computeAndSaveStabilityAndDeaggDailyStats(self, bgp_handler):            
         bgp_handler.loadStructuresFromUpdatesFile(self.updates_file)
-        updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path, today)
+        updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path,
+                                                        bgp_handler.updatesDate)
         with open(updates_stats_file, 'w') as u_file:
             u_file.write('prefix|del_date|updates_date|del_age|ip_version|prefLength|numOfAnnouncements|numOfWithdraws\n')
             
@@ -145,7 +144,8 @@ class StabilityAndDeagg:
                                               self.es_host, updatesStats_ES_properties)
         
         bgp_handler.loadStructuresFromRoutingFile(self.routing_file)
-        deagg_stats_file = '{}/deaggStats_{}.csv'.format(self.files_path, today)
+        deagg_stats_file = '{}/deaggStats_{}.csv'.format(self.files_path,
+                                                        bgp_handler.routingDate)
         with open(deagg_stats_file, 'w') as d_file:
             d_file.write('prefix|del_date|routing_date|del_age|isRoot|isRootDeagg\n')
             
