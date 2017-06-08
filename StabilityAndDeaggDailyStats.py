@@ -130,33 +130,38 @@ class StabilityAndDeagg:
     
     def computeAndSaveStabilityAndDeaggDailyStats(self, DEBUG, files_path):
         bgp_handler = BGPDataHandler(DEBUG, files_path)            
+
         bgp_handler.loadStructuresFromUpdatesFile(self.updates_file)
-        updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path,
-                                                        bgp_handler.updatesDate)
-        with open(updates_stats_file, 'w') as u_file:
-            u_file.write('prefix|del_date|updates_date|del_age|ip_version|prefLength|numOfAnnouncements|numOfWithdraws\n')
+
+        if bgp_handler.updatesDate is not None:
+            updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path,
+                                                            bgp_handler.updatesDate)
+            with open(updates_stats_file, 'w') as u_file:
+                u_file.write('prefix|del_date|updates_date|del_age|ip_version|prefLength|numOfAnnouncements|numOfWithdraws\n')
+                
+            self.computeUpdatesStats(bgp_handler.updates_df, updates_stats_file)
             
-        self.computeUpdatesStats(bgp_handler.updates_df, updates_stats_file)
-        
-        updates_stats_df = self.generateJSONfile(updates_stats_file)
-        
-        if self.es_host != '':
-            self.importStatsIntoElasticSearch(updates_stats_df, 'BGP updates',
-                                              self.es_host, updatesStats_ES_properties)
+            updates_stats_df = self.generateJSONfile(updates_stats_file)
+            
+            if self.es_host != '':
+                self.importStatsIntoElasticSearch(updates_stats_df, 'BGP updates',
+                                                  self.es_host, updatesStats_ES_properties)
         
         bgp_handler.loadStructuresFromRoutingFile(self.routing_file)
-        deagg_stats_file = '{}/deaggStats_{}.csv'.format(self.files_path,
-                                                        bgp_handler.routingDate)
-        with open(deagg_stats_file, 'w') as d_file:
-            d_file.write('prefix|del_date|routing_date|del_age|isRoot|isRootDeagg\n')
+
+        if bgp_handler.routingDate is not None:
+            deagg_stats_file = '{}/deaggStats_{}.csv'.format(self.files_path,
+                                                            bgp_handler.routingDate)
+            with open(deagg_stats_file, 'w') as d_file:
+                d_file.write('prefix|del_date|routing_date|del_age|isRoot|isRootDeagg\n')
+                
+            self.computeDeaggregationStats(bgp_handler, deagg_stats_file)
             
-        self.computeDeaggregationStats(bgp_handler, deagg_stats_file)
-        
-        deagg_stats_df = self.generateJSONfile(deagg_stats_file)
-        
-        if self.es_host != '':
-            self.importStatsIntoElasticSearch(deagg_stats_df, 'deaggregation',
-                                              self.es_host, deaggStats_ES_properties)
+            deagg_stats_df = self.generateJSONfile(deagg_stats_file)
+            
+            if self.es_host != '':
+                self.importStatsIntoElasticSearch(deagg_stats_df, 'deaggregation',
+                                                  self.es_host, deaggStats_ES_properties)
     
 def main(argv):
     DEBUG = False
