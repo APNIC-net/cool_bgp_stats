@@ -170,7 +170,7 @@ def main(argv):
         
         if 'readable' in all_files_dict[date]:
             for r_file in all_files_dict[date]['readable']:
-                if 'bgpupds' in r_file and updates_file == '':
+                if 'bgpupd' in r_file and updates_file == '':
                     updates_file = r_file
                     
                 elif 'bgprib' in r_file and routing_file == '':
@@ -239,26 +239,23 @@ def main(argv):
                                                     v6_routing_file)
                     break
             
-        if 'bgpupds' in all_files_dict[date] and updates_file == '':
+        if 'bgpupd.mrt' in all_files_dict[date] and updates_file == '':
             # There shouldn't be more than one bgprib.mrt file for a specific
             # date. But even if there is, we take the first one in the list.
-            updates_file = all_files_dict[date]['bgpupds'][0]
+            updates_file = all_files_dict[date]['bgpupd.mrt'][0]
         
-        if routing_file != '' and updates_file != '':        
-            StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path,
-                                                       updates_file,
-                                                       routing_file, es_host)
-                                                       
-            StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats(
-                                                                            DEBUG,
-                                                                            files_path)
+        StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path,
+                                                   updates_file,
+                                                   routing_file, es_host)
+                                                   
+        StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats(
+                                                                        DEBUG,
+                                                                        files_path)
         
-        else:
-            sys.stdout.write('Could not compute Stability and Deaggregation stats due to missing file(s).\n')
-            if routing_file == '':
-                sys.stdout.write('Routing file for date {} is missing.\n'.format(date))
-            if updates_file == '':
-                sys.stdout.write('Updates file for date {} is missing.\n'.format(date))
+        if routing_file == '':
+            sys.stdout.write('Routing file for date {} is missing.\n'.format(date))
+        if updates_file == '':
+            sys.stdout.write('Updates file for date {} is missing.\n'.format(date))
                 
 if __name__ == "__main__":
     main(sys.argv[1:])
