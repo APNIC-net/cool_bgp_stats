@@ -64,27 +64,34 @@ asns_ctl_str = '''LOAD CSV
                           maintenance_work_mem to '1GB', 
                           standard_conforming_strings to 'on';'''
                           
-def getDatesOfExistingCSVs(files_path, existing_dates):
+def getDatesOfExistingCSVs(files_path, existing_dates_pref, existing_dates_orASes,\
+                            existing_dates_midASes):
     for existing_file in os.listdir(files_path):
         if existing_file.endswith('.csv'):
-            existing_dates.add(getDateFromFileName(existing_file))
-    
-    return existing_dates
+            if 'prefixes' in existing_file:
+                existing_dates_pref.add(getDateFromFileName(existing_file))
+            elif 'originASes' in existing_file:
+                existing_dates_orASes.add(getDateFromFileName(existing_file))
+            elif 'middleASes' in existing_file:
+                existing_dates_midASes.add(getDateFromFileName(existing_file))
+
+    return existing_dates_pref, existing_dates_orASes, existing_dates_midASes
             
-def generateFilesFromReadables(readables_path, existing_dates, files_path,
-                               bgp_handler, output_file):    
+def generateFilesFromReadables(readables_path, existing_dates_pref,\
+                                existing_dates_orASes, existing_dates_midASes,\
+                                files_path, bgp_handler, output_file):    
     for readable_file in os.listdir(readables_path):
         if readable_file.endswith('readable'):
             file_path = '{}/{}'.format(readables_path, readable_file)
-            routing_date = getDateFromFile(file_path, output_file)
-            
-            if routing_date not in existing_dates:
-                generateFilesFromReadableRoutingFile(files_path,
-                                                     file_path,
-                                                     bgp_handler)
-                existing_dates.add(routing_date)
+            existing_dates_pref, existing_dates_orASes, existing_dates_midASes =\
+                generateFilesFromReadableRoutingFile(files_path, file_path,
+                                                     bgp_handler,
+                                                     existing_dates_pref,
+                                                     existing_dates_orASes,
+                                                     existing_dates_midASes,
+                                                     output_file)
     
-    return existing_dates
+    return existing_dates_pref, existing_dates_orASes, existing_dates_midASes
 
 
 def getDatesForExistingReadables(files_path):
@@ -97,8 +104,9 @@ def getDatesForExistingReadables(files_path):
     return readable_dates                
    
 def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates,
-                                       existing_dates, files_path, bgp_handler,
-                                       proc_num, extension, output_file):
+                                       existing_dates_pref, existing_dates_orASes,
+                                       existing_dates_midASes, files_path,
+                                       bgp_handler, proc_num, extension, output_file):
     
     # Routing files in the archive folder for dates that haven't been
     # inserted into the DB yet
@@ -121,14 +129,16 @@ def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates,
                 
                 readable_dates.add(date)
                 
-                routing_date = getDateFromFile(readable_file, output_file)
-                if routing_date not in existing_dates:
-                    generateFilesFromReadableRoutingFile(files_path,
-                                                         readable_file,
-                                                         bgp_handler)
-                    existing_dates.add(routing_date)
+                existing_dates_pref, existing_dates_orASes, existing_dates_midASes =\
+                    generateFilesFromReadableRoutingFile(files_path, readable_file,
+                                                         bgp_handler,
+                                                         existing_dates_pref,
+                                                         existing_dates_orASes,
+                                                         existing_dates_midASes,
+                                                         output_file)
 
-    return existing_dates, readable_dates
+    return existing_dates_pref, existing_dates_orASes, existing_dates_midASes,\
+            readable_dates
 
 
 def writeCSVandCTLfiles(filename_woExt, tuples, ctl_str):
@@ -166,7 +176,9 @@ def generateFilesForItem(name, item_list, files_path, routing_date):
     end = time()
     sys.stdout.write('It took {} seconds to generate the CSV and CTL files for the insertion of {} for {}.\n'.format(end-start, name, routing_date))
     
-def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler):    
+def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler,\
+                                         existing_dates_pref, existing_dates_orASes,\
+                                         existing_dates_midASes, output_file):
     start = time()
     prefixes, originASes, middleASes, routing_date =\
                         bgp_handler.getPrefixesASesAndDate(routing_file)
@@ -175,7 +187,7 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler):
 
     if routing_date.year == 1970:
         os.remove(routing_file)
-        file_date = getDateFromFileName(routing_file)
+        file_date = getDateFromFileName(routing_file, output_file)
         routing_file = bgp_handler.getSpecificFilesFromArchive(file_date,
                                                                extension='bgprib.mrt')
         start = time()
@@ -184,43 +196,54 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler):
         end = time()
         sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
 
-    if len(prefixes) > 0:
+    if len(prefixes) > 0 and routing_date not in existing_dates_pref:
         try:
             generateFilesForItem('prefixes', prefixes, files_path, routing_date)
+            existing_dates_pref.add(routing_date)
             
         except KeyboardInterrupt:
             sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
             generateFilesForItem('prefixes', prefixes, files_path, routing_date)
-            
-            if len(originASes) > 0:
+            existing_dates_pref.add(routing_date)
+
+            if len(originASes) > 0 and routing_date not in existing_dates_orASes:
                 generateFilesForItem('originASes', originASes, files_path, routing_date)
+                existing_dates_orASes.add(routing_date)
                 
-            if len(middleASes) > 0:
+            if len(middleASes) > 0 and routing_date not in existing_dates_midASes:
                 generateFilesForItem('middleASes', middleASes, files_path, routing_date)
-
+                existing_dates_midASes.add(routing_date)
+                
             sys.exit(0)
 
-    if len(originASes) > 0:
+    if len(originASes) > 0 and routing_date not in existing_dates_orASes:
         try:
             generateFilesForItem('originASes', originASes, files_path, routing_date)
-            
+            existing_dates_orASes.add(routing_date)
+
         except KeyboardInterrupt:
             sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
             generateFilesForItem('originASes', originASes, files_path, routing_date)
-            
-            if len(middleASes) > 0:
+            existing_dates_orASes.add(routing_date)
+
+            if len(middleASes) > 0 and routing_date not in existing_dates_midASes:
                 generateFilesForItem('middleASes', middleASes, files_path, routing_date)
+                existing_dates_midASes.add(routing_date)
 
             sys.exit(0)
 
-    if len(middleASes) > 0:        
+    if len(middleASes) > 0 and routing_date not in existing_dates_midASes:        
         try:
             generateFilesForItem('middleASes', middleASes, files_path, routing_date)
-            
+            existing_dates_midASes.add(routing_date)
+
         except KeyboardInterrupt:
             sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
             generateFilesForItem('middleASes', middleASes, files_path, routing_date)
+            existing_dates_midASes.add(routing_date)
             sys.exit(0)
+    
+    return existing_dates_pref, existing_dates_orASes, existing_dates_midASes
 
 # We assume the routing files have routing info for a single date,
 # therefore we get the routing date from the first line of the file.
@@ -315,45 +338,49 @@ def main(argv):
     bgp_handler = BGPDataHandler(DEBUG, readables_path)
     
     if routing_file != '':
-        generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler)
+        generateFilesFromReadableRoutingFile(files_path, routing_file,
+                                             bgp_handler, {}, {}, {})
     else:
         db_handler = VisibilityDBHandler()
 
-        # We just consider a date to be ready if it is present in the DB
-        # for prefixes, origin ASes AND middle ASes.
-        existing_dates = set(db_handler.getListOfDatesForPrefixes()).\
-                            intersection(set(db_handler.getListOfDatesForOriginASes())).\
-                            intersection(set(db_handler.getListOfDatesForMiddleASes()))
+        existing_dates_pref = set(db_handler.getListOfDatesForPrefixes())
+        existing_dates_orASes = set(db_handler.getListOfDatesForOriginASes())
+        existing_dates_midASes = set(db_handler.getListOfDatesForMiddleASes())
         
-        existing_dates = getDatesOfExistingCSVs(files_path, existing_dates)
+        existing_dates_pref, existing_dates_orASes, existing_dates_midASes =\
+            getDatesOfExistingCSVs(files_path, existing_dates_pref,
+                                   existing_dates_orASes, existing_dates_midASes)
         
-        existing_dates = generateFilesFromReadables(readables_path,
-                                                    existing_dates,
-                                                    files_path,
-                                                    bgp_handler,
-                                                    output_file)
+        existing_dates_pref, existing_dates_orASes, existing_dates_midASes =\
+            generateFilesFromReadables(readables_path,existing_dates_pref,
+                                       existing_dates_orASes, existing_dates_midASes,
+                                       files_path, bgp_handler, output_file)
         
         readable_dates = getDatesForExistingReadables(readables_path)
         
-        existing_dates, readable_dates = generateFilesFromOtherRoutingFiles(
-                                            archive_folder,
-                                            readable_dates,
-                                            existing_dates,
-                                            files_path,
-                                            bgp_handler,
-                                            proc_num,
-                                            'bgprib.mrt',
-                                            output_file)
+        existing_dates_pref, existing_dates_orASes, existing_dates_midASes,\
+            readable_dates = generateFilesFromOtherRoutingFiles(archive_folder,
+                                                                readable_dates,
+                                                                existing_dates_pref,
+                                                                existing_dates_orASes,
+                                                                existing_dates_midASes,
+                                                                files_path,
+                                                                bgp_handler,
+                                                                proc_num,
+                                                                'bgprib.mrt',
+                                                                output_file)
         
-        existing_dates, readable_dates = generateFilesFromOtherRoutingFiles(
-                                            archive_folder,
-                                            readable_dates,
-                                            existing_dates,
-                                            files_path,
-                                            bgp_handler,
-                                            proc_num,
-                                            'dmp.gz',
-                                            output_file)
+        existing_dates_pref, existing_dates_orASes, existing_dates_midASes,\
+            readable_dates = generateFilesFromOtherRoutingFiles(archive_folder,
+                                                                readable_dates,
+                                                                existing_dates_pref,
+                                                                existing_dates_orASes,
+                                                                existing_dates_midASes,
+                                                                files_path,
+                                                                bgp_handler,
+                                                                proc_num,
+                                                                'dmp.gz',
+                                                                output_file)
 
     
 if __name__ == "__main__":
