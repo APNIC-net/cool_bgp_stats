@@ -15,6 +15,8 @@ from elasticsearch import exceptions
 import delStats_ES_properties
 import prefStats_ES_properties
 import ASesStats_ES_properties
+import updatesStats_ES_properties
+import deaggStats_ES_properties
 
 class ElasticSearchImporter:
     
@@ -92,16 +94,18 @@ def main(argv):
     try:
         opts, args = getopt.getopt(argv, "hDPAp:H:", ["files_path=", "host="])
     except getopt.GetoptError:
-        print 'Usage: ElasticSearchImporter.py -h | ( -D | -P | -A ) -p <files path> -H <Elasticsearch host>'
+        print 'Usage: ElasticSearchImporter.py -h | ( -D | -P | -A | -d | -U) -p <files path> -H <Elasticsearch host>'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script stores into ElasticSearch the statistics contained in the JSON files in the provided folder."
-            print 'Usage: ElasticSearchImporter.py -h | ( -D | -P | -A ) -p <files path> -H <Elasticsearch host>'
+            print 'Usage: ElasticSearchImporter.py -h | ( -D | -P | -A | -d | -U) -p <files path> -H <Elasticsearch host>'
             print 'h = Help'
             print 'D = Delegated. Stats about delegations.'
             print 'P = Prefixes. Stats about usage of delegated prefixes.'
             print 'A = ASNs. Stats about usage of Autonomous System Numbers.'
+            print 'd = Deaggregation. Stats about per prefix deaggregation in the routing table.'
+            print 'U = Updates. Stats about per prefix daily BGP updates.'
             print "p = Path to folder containing JSON files. (MANDATORY)"
             print "H = Host running Elasticsearch. (MANDATORY)"
 #            print "u = User to save stats to ElasticSearch. (MANDATORY)"
@@ -114,6 +118,10 @@ def main(argv):
             ES_properties = prefStats_ES_properties
         elif opt == '-A':
             ES_properties = ASesStats_ES_properties
+        elif opt == '-d':
+            ES_properties = deaggStats_ES_properties
+        elif opt == '-U':
+            ES_properties = updatesStats_ES_properties
         elif opt == '-p':
             files_path = arg
         elif opt == '-H':
