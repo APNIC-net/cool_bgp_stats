@@ -25,78 +25,143 @@ from netaddr import IPNetwork
 import pandas as pd
 import subprocess, shlex
 from datetime import datetime
+from ElasticSearchImporter import ElasticSearchImporter
+import updatesStats_ES_properties
+import deaggStats_ES_properties
 
-def getDelegationDate(prefix):
-    cmd = shlex.split("origindate -d ',' -f 1")
-    cmd_echo = shlex.split("echo {}".format(prefix))
-    p = subprocess.Popen(cmd_echo, stdout=subprocess.PIPE)
-    output = subprocess.check_output(cmd, stdin=p.stdout)
-    return datetime.strptime(output.split(',')[1], '%Y%m%d').date()
-    
-def getUpdatesCountsDF(updates_df):
-    updates_df['update_date'] = updates_df.apply(lambda row:\
-                                            datetime.utcfromtimestamp(\
-                                            row['timestamp']).date(),\
-                                            axis=1)
-                                                
-    updates_counts_df = pd.DataFrame(columns=['prefix', 'del_date', 'updates_date',
-                                             'del_age', 'ip_version', 'prefLength',
-                                             'numOfAnnouncements', 'numOfWithdraws'])
-                                             
-    for prefix, prefix_subset in updates_df.groupby('prefix'):
-        del_date = getDelegationDate(prefix)
-        network = IPNetwork(prefix)
-        for update_date, date_subset in prefix_subset.groupby('update_date'):
-            del_age = (update_date - del_date).days
-            numOfAnn = len(date_subset[date_subset['upd_type'] == 'A']['prefix'].tolist())
-            numOfWith = len(date_subset[date_subset['upd_type'] == 'W']['prefix'].tolist())
-            
-            updates_counts_df.loc[updates_counts_df.shape[0]] = [prefix, del_date,
-                                                                update_date, del_age,
-                                                                network.version,
-                                                                network.prefixlen,
-                                                                numOfAnn, numOfWith]
-    return updates_counts_df
-
-def getDeaggregationDF(bgp_handler):
-    deaggregation_DF = pd.DataFrame(columns=['prefix', 'del_date', 'routing_date',
-                                             'del_age', 'isRoot', 'isRootDeagg'])
-    
-    for prefix, prefix_subset in bgp_handler.bgp_df.groupby('prefix'):
-        del_date = getDelegationDate(prefix)
+class StabilityAndDeagg:
+    def __init__(self, DEBUG, files_path, updates_file, routing_file, es_host):
+        self.DEBUG = DEBUG
+        self.files_path = files_path
+        self.updates_file = updates_file
+        self.routing_file = routing_file
+        self.es_host = es_host
+     
+    @staticmethod
+    def getDelegationDate(prefix):
+        cmd = shlex.split("origindate -d ',' -f 1")
+        cmd_echo = shlex.split("echo {}".format(prefix))
+        p = subprocess.Popen(cmd_echo, stdout=subprocess.PIPE)
+        output = subprocess.check_output(cmd, stdin=p.stdout)
+        return datetime.strptime(output.split(',')[1], '%Y%m%d').date()
+#        return datetime.today().date()
         
-        network = IPNetwork(prefix)
-        if network.version == 4:
-            prefixes_radix = bgp_handler.ipv4Prefixes_radix
-        else:
-            prefixes_radix = bgp_handler.ipv6Prefixes_radix
-            
-        # If the list of covering prefixes in the Radix tree has only 1 prefix,
-        # it is the prefix itself, therefore the prefix is a root prefix
-        if len(prefixes_radix.search_covering(prefix)) == 1:
-            isRoot = True
+    def computeUpdatesStats(self, updates_df, stats_file):
+        updates_df['update_date'] = updates_df.apply(lambda row:\
+                                                datetime.utcfromtimestamp(\
+                                                row['timestamp']).date(),\
+                                                axis=1)
+                                                 
+        for prefix, prefix_subset in updates_df.groupby('prefix'):
+            del_date = self.getDelegationDate(prefix)
+            network = IPNetwork(prefix)
+            for update_date, date_subset in prefix_subset.groupby('update_date'):
+                del_age = (update_date - del_date).days
+                numOfAnn = len(date_subset[date_subset['upd_type'] == 'A']['prefix'].tolist())
+                numOfWith = len(date_subset[date_subset['upd_type'] == 'W']['prefix'].tolist())
+                
+                with open(stats_file, 'a') as s_file:
+                    s_file.write('{}|{}|{}|{}|{}|{}|{}|{}\n'.format(prefix, del_date,
+                                                                    update_date, del_age,
+                                                                    network.version,
+                                                                    network.prefixlen,
+                                                                    numOfAnn, numOfWith))
     
-            # If the list of covered prefix includes more prefixes than the prefix
-            # itself, then the root prefix is being deaggregated.
-            if len(bgp_handler.ipv4Prefixes_radix.search_covered(prefix)) > 1:
-                isRootDeagg = True
-        else:
-            isRoot = False
-            isRootDeagg = False
+    def computeDeaggregationStats(self, bgp_handler, stats_file):    
+        for prefix, prefix_subset in bgp_handler.bgp_df.groupby('prefix'):
+            del_date = self.getDelegationDate(prefix)
+            
+            network = IPNetwork(prefix)
+            if network.version == 4:
+                prefixes_radix = bgp_handler.ipv4Prefixes_radix
+            else:
+                prefixes_radix = bgp_handler.ipv6Prefixes_radix
+                
+            # If the list of covering prefixes in the Radix tree has only 1 prefix,
+            # it is the prefix itself, therefore the prefix is a root prefix
+            if len(prefixes_radix.search_covering(prefix)) == 1:
+                isRoot = True
         
-        deaggregation_DF.loc[deaggregation_DF.shape[0]] = [prefix, del_date,
+                # If the list of covered prefix includes more prefixes than the prefix
+                # itself, then the root prefix is being deaggregated.
+                if len(bgp_handler.ipv4Prefixes_radix.search_covered(prefix)) > 1:
+                    isRootDeagg = True
+            else:
+                isRoot = False
+                isRootDeagg = False
+            
+            with open(stats_file, 'a') as s_file:
+                s_file.write('{}|{}|{}|{}|{}|{}\n'.format(prefix, del_date,
                                                             bgp_handler.routingDate,
                                                             (bgp_handler.routingDate -\
                                                             del_date).days,
-                                                            isRoot, isRootDeagg]
+                                                            isRoot, isRootDeagg))
     
-    return deaggregation_DF
-
+    @staticmethod
+    def generateJSONfile(stats_file):
+        stats_df = pd.read_csv(stats_file, sep = ',')
+        json_filename = '{}.json'.format(stats_file.split('.')[0])
+        stats_df.to_json(json_filename, orient='index')
+        sys.stderr.write("Stats saved to JSON and CSV files successfully!\n")
+        sys.stderr.write("Files generated:\n{}\n\nand\n\n{}\n".format(stats_file,
+                                                                    json_filename))
+        return stats_df
+    
+    def importStatsIntoElasticSearch(self, stats_df, stats_name, es_properties):
+        esImporter = ElasticSearchImporter(self.es_host)
+        esImporter.createIndex(es_properties.mapping, es_properties.index_name)
+        numOfDocs = esImporter.ES.count(es_properties.index_name)['count']
+    
+        stats_df = stats_df.fillna(-1)
+        
+        bulk_data, numOfDocs = esImporter.prepareData(stats_df,
+                                                      es_properties.index_name,
+                                                      es_properties.doc_type,
+                                                      numOfDocs,
+                                                      es_properties.unique_index)
+                                            
+        dataImported = esImporter.inputData(es_properties.index_name, bulk_data, numOfDocs)
+    
+        if dataImported:
+            sys.stderr.write("Stats about {} were saved to ElasticSearch successfully!\n".format(stats_name))
+        else:
+            sys.stderr.write("Stats about {} could not be saved to ElasticSearch.\n".format(stats_name))
+    
+    def computeAndSaveStabilityAndDeaggDailyStats(self, bgp_handler):
+        today = datetime.today().date()
+            
+        bgp_handler.loadStructuresFromUpdatesFile(self.updates_file)
+        updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path, today)
+        with open(updates_stats_file, 'w') as u_file:
+            u_file.write('prefix|del_date|updates_date|del_age|ip_version|prefLength|numOfAnnouncements|numOfWithdraws\n')
+            
+        self.computeUpdatesStats(bgp_handler.updates_df, updates_stats_file)
+        
+        updates_stats_df = self.generateJSONfile(updates_stats_file)
+        
+        if self.es_host != '':
+            self.importStatsIntoElasticSearch(updates_stats_df, 'BGP updates',
+                                              self.es_host, updatesStats_ES_properties)
+        
+        bgp_handler.loadStructuresFromRoutingFile(self.routing_file)
+        deagg_stats_file = '{}/deaggStats_{}.csv'.format(self.files_path, today)
+        with open(deagg_stats_file, 'w') as d_file:
+            d_file.write('prefix|del_date|routing_date|del_age|isRoot|isRootDeagg\n')
+            
+        self.computeDeaggregationStats(bgp_handler, deagg_stats_file)
+        
+        deagg_stats_df = self.generateJSONfile(deagg_stats_file)
+        
+        if self.es_host != '':
+            self.importStatsIntoElasticSearch(deagg_stats_df, 'deaggregation',
+                                              self.es_host, deaggStats_ES_properties)
+    
 def main(argv):
     DEBUG = False
     files_path = ''
     routing_file = ''
     updates_file = ''
+    es_host = ''
     
     # For DEBUG
     DEBUG = True
@@ -106,20 +171,21 @@ def main(argv):
  
     
     try:
-        opts, args = getopt.getopt(argv, "hp:D", ["files_path="])
+        opts, args = getopt.getopt(argv, "hp:DE:", ["files_path=", "ElasticSearch_host=",])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -p <files path> -R <Routing file> -U <BGP Updates file> [-D]'.format(sys.argv[0])
+        print 'Usage: {} -h | -p <files path> -R <Routing file> -U <BGP Updates file> [-D] [-E <ElasticSearch host>]'.format(sys.argv[0])
         sys.exit(-1)
         
     for opt, arg in opts:
         if opt == '-h':
             print "This script loads two tables with data about daily BGP updates and deaggregation in the BGP routing table."
-            print 'Usage: {} -h | -p <files path> -R <Routing file> -U <BGP Updates file> [-D]'.format(sys.argv[0])
+            print 'Usage: {} -h | -p <files path> -R <Routing file> -U <BGP Updates file> [-D] [-E <ElasticSearch host>]'.format(sys.argv[0])
             print "h: Help"
             print "p: Path to folder in which files will be saved. (MANDATORY)"
             print "R: Path to the routing file to be used. Can be an mrt or a dmp file. Can be a compressed file with extension .gz (MANDATORY)"
             print "U: Path to the file with BGP updates to be used. Must be a bgpupd.mrt file. Can be a compressed file with extension .gz (MANDATORY)"
-            print "D: Debug mode. Use this option if you want to script to run in debug mode."
+            print "D: Debug mode. Use this option if you want the script to run in debug mode."
+            print "E: Insert compute statistics into ElasticSearch. The hostname of the ElasticSearch host MUST be provided if this option is used."
         elif opt == '-p':
             if arg != '':
                 files_path = os.path.abspath(arg)
@@ -140,24 +206,24 @@ def main(argv):
                 sys.exit(-1)
         elif opt == '-D':
             DEBUG = True
+        elif opt == '-E':
+            if arg != '':
+                es_host = arg
+            else:
+                print "If option -E is used, the name of a host running ElasticSearch must be provided."
+                sys.exit(-1)
         else:
             assert False, 'Unhandled option'
     
     if files_path == '' or routing_file == '' or updates_file == '':
         print "You MUST provide the corresponding paths using options -p, -R and -U."
         sys.exit(-1)
-        
-    bgp_handler = BGPDataHandler(DEBUG, files_path)
+    
+    StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, updates_file,
+                                               routing_file, es_host)
 
-    bgp_handler.loadStructuresFromUpdatesFile(updates_file)
-    updates_count_df = getUpdatesCountsDF(bgp_handler.updates_df)
-    
-    bgp_handler.loadStructuresFromRoutingFile(routing_file)
-    deaggregation_df = getDeaggregationDF(bgp_handler)
-    
-    # TODO Generate csv and json files
-    # TODO Insert both DataFrames into ElasticSearch for aggregation and summarization (compute annual averages)
+    bgp_handler = BGPDataHandler(DEBUG, files_path)                                
+    StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats(bgp_handler)
         
 if __name__ == "__main__":
     main(sys.argv[1:])
-
