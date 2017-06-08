@@ -92,10 +92,10 @@ class BGPDataHandler:
         
         aux_date = datetime.strptime('1970', '%Y').date()
         
-        if files_date != aux_date:
+        if files_date != aux_date and files_date is not None:
             self.routingDate = files_date
 
-        if update_files_date != aux_date:
+        if update_files_date != aux_date and update_files_date is not None:
             self.updatesDate = update_files_date
 
         if bgp_df.shape[0] != 0:
@@ -222,10 +222,10 @@ class BGPDataHandler:
                                                 isList=True, containsURLs=False)
         aux_date = datetime.strptime('1970', '%Y').date()
 
-        if files_date != aux_date:                    
+        if files_date != aux_date and files_date is not None:                    
             self.routingDate = files_date
         
-        if update_files_date != aux_date:
+        if update_files_date != aux_date and update_files_date is not None:
             self.updatesDate = update_files_date
 
         if bgp_df.shape[0] != 0:
@@ -797,7 +797,7 @@ class BGPDataHandler:
                                                        bgp_df,
                                                        ipv4Prefixes_radix,
                                                        ipv6Prefixes_radix)
-                    if file_date > routingDate:
+                    if file_date is not None and file_date > routingDate:
                         routingDate = file_date
                             
                     if ipv4_longest_pref_partial > ipv4_longest_pref:
@@ -927,11 +927,14 @@ class BGPDataHandler:
                                         'upd_type',\
                                         'peerAS',
                                         'prefix'])
-                                        
-        # We assume all the updates included in the updates file correspond
-        # to the same date, but in case they don't, we take the most recent date.
-        return datetime.utcfromtimestamp(max(updates_df['timestamp'])).date(),\
-                updates_df
+        
+        if updates_df.shape[0] > 0:
+            # We assume all the updates included in the updates file correspond
+            # to the same date, but in case they don't, we take the most recent date.
+            return datetime.utcfromtimestamp(max(updates_df['timestamp'])).date(),\
+                    updates_df
+        else:
+            return None, pd.DataFrame()
  
     # This function processes a readable file with routing info
     # putting all the info into a Data Frame  
