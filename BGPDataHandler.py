@@ -1128,7 +1128,7 @@ class BGPDataHandler:
     # (bgprib.mrt, dmp.gz and bgpupd.mrt files)
     def getPathsToHistoricalData_dict(self, startDate, endDate,
                                          archive_folder, extension='',
-                                         files_dict=[]):
+                                         files_dict=dict()):
                                              
         if extension == '':
             files_dict = self.getPathsToHistoricalData_dict(startDate, endDate,
@@ -1151,15 +1151,19 @@ class BGPDataHandler:
                 for filename in files:
                     if filename.endswith(extension):
                         file_date = self.getDateFromFileName(filename)
-                        if (endDate != '' and file_date <= endDate + timedelta(1) or\
+                        if (endDate != '' and file_date <= endDate or\
                             endDate == '') and (startDate != '' and\
-                            file_date > startDate or startDate == ''):
+                            file_date >= startDate or startDate == ''):
                                 file_path = os.path.join(root, filename)
 
                                 if file_date not in files_dict:
-                                    files_dict[file_date] = [file_path]
+                                    files_dict[file_date] = dict()
+                                    files_dict[file_date][extension] = [file_path]
                                 else:
-                                    files_dict[file_date].append(file_path)
+                                    if extension not in files_dict[file_date]:
+                                        files_dict[file_date][extension] = [file_path]
+                                    else:
+                                        files_dict[file_date][extension].append(file_path)
     
             return files_dict
 
