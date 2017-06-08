@@ -127,7 +127,7 @@ class BGPDataHandler:
     # the corresponding variables of the class with the results from this processing
     def loadStructuresFromUpdatesFile(self, updates_file):
         if not updates_file.endswith('readable'):
-            readable_file_name = self.getReadableFile(updates_file, False, True, False)
+            readable_file_name = self.getReadableFile(updates_file, False)
         else:
             readable_file_name = updates_file
             
