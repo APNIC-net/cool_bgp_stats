@@ -300,7 +300,7 @@ class BGPDataHandler:
                                                              routing_files)
             routing_files = self.getSpecificFilesFromArchive(self, routing_date,
                                                              archive_folder,
-                                                             'bgpupd.mrt',
+                                                             'bgpupds',
                                                              routing_files)
             return routing_files
         
@@ -1028,7 +1028,10 @@ class BGPDataHandler:
             source = output_file
             source_filename = source.split('/')[-1]
 
-        readable_file_name = '%s/%s.readable' % (self.files_path, os.path.splitext(source_filename)[0])
+        if source.endswith('bgpupds'):
+            readable_file_name = '{}/{}.readable'.format(self.files_path, source_filename)
+        else: 
+            readable_file_name = '{}/{}.readable'.format(self.files_path, os.path.splitext(source_filename)[0])
                 
         if not os.path.exists(readable_file_name):
             # If the routing file is a MRT file, we process it using BGPdump
@@ -1064,7 +1067,7 @@ class BGPDataHandler:
                                                        files_list)
             files_list = self.getPathsToHistoricalData(startDate, endDate,
                                                        archive_folder,
-                                                       'bgpupd.mrt',
+                                                       'bgpupds',
                                                        files_list)
             return files_list
 
@@ -1093,7 +1096,7 @@ class BGPDataHandler:
                                                         'bgprib.mrt',
                                                         files_list)
             files_list = self.getMostRecentsFromArchive(archive_folder,
-                                                        'bgpupd.mrt',
+                                                        'bgpupds',
                                                         files_list)
             return files_list
             
@@ -1125,7 +1128,7 @@ class BGPDataHandler:
     # in the archive folder for the corresponding date that have the provided
     # extension. If no extension is provided, ALL the files in the archive
     # for each date are included in the dict
-    # (bgprib.mrt, dmp.gz and bgpupd.mrt files)
+    # (bgprib.mrt, dmp.gz and bgpupds files)
     def getPathsToHistoricalData_dict(self, startDate, endDate,
                                          archive_folder, extension='',
                                          files_dict=dict()):
@@ -1143,7 +1146,7 @@ class BGPDataHandler:
                                                             
             files_dict = self.getPathsToHistoricalData_dict(startDate, endDate,
                                                             archive_folder,
-                                                            'bgpupd.mrt',
+                                                            'bgpupds',
                                                             files_dict)
             return files_dict
         else:
