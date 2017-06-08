@@ -155,6 +155,9 @@ def main(argv):
                                                                endDate_date,
                                                                archive_folder, '',
                                                                readables_dict)
+                                                               
+    if DEBUG:
+        print all_files_dict
     
     
     for date in all_files_dict:
@@ -198,7 +201,7 @@ def main(argv):
                                                            updates_file,
                                                            routing_file, es_host)
                 StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats(\
-                                                                    bgp_handler)
+                                                                    DEBUG, files_path)
         
                 continue
 
@@ -230,7 +233,7 @@ def main(argv):
                         v6_routing_file = bgp_handler.getReadableFile(v6_routing_file,
                                                                       False)
                                                                       
-                    routing_file = concatenateFiles('{}/{}.readable'.format(\
+                    routing_file = concatenateFiles('{}/{}.readable'.format(
                                                         files_path, date),
                                                     v4_routing_file,
                                                     v6_routing_file)
@@ -246,7 +249,9 @@ def main(argv):
                                                        updates_file,
                                                        routing_file, es_host)
                                                        
-            StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats(bgp_handler)
+            StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats(
+                                                                            DEBUG,
+                                                                            files_path)
         
         else:
             sys.stdout.write('Could not compute Stability and Deaggregation stats due to missing file(s).\n')
