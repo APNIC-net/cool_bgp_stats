@@ -47,25 +47,26 @@ class StabilityAndDeagg:
 #        return datetime.today().date()
         
     def computeUpdatesStats(self, updates_df, stats_file):
-        updates_df['update_date'] = updates_df.apply(lambda row:\
-                                                datetime.utcfromtimestamp(\
-                                                row['timestamp']).date(),\
-                                                axis=1)
-                                                 
-        for prefix, prefix_subset in updates_df.groupby('prefix'):
-            del_date = self.getDelegationDate(prefix)
-            network = IPNetwork(prefix)
-            for update_date, date_subset in prefix_subset.groupby('update_date'):
-                del_age = (update_date - del_date).days
-                numOfAnn = len(date_subset[date_subset['upd_type'] == 'A']['prefix'].tolist())
-                numOfWith = len(date_subset[date_subset['upd_type'] == 'W']['prefix'].tolist())
-                
-                with open(stats_file, 'a') as s_file:
-                    s_file.write('{}|{}|{}|{}|{}|{}|{}|{}\n'.format(prefix, del_date,
-                                                                    update_date, del_age,
-                                                                    network.version,
-                                                                    network.prefixlen,
-                                                                    numOfAnn, numOfWith))
+        if updates_df.shape[0] > 0:
+            updates_df['update_date'] = updates_df.apply(lambda row:\
+                                                    datetime.utcfromtimestamp(\
+                                                    row['timestamp']).date(),\
+                                                    axis=1)
+                                                     
+            for prefix, prefix_subset in updates_df.groupby('prefix'):
+                del_date = self.getDelegationDate(prefix)
+                network = IPNetwork(prefix)
+                for update_date, date_subset in prefix_subset.groupby('update_date'):
+                    del_age = (update_date - del_date).days
+                    numOfAnn = len(date_subset[date_subset['upd_type'] == 'A']['prefix'].tolist())
+                    numOfWith = len(date_subset[date_subset['upd_type'] == 'W']['prefix'].tolist())
+                    
+                    with open(stats_file, 'a') as s_file:
+                        s_file.write('{}|{}|{}|{}|{}|{}|{}|{}\n'.format(prefix, del_date,
+                                                                        update_date, del_age,
+                                                                        network.version,
+                                                                        network.prefixlen,
+                                                                        numOfAnn, numOfWith))
     
     def computeDeaggregationStats(self, bgp_handler, stats_file):    
         for prefix, prefix_subset in bgp_handler.bgp_df.groupby('prefix'):
