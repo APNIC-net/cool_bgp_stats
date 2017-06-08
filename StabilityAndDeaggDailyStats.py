@@ -78,6 +78,9 @@ class StabilityAndDeagg:
             else:
                 prefixes_radix = bgp_handler.ipv6Prefixes_radix
                 
+            isRoot = False
+            isRootDeagg = False
+            
             # If the list of covering prefixes in the Radix tree has only 1 prefix,
             # it is the prefix itself, therefore the prefix is a root prefix
             if len(prefixes_radix.search_covering(prefix)) == 1:
@@ -87,9 +90,6 @@ class StabilityAndDeagg:
                 # itself, then the root prefix is being deaggregated.
                 if len(bgp_handler.ipv4Prefixes_radix.search_covered(prefix)) > 1:
                     isRootDeagg = True
-            else:
-                isRoot = False
-                isRootDeagg = False
             
             with open(stats_file, 'a') as s_file:
                 s_file.write('{}|{}|{}|{}|{}|{}\n'.format(prefix, del_date,
