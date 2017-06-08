@@ -148,14 +148,14 @@ class RoutingStats:
         if TEMPORAL_DATA:
             booleanKeys_pref = booleanKeys_pref + booleanGralKeysTemp_pref
         
-        valueKeys_pref = ['avgASPathLengthIntact',
-                          'stdASPathLengthIntact', 'maxASPathLengthIntact',
-                          'minASPathLengthIntact', 'avgNumOfOriginASesMoreSpec',
-                          'stdNumOfOriginASesMoreSpec', 'minNumOfOriginASesMoreSpec',
-                          'maxNumOfOriginASesMoreSpec', 'avgNumOfASPathsMoreSpec',
-                          'stdNumOfASPathsMoreSpec', 'minNumOfASPathsMoreSpec',
-                          'maxNumOfASPathsMoreSpec', 'avgASPathLengthMoreSpec',
-                          'stdASPathLengthMoreSpec', 'minASPathLengthMoreSpec',
+        valueKeys_pref = ['avgASPathLengthIntact', 'stdASPathLengthIntact',
+                          'maxASPathLengthIntact', 'minASPathLengthIntact',
+                          'avgNumOfOriginASesMoreSpec', 'stdNumOfOriginASesMoreSpec',
+                          'minNumOfOriginASesMoreSpec', 'maxNumOfOriginASesMoreSpec',
+                          'avgNumOfASPathsMoreSpec', 'stdNumOfASPathsMoreSpec',
+                          'minNumOfASPathsMoreSpec', 'maxNumOfASPathsMoreSpec',
+                          'avgASPathLengthMoreSpec', 'stdASPathLengthMoreSpec',
+                          'minASPathLengthMoreSpec', 'maxASPathLengthMoreSpec',
                           'avgNumOfOriginASesLessSpec', 'stdNumOfOriginASesLessSpec',
                           'minNumOfOriginASesLessSpec', 'maxNumOfOriginASesLessSpec',
                           'avgNumOfASPathsLessSpec', 'stdNumOfASPathsLessSpec',

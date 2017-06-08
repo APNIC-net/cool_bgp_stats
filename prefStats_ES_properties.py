@@ -3,6 +3,9 @@ mapping = {"_default_" : {
                                 "pref_stat_id" : {
                                     "type": "integer"
                                             },
+                                'prefLength' : {
+                                    "type" : "integer"
+                                            },
                                 "prefix" : {
                                     "index" : "not_analyzed",
                                     "type": "text"
@@ -50,6 +53,78 @@ mapping = {"_default_" : {
                                     "type": "date",
                                     "format": "yyyyMMdd"
                                         },
+                                'avgNumOfAnnouncementsLessSpec' : {
+                                    'type': 'float'
+                                    },
+                                'stdNumOfAnnouncementsLessSpec' : {
+                                    'type': 'float'
+                                    },
+                                'minNumOfAnnouncementsLessSpec' : {
+                                    'type': 'integer'
+                                    },
+                                'maxNumOfAnnouncementsLessSpec' : {
+                                    'type': 'integer'
+                                    },
+                                'avgNumOfWithdrawsLessSpec' : {
+                                    'type': 'float'
+                                    },
+                                'stdNumOfWithdrawsLessSpec' : {
+                                    'type': 'float'
+                                    },
+                                'maxNumOfWithdrawsLessSpec' : {
+                                    'type': 'integer'
+                                    },
+                                'minNumOfWithdrawsLessSpec' : {
+                                    'type': 'integer'
+                                    },
+                                'avgNumOfAnnouncementsMoreSpec' : {
+                                    'type': 'float'
+                                    },
+                                'stdNumOfAnnouncementsMoreSpec' : {
+                                    'type': 'float'
+                                    },
+                                'minNumOfAnnouncementsMoreSpec' : {
+                                    'type': 'integer'
+                                    },
+                                'maxNumOfAnnouncementsMoreSpec' : {
+                                    'type': 'integer'
+                                    },
+                                'avgNumOfWithdrawsMoreSpec' : {
+                                    'type': 'float'
+                                    },
+                                'stdNumOfWithdrawsMoreSpec' : {
+                                    'type': 'float'
+                                    },
+                                'maxNumOfWithdrawsMoreSpec' : {
+                                    'type': 'integer'
+                                    },
+                                'minNumOfWithdrawsMoreSpec' : {
+                                    'type': 'integer'
+                                    },
+                                'numOfAnnouncements' : {
+                                    'type': 'integer'
+                                    },
+                                'numOfWithdraws' : {
+                                    'type': 'integer'
+                                    },
+                                'numOfDelegatedMoreSpec' : {
+                                    'type': 'integer'
+                                    },
+                                'numOfDeaggregatedMoreSpec' : {
+                                    'type': 'integer'
+                                    },
+                                'numOfDelegatedLessSpec' : {
+                                    'type': 'integer'
+                                    },
+                                'numOfDeaggregatedLessSpec' : {
+                                    'type': 'integer'
+                                    },
+                                "isDelegated" : {
+                                    "type" : "boolean"
+                                        },
+                                "isDeaggregated" : {
+                                    "type" : "boolean"
+                                        },
                                 "lastSeen" : {
                                     "type": "date",
                                     "format": "yyyyMMdd"
@@ -94,34 +169,13 @@ mapping = {"_default_" : {
                                 'isLonely' : {
                                     "type" : "boolean"
                                                     },
-                                'isSOSP' : {
-                                    "type" : "boolean"
-                                                    },
-                                'isDODP1' : {
-                                    "type" : "boolean"
-                                                    },
-                                'isDODP2'  : {
-                                    "type" : "boolean"
-                                                    },
-                                'isDODP3' : {
-                                    "type" : "boolean"
-                                                    },
                                 'isCoveredLevel2plus' : {
-                                    "type" : "boolean"
-                                                    },
-                                'isDOSP' : {
                                     "type" : "boolean"
                                                     },
                                 'isCoveredLevel1' : {
                                     "type" : "boolean"
                                                     },
-                                'isSODP2' : {
-                                    "type" : "boolean"
-                                                    },
                                 'isCovering' : {
-                                    "type" : "boolean"
-                                                    },
-                                'isSODP1' : {
                                     "type" : "boolean"
                                                     },
                                 'UsageLatencyGral' : {
@@ -322,67 +376,25 @@ mapping = {"_default_" : {
                                 'numOfLonelyMoreSpec' : {
                                     "type" : "integer"
                                                     },
-                                'numOfSOSPMoreSpec' : {
-                                    "type" : "integer"
-                                                    },
-                                'numOfDODP1MoreSpec' : {
-                                    "type" : "integer"
-                                                    },
-                                'numOfDODP2MoreSpec' : {
-                                    "type" : "integer"
-                                                    },
-                                'numOfDODP3MoreSpec' : {
-                                    "type" : "integer"
-                                                    },
                                 'numOfCoveredLevel2plusMoreSpec' : {
-                                    "type" : "integer"
-                                                    },
-                                'numOfDOSPMoreSpec' : {
                                     "type" : "integer"
                                                     },
                                 'numOfCoveredLevel1MoreSpec' : {
                                     "type" : "integer"
                                                     },
-                                'numOfSODP2MoreSpec' : {
-                                    "type" : "integer"
-                                                    },
                                 'numOfCoveringMoreSpec' : {
-                                    "type" : "integer"
-                                                    },
-                                'numOfSODP1MoreSpec' : {
                                     "type" : "integer"
                                                     },
                                 'numOfLonelyLessSpec' : {
                                     "type" : "integer"
                                                     },
-                                'numOfSOSPLessSpec' : {
-                                    "type" : "integer"
-                                                    },
-                                'numOfDODP1LessSpec' : {
-                                    "type" : "integer"
-                                                    },
-                                'numOfDODP2LessSpec' : {
-                                    "type" : "integer"
-                                                    },
-                                'numOfDODP3LessSpec' : {
-                                    "type" : "integer"
-                                                    },
                                 'numOfCoveredLevel2plusLessSpec' : {
-                                    "type" : "integer"
-                                                    },
-                                'numOfDOSPLessSpec' : {
                                     "type" : "integer"
                                                     },
                                 'numOfCoveredLevel1LessSpec' : {
                                     "type" : "integer"
                                                     },
-                                'numOfSODP2LessSpec' : {
-                                    "type" : "integer"
-                                                    },
                                 'numOfCoveringLessSpec' : {
-                                    "type" : "integer"
-                                                    },
-                                'numOfSODP1LessSpec' : {
                                     "type" : "integer"
                                                     }
                                         }

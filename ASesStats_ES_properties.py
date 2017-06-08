@@ -79,6 +79,12 @@ mapping = {"_default_" : {
                                                     },
                                 'numOfPrefixesPropagated' : {
                                     "type" : "integer"
+                                                    },
+                                'numOfAnnouncements' : {
+                                    "type" : "integer"
+                                                    },
+                                'numOfWithdraws' : {
+                                    "type" : "integer"
                                                     }
                                         }
                                     }
