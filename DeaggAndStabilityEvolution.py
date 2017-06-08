@@ -61,6 +61,7 @@ def main(argv):
             print "A: Archive folder. Path to the folder with historical routing and/or updates data."
             print "D: Debug mode. Use this option if you want the script to run in debug mode."
             print "E: Insert compute statistics into ElasticSearch. The hostname of the ElasticSearch host MUST be provided if this option is used."
+            sys.exit(0)
         elif opt == '-p':
             if arg != '':
                 files_path = os.path.abspath(arg)
