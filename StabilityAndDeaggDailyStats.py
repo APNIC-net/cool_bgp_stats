@@ -147,6 +147,9 @@ class StabilityAndDeagg:
                 self.importStatsIntoElasticSearch(updates_stats_df, 'BGP updates',
                                                   self.es_host, updatesStats_ES_properties)
         
+        else:
+            sys.stdout.write('Stats about BGP updates from file {} not computed due to file being empty.\n'.format(self.updates_file))
+            
         bgp_handler.loadStructuresFromRoutingFile(self.routing_file)
 
         if bgp_handler.routingDate is not None:
@@ -163,6 +166,9 @@ class StabilityAndDeagg:
                 self.importStatsIntoElasticSearch(deagg_stats_df, 'deaggregation',
                                                   self.es_host, deaggStats_ES_properties)
     
+        else:
+            sys.stdout.write('Stats about deaggregation from routing file {} not computed due to file being empty.\n'.format(self.routing_file))
+
 def main(argv):
     DEBUG = False
     files_path = ''
