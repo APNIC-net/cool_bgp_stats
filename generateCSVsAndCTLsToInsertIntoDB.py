@@ -188,7 +188,7 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler,\
     if routing_date is not None:
         if routing_date.year == 1970:
             os.remove(routing_file)
-            file_date = getDateFromFileName(routing_file, output_file)
+            file_date = getDateFromFileName(routing_file)
             routing_files = bgp_handler.getSpecificFilesFromArchive(file_date,
                                                                    extension='bgprib.mrt')
             

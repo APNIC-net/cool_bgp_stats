@@ -1031,9 +1031,6 @@ class BGPDataHandler:
             source = output_file
             source_filename = source.split('/')[-1]
 
-        if source.endswith('bgpupd.mrt'):
-            readable_file_name = '{}/{}.readable'.format(self.files_path, source_filename)
-        else: 
             readable_file_name = '{}/{}.readable'.format(self.files_path, os.path.splitext(source_filename)[0])
                 
         if not os.path.exists(readable_file_name):
