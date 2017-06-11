@@ -1031,7 +1031,7 @@ class BGPDataHandler:
             source = output_file
             source_filename = source.split('/')[-1]
 
-            readable_file_name = '{}/{}.readable'.format(self.files_path, os.path.splitext(source_filename)[0])
+        readable_file_name = '{}/{}.readable'.format(self.files_path, os.path.splitext(source_filename)[0])
                 
         if not os.path.exists(readable_file_name):
             # If the routing file is a MRT file, we process it using BGPdump
