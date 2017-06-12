@@ -419,10 +419,15 @@ class BGPRIB(dict):
                             network = previous_network
                             nexthop = line_parts[1]
                         else:
-                            if len(line_parts) > 1:
-                                network = line_parts[1]
-                            if len(line_parts) > 2:
-                                nexthop = line_parts[2]
+                            if len(line_parts[1]) > 18:
+                                field_parts = line_parts[1].split('/')
+                                network = '{}/{}'.format(field_parts[0], field_parts[1][0:2])
+                                nexthop = field_parts[2:]
+                            else:
+                                if len(line_parts) > 1:
+                                    network = line_parts[1]
+                                if len(line_parts) > 2:
+                                    nexthop = line_parts[2]
 
                         bgp_type = line[2]
 
