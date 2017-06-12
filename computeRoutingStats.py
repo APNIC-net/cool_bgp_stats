@@ -457,12 +457,12 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
                 statsForPrefix[variables['covering']] += 1
 
     
-def writeStatsLineToFile(statsForPrefix, allAttr, stats_filename):
-    line = statsForPrefix[allAttr[0]]
+def writeStatsLineToFile(stats_dict, allAttr, stats_filename):
+    line = stats_dict[allAttr[0]]
         
     for i in range(len(allAttr)-1):
         try:
-            line = '{},{}'.format(line, statsForPrefix[allAttr[i+1]])
+            line = '{},{}'.format(line, stats_dict[allAttr[i+1]])
         except KeyError:
             line = '{},{}'.format(line, '-')
     
@@ -897,7 +897,7 @@ def main(argv):
             print "If none of the four options -L, -r, -u or -H are provided, the script will try to work with routing data from the archive /data/wattle/bgplog"
             print "S = Start date in format YYYY or YYYYmm or YYYYmmdd. The start date of the period of time during which the considered resources were delegated."
             print 'E = End date in format YYYY or YYYYmm or YYYYmmdd. The end date of the period of time during which the considered resources were delegated.'
-            print "T = Temporal data available. Use this option if there is temporal data available in the visibility database and you want to use it, even if you don't provide the path to the archive."
+            print "T = Temporal data available. Use this option if there is temporal data available in the database and you want to use it, even if you don't provide the path to the archive."
             print 'k = Keep downloaded Internet routing data file.'
             print 'd = DEBUG mode. Provide path to delegated file. If not in DEBUG mode the latest delegated file will be downloaded from ftp://ftp.apnic.net/pub/stats/apnic'
             print 'x = Use eXtended file'
