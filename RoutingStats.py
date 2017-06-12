@@ -10,7 +10,7 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from BGPDataHandler import BGPDataHandler
 from DelegatedHandler import DelegatedHandler
-from VisibilityDBHandler import VisibilityDBHandler
+from DBHandler import DBHandler
 from OrgHeuristics import OrgHeuristics
 from get_file import get_file
 import pandas as pd
@@ -30,7 +30,7 @@ class RoutingStats:
                                             final_existing_date, KEEP)
 
         if TEMPORAL_DATA:
-            self.db_handler = VisibilityDBHandler(routing_date)
+            self.db_handler = DBHandler(routing_date)
         
         # We just declare the orgHeuristics variable
         # The class will be instantiated the first time it is needed

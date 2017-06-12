@@ -12,7 +12,7 @@ import radix
 from calendar import timegm
 from datetime import datetime, date, timedelta
 import pandas as pd
-from VisibilityDBHandler import VisibilityDBHandler
+from DBHandler import DBHandler
 from time import time
 import resource
 from netaddr import IPNetwork
@@ -276,7 +276,7 @@ class BGPDataHandler:
             sys.stderr.write("There are no routing files in the archive that meet the criteria (extension ({}) and period of time ({}-{})).".format(extension, startDate, endDate))
         else:
             self.storeHistoricalData(historical_files)
-            sys.stdout.write("Historical data inserted into visibility database successfully!\n")
+            sys.stdout.write("Historical data inserted into database successfully!\n")
 
     
     # This function returns a list of paths to the routing files from the files
@@ -415,28 +415,28 @@ class BGPDataHandler:
     # to insert, we remove the existing rows and insert the full set of rows.
     # The number of existing rows is returned.
     @staticmethod
-    def prepareTableForInsert(table, routing_date, numOfRows, visibilityDB,
+    def prepareTableForInsert(table, routing_date, numOfRows, db_handler,
                               DEBUG, output_file):
         start = time()
         if table == 'prefixes':
-            existingRows = visibilityDB.getPrefixCountForDate(routing_date)
+            existingRows = db_handler.getPrefixCountForDate(routing_date)
         
             if existingRows != 0 and existingRows != numOfRows:
-                visibilityDB.dropPrefixesForDate(routing_date)
+                db_handler.dropPrefixesForDate(routing_date)
                 existingRows = 0
         
         elif table == 'originASes':
-            existingRows = visibilityDB.getOriginASCountForDate(routing_date)
+            existingRows = db_handler.getOriginASCountForDate(routing_date)
         
             if existingRows != 0 and existingRows != numOfRows:
-                visibilityDB.dropOriginASesForDate(routing_date)
+                db_handler.dropOriginASesForDate(routing_date)
                 existingRows = 0
         
         elif table == 'middleASes':
-            existingRows = visibilityDB.getMiddleASCountForDate(routing_date)
+            existingRows = db_handler.getMiddleASCountForDate(routing_date)
         
             if existingRows != 0 and existingRows != numOfRows:
-                visibilityDB.dropMiddleASesForDate(routing_date)
+                db_handler.dropMiddleASesForDate(routing_date)
                 existingRows = 0
 
         end = time()
@@ -450,7 +450,7 @@ class BGPDataHandler:
 
 
     # This function stores the routing data from the routing_file provided
-    # into the visibility database
+    # into the database
     def storeHistoricalDataFromFile(self, routing_file):
         prefixes, originASes, middleASes, routing_date =\
                         self.getPrefixesASesAndDate(routing_file)
@@ -461,12 +461,12 @@ class BGPDataHandler:
                 output.write('Origin ASes to be inserted|{}\n'.format(len(originASes)))
                 output.write('Middle ASes to be inserted|{}\n'.format(len(middleASes)))
 
-        visibilityDB = VisibilityDBHandler(routing_date)
+        db_handler = DBHandler(routing_date)
 
         existingRows = self.prepareTableForInsert('prefixes',
                                                   routing_date,
                                                   len(prefixes),
-                                                  visibilityDB,
+                                                  db_handler,
                                                   self.DEBUG,
                                                   self.output_file)
         if self.DEBUG:
@@ -474,7 +474,7 @@ class BGPDataHandler:
 
         start = time()
         if existingRows == 0:
-            visibilityDB.storeListOfPrefixesSeen(prefixes, routing_date)
+            db_handler.storeListOfPrefixesSeen(prefixes, routing_date)
         end = time()
         
         if self.DEBUG:
@@ -486,7 +486,7 @@ class BGPDataHandler:
         existingRows = self.prepareTableForInsert('originASes',
                                                   routing_date,
                                                   len(originASes),
-                                                  visibilityDB,
+                                                  db_handler,
                                                   self.DEBUG,
                                                   self.output_file)
 
@@ -495,7 +495,7 @@ class BGPDataHandler:
         
         start = time()
         if existingRows == 0:
-            visibilityDB.storeListOfASesSeen(originASes, True, routing_date)
+            db_handler.storeListOfASesSeen(originASes, True, routing_date)
         end = time()
         
         if self.DEBUG:
@@ -507,7 +507,7 @@ class BGPDataHandler:
         existingRows = self.prepareTableForInsert('middleASes',
                                                   routing_date,
                                                   len(middleASes),
-                                                  visibilityDB,
+                                                  db_handler,
                                                   self.DEBUG,
                                                   self.output_file)
 
@@ -516,7 +516,7 @@ class BGPDataHandler:
             
         start = time()
         if existingRows == 0:
-            visibilityDB.storeListOfASesSeen(middleASes, False, routing_date)
+            db_handler.storeListOfASesSeen(middleASes, False, routing_date)
         end = time()
 
         if self.DEBUG:
@@ -525,7 +525,7 @@ class BGPDataHandler:
 
             self.printUsage(self.output_file)
             
-        visibilityDB.close()
+        db_handler.close()
         
     def cleanListOfASes(self, ases_list):
         start = time()

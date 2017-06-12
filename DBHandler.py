@@ -25,7 +25,7 @@ from itertools import chain
     # * totalDays - the value for this key is the number of days during
     # which the IPv4 prefix was seen
 
-class VisibilityDBHandler:
+class DBHandler:
     dbname = 'sofia'
     user = 'postgres'
     host = 'localhost'
@@ -279,6 +279,14 @@ class VisibilityDBHandler:
         except:
             sys.stderr.write("Unable to get the list of distinct dates for the middle ASes in the DB.")
             return []
+    
+    def getListOfDatesForRoutingData(self):
+        try:
+            self.cur.execute("SELECT distinct(routing_date) from routing_data")
+            return list(chain(*self.cur.fetchall()))
+        except:
+            sys.stderr.write("Unable to get the list of distinct dates for the routing data in the DB.")
+            return []
             
     @staticmethod    
     def getListOfDateTuples(datesList, isDict):
@@ -313,7 +321,7 @@ class VisibilityDBHandler:
                 prefixesPeriodsDict[prefDate['prefix']].append(prefDate['dateseen'])
         
         for pref in prefixesPeriodsDict:
-            prefixesPeriodsDict[pref] = VisibilityDBHandler.getListOfDateTuples(\
+            prefixesPeriodsDict[pref] = DBHandler.getListOfDateTuples(\
                                                 prefixesPeriodsDict[pref], False)
         
         return prefixesPeriodsDict
