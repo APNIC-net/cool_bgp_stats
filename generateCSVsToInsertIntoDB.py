@@ -11,33 +11,39 @@ from VisibilityDBHandler import VisibilityDBHandler
 from time import time
 from datetime import datetime
 import csv, re
+import subprocess, shlex
                        
 def getDatesOfExistingCSVs(files_path, data_type, prefixes_dates_ready,
                            existing_dates_orASes, existing_dates_midASes,
-                           existing_dates_routing_data):
+                           routing_data_dates_ready):
+
     for existing_file in os.listdir(files_path):
 
         if existing_file.endswith('.csv'):
             if data_type == 'visibility' and ('prefixes' in existing_file or\
             'originASes' in existing_file or 'middleASes' in existing_file):
+                routing_date = getDateFromFileName(existing_file)
                 if 'prefixes' in existing_file:
-                    # No matter if the date was already present in the dict or not,
-                    # if there is a CSV for this date, both v4 and v6 are ready for
-                    # it, because when a CSV is generated, it is generated for the
-                    # total set of prefixes for the date (v4 and v6)
-                    prefixes_dates_ready[getDateFromFileName(existing_file)] =\
-                                                {'v4_ready':True, 'v6_ready':True}
-                elif 'originASes' in existing_file:
-                    existing_dates_orASes.add(getDateFromFileName(existing_file))
-                else:
-                    existing_dates_midASes.add(getDateFromFileName(existing_file))
-            elif data_type == 'routing' and 'routing_data' in existing_file:
-                existing_dates_routing_data.add(getDateFromFileName(existing_file))
+                    if 'v4' in existing_file:
+                        prefixes_dates_ready[routing_date]['v4_ready'] =True
+                    if 'v6' in existing_file:
+                        prefixes_dates_ready[routing_date]['v6_ready'] =True
 
-    return existing_dates_routing_data, prefixes_dates_ready,\
+                elif 'originASes' in existing_file:
+                    existing_dates_orASes.add(routing_date)
+                else:
+                    existing_dates_midASes.add(routing_date)
+            elif data_type == 'routing' and 'routing_data' in existing_file:
+                if 'v4' in existing_file:
+                    routing_data_dates_ready[routing_date]['v4_ready'] = True
+
+                if 'v6' in existing_file:
+                    routing_data_dates_ready[routing_date]['v6_ready'] = True
+                    
+    return routing_data_dates_ready, prefixes_dates_ready,\
                                 existing_dates_orASes, existing_dates_midASes
             
-def generateFilesFromReadables(readables_path, data_type, existing_dates_routing_data,\
+def generateFilesFromReadables(readables_path, data_type, routing_data_dates_ready,\
                                 prefixes_dates_ready, existing_dates_orASes,\
                                 existing_dates_midASes, files_path, bgp_handler,\
                                 output_file):
@@ -53,18 +59,22 @@ def generateFilesFromReadables(readables_path, data_type, existing_dates_routing
             not prefixes_dates_ready[routing_date]['v6_ready']) or\
             routing_date not in existing_dates_orASes or\
             routing_date not in existing_dates_midASes) or\
-            data_type == 'routing' and routing_date not in existing_dates_routing_data:
-                existing_dates_routing_data, prefixes_dates_ready,\
+            data_type == 'routing' and (routing_date not in routing_data_dates_ready or\
+            (routing_date in routing_data_dates_ready and\
+            not routing_data_dates_ready[routing_date]['v4_ready']) or\
+            (routing_date in routing_data_dates_ready and\
+            not routing_data_dates_ready[routing_date]['v6_ready'])):
+                routing_data_dates_ready, prefixes_dates_ready,\
                     existing_dates_orASes, existing_dates_midASes =\
                     generateFilesFromReadableRoutingFile(files_path, file_path,
                                                          bgp_handler, data_type,
-                                                         existing_dates_routing_data,
+                                                         routing_data_dates_ready,
                                                          prefixes_dates_ready,
                                                          existing_dates_orASes,
                                                          existing_dates_midASes,
                                                          output_file)
     
-    return existing_dates_routing_data, prefixes_dates_ready,\
+    return routing_data_dates_ready, prefixes_dates_ready,\
                                 existing_dates_orASes, existing_dates_midASes
 
 
@@ -78,10 +88,12 @@ def getDatesForExistingReadables(files_path):
     return readable_dates                
    
 def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates, data_type,
-                                       existing_dates_routing_data,
-                                       prefixes_dates_ready, existing_dates_orASes,
+                                       routing_data_dates_ready,
+                                       prefixes_dates_ready,
+                                       existing_dates_orASes,
                                        existing_dates_midASes, files_path,
-                                       bgp_handler, proc_num, extension, output_file):
+                                       bgp_handler, proc_num, extension,
+                                       output_file):
     
     yearsForProcNums = {1:[2007, 2008, 2009], 2:[2010, 2011], 3:[2012, 2013],
                         4:[2014, 2015], 5:[2016, 2017]}
@@ -116,20 +128,24 @@ def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates, data_type
                     routing_date not in existing_dates_orASes or\
                     routing_date not in existing_dates_midASes)) or\
                     (data_type == 'routing' and\
-                    routing_date not in existing_dates_routing_data):
-                    existing_dates_routing_data, prefixes_dates_ready,\
+                    (routing_date not in routing_data_dates_ready or\
+                    (routing_date in routing_data_dates_ready and\
+                    not routing_data_dates_ready[routing_date]['v4_ready']) or\
+                    (routing_date in routing_data_dates_ready and\
+                    not routing_data_dates_ready[routing_date]['v6_ready']))):
+                    routing_data_dates_ready, prefixes_dates_ready,\
                         existing_dates_orASes, existing_dates_midASes =\
                         generateFilesFromReadableRoutingFile(files_path,
                                                              readable_file,
                                                              bgp_handler,
                                                              data_type,
-                                                             existing_dates_routing_data,
+                                                             routing_data_dates_ready,
                                                              prefixes_dates_ready,
                                                              existing_dates_orASes,
                                                              existing_dates_midASes,
                                                              output_file)
 
-    return existing_dates_routing_data, prefixes_dates_ready,\
+    return routing_data_dates_ready, prefixes_dates_ready,\
                     existing_dates_orASes, existing_dates_midASes, readable_dates
 
 
@@ -145,7 +161,7 @@ def writeCSVfiles(file_path, tuples):
 def generateFilesForItem(name, item_list, files_path, routing_date):
     start = time()
     
-    if name == 'prefixes':
+    if 'prefixes' in name:
         tuples = zip(item_list, [routing_date]*len(item_list))
     elif name == 'originASes':
         tuples = zip(item_list, [True]*len(item_list), [routing_date]*len(item_list))
@@ -161,7 +177,7 @@ def generateFilesForItem(name, item_list, files_path, routing_date):
         sys.stdout.write('It took {} seconds to generate the CSV and CTL files for the insertion of {} for {}.\n'.format(end-start, name, routing_date))
     
 def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler,\
-                                         data_type, existing_dates_routing_data,\
+                                         data_type, routing_data_dates_ready,\
                                          prefixes_dates_ready, existing_dates_orASes,\
                                          existing_dates_midASes, output_file):
     
@@ -175,30 +191,23 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler,\
         if routing_date is not None:
             if routing_date.year == 1970:
                 os.remove(routing_file)
-                file_date = getDateFromFileName(routing_file)
-                routing_files = bgp_handler.getSpecificFilesFromArchive(file_date,
-                                                                       extension='bgprib.mrt')
-                
-                if len(routing_files) > 0:
-                    start = time()
-                    prefixes, originASes, middleASes, routing_date =\
-                                        bgp_handler.getPrefixesASesAndDate(routing_files[0])
-                    end = time()
-                    sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
-        
-                else:
-                    return existing_dates_routing_data, prefixes_dates_ready,\
-                                existing_dates_orASes, existing_dates_midASes
+                # If the year is 1970, the timestamp was wrongly converted when
+                # creating the readable file, that's why we remove the file.
+                # A new readable file with the right date will be created in a
+                # future execution of this script.
     
             contains_v4 = False
             contains_v6 = False
             if 'bgprib' in routing_file:
                 contains_v4 = True
                 contains_v6 = True
+                pref_name = 'prefixes_v4andv6'
             elif 'v6' in routing_file:
                 contains_v6 = True
+                pref_name = 'prefixes_v6'
             else:
                 contains_v4 = True
+                pref_name = 'prefixes_v4'
                 
             if len(prefixes) > 0 and (routing_date not in prefixes_dates_ready or\
                 (routing_date in prefixes_dates_ready and contains_v4 and\
@@ -206,15 +215,35 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler,\
                 (routing_date in prefixes_dates_ready and contains_v6 and\
                 not prefixes_dates_ready[routing_date]['v6_ready'])):
                 try:
-                    generateFilesForItem('prefixes', prefixes, files_path, routing_date)
-                    prefixes_dates_ready[routing_date] = {'v4_ready':contains_v4,
-                                                            'v6_ready':contains_v6}
+                    generateFilesForItem(pref_name, prefixes, files_path, routing_date)
+                    
+                    if contains_v4:
+                        if routing_date not in prefixes_dates_ready:
+                            prefixes_dates_ready[routing_date] = dict()
+                            
+                        prefixes_dates_ready[routing_date]['v4_ready'] = True
+
+                    if contains_v6:
+                        if routing_date not in prefixes_dates_ready:
+                            prefixes_dates_ready[routing_date] = dict()
+                            
+                        prefixes_dates_ready[routing_date]['v6_ready'] = True                        
                     
                 except KeyboardInterrupt:
                     sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-                    generateFilesForItem('prefixes', prefixes, files_path, routing_date)
-                    prefixes_dates_ready[routing_date] = {'v4_ready':contains_v4,
-                                                            'v6_ready':contains_v6}
+                    generateFilesForItem(pref_name, prefixes, files_path, routing_date)
+
+                    if contains_v4:
+                        if routing_date not in prefixes_dates_ready:
+                            prefixes_dates_ready[routing_date] = dict()
+                            
+                        prefixes_dates_ready[routing_date]['v4_ready'] = True
+
+                    if contains_v6:
+                        if routing_date not in prefixes_dates_ready:
+                            prefixes_dates_ready[routing_date] = dict()
+                            
+                        prefixes_dates_ready[routing_date]['v6_ready'] = True 
                                                             
                     if len(originASes) > 0 and routing_date not in existing_dates_orASes:
                         generateFilesForItem('originASes', originASes, files_path, routing_date)
@@ -254,50 +283,103 @@ def generateFilesFromReadableRoutingFile(files_path, routing_file, bgp_handler,\
                     sys.exit(0)
     
     elif data_type == 'routing':
+        contains_v4 = False
+        contains_v6 = False
+        if 'bgprib' in routing_file:
+            contains_v4 = True
+            contains_v6 = True
+        elif 'v6' in routing_file:
+            contains_v6 = True
+        else:
+            contains_v4 = True
+        
         if not routing_file.endswith('readable'):
             readable_file = bgp_handler.getReadableFile(routing_file, False)
         else:
             readable_file = routing_file
             
         routing_date = getDateFromFile(readable_file, output_file)
-        csv_file = '{}/routing_data_{}.csv'.format(files_path, routing_date)
         
-        existing_file = False
-        if os.path.exists(csv_file):
-            existing_file = True
-            with open(csv_file, 'ab+') as csv_f:
-                # If a CSV file for this date already exists:
-                try:
-                    # We put the file cursor just before }"\n
-                    csv_f.seek(-3, os.SEEK_END)
-                    # truncate the file in order to delete those characters
-                    csv_f.truncate()
-                    # and write a comma
-                    csv_f.write(',')
-                    # now the existing CSV file is ready for new routing table
-                    # rows to be appended.
-                except IOError:
-                    sys.stderr.write('Error readaing existing CSV file for routing file {}'.format(routing_file))
-        else:
-            first_line = True
-        
-        with open(csv_file, 'ab+') as csv_f, open(readable_file, 'r') as readable_f:
-            for line in readable_f: 
-                line = line.strip()
-        
-                if not existing_file and first_line:
-                    csv_f.write('"{}","{{'.format(datetime.utcfromtimestamp(float(line.split('|')[1])).date()))
-                    first_line = False
-                    
-                csv_f.write('{},'.format(line.strip()))
+        if (routing_date not in routing_data_dates_ready or\
+            (routing_date in routing_data_dates_ready and contains_v4 and\
+            not routing_data_dates_ready[routing_date]['v4_ready']) or\
+            (routing_date in routing_data_dates_ready and contains_v6 and\
+            not routing_data_dates_ready[routing_date]['v6_ready'])):
+
+            csv_file = '{}/routing_data_{}.csv'.format(files_path, routing_date)
             
-            # We delete the last comma
-            csv_f.seek(-1, os.SEEK_END)
-            csv_f.truncate()
-            # and close the line
-            csv_f.write('}"\n')
+            # If a CSV file for this date already exists:
+            if os.path.exists(csv_file):
+                temp_file = '{}.tmp'.format(csv_file)
+                with open(csv_file, 'r') as csv_f, open(temp_file, 'w') as temp:
+                    # We delete the newline in the existing file
+                    cmd = shlex.split("tr -d '\n'")
+                    subprocess.Popen(cmd, stdin=csv_f, stdout=temp)
+
+                # and replace the closing of the list and the routing date with a comma
+                with open(temp_file, 'ab+') as temp:
+                    # We put the file cursor just before },"YYYY-mm-dd"\n
+                    temp.seek(-16, os.SEEK_END)
+                    # truncate the file in order to delete those characters
+                    temp.truncate()
+                    # and write a comma
+                    temp.write(',')
+
+                # We then remove the original CSV file                
+                os.remove(csv_file)
+                # and replace it with the new file
+                os.rename(temp_file, csv_file)
+                # Now the CSV file is ready for new routing table
+                # rows to be appended.
+                
+                with open(readable_file, 'r') as readable_f,\
+                                                open(csv_file, 'a') as csv_f:
+                    for line in readable_f: 
+                        csv_f.write('{},'.format(line.strip()))
+                
+                    # We delete the last comma,
+                    csv_f.seek(-1, os.SEEK_END)
+                    csv_f.truncate()
+                    # close the list of rows and add the routing date
+                    csv_f.write('}}","{}"\n'.format(routing_date))
+                
+            else:
+                temp_file = '{}.tmp'.format(readable_file)
+                with open(temp_file, 'w') as temp:
+                    # awk '/TABLE/ && !m{sub("TABLE","\"{TABLE");m+=1}1' ~/BGP_files/2017-01-16_test.bgprib.readable
+                    cmd = ["awk",
+                           "'/TABLE/ && !m{sub(\"TABLE\",\"\\\"{TABLE\");m+=1}1'",
+                            readable_file]
+
+#                    cmd = ["sed", "-e", r"'1 s/^TABLE/\"{{TABLE/; t'", "-e",
+#                            r"'1,// s//\"{{TABLE/'", readable_file]
+                    p = subprocess.Popen(cmd, universal_newlines=True, shell=True,
+                                         bufsize=-1, stdout=temp)
+                    print p.wait()
+                    temp.flush()
+                
+                with open(temp_file, 'r') as temp, open(csv_file, 'w') as csv_f:
+                    cmd = shlex.split("tr '\n' ','")
+                    subprocess.Popen(cmd, stdin=temp, stdout=csv_f)
+                        
+                    csv_f.write('}","{}"'.format(routing_date))
+                
+                os.remove(temp_file)
         
-    return existing_dates_routing_data, prefixes_dates_ready,\
+            if contains_v4:
+                if routing_date not in routing_data_dates_ready:
+                    routing_data_dates_ready[routing_date] = dict()
+                    
+                routing_data_dates_ready[routing_date]['v4_ready'] = True
+            
+            if contains_v6:
+                if routing_date not in routing_data_dates_ready:
+                    routing_data_dates_ready[routing_date] = dict()
+                    
+                routing_data_dates_ready[routing_date]['v6_ready'] = True
+                
+            
+    return routing_data_dates_ready, prefixes_dates_ready,\
                                 existing_dates_orASes, existing_dates_midASes
 
 # We assume the routing files have routing info for a single date,
@@ -359,11 +441,15 @@ def main(argv):
     try:
         opts, args = getopt.getopt(argv,"hp:t:A:f:n:D", ['files_path=', 'data_type=', 'archive_folder=', 'procNumber=', 'routingFile=',])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -p <files path> -t <visibility/routing> (-A <archive folder> -n <process number> | -f <readable routing file>) [-D]'.format(sys.argv[0])
+        print 'Usage: {} -h | -p <files path> -t <visibility/routing/updates> (-A <archive folder> -n <process number> | -f <readable routing file>) [-D]'.format(sys.argv[0])
         print "p: Provide the path to a folder to use to save files."
-        print "t: Data type. Type of data to be inserted into the DB. Visibility -> to insert the dates during which prefixes, origin ASes and middle ASes were seen in the routing table. Routing -> To insert into the routing_data table the list of rows in the BGP routing table for a specific date."
+        print "t: Data type. Type of data to be inserted into the DB."
+        print "Visibility -> To insert the dates during which prefixes, origin ASes and middle ASes were seen in the routing table."
+        print "Routing -> To insert into the routing_data table the list of rows in the BGP routing table for the available dates."
+        print "Updates -> To insert into the updates table the BGP updates for the available dates."
         print "Visibility will be used by default."
         print "A: Provide the path to the folder containing hitorical routing data."
+        print "AND"
         print "n: Provide a process number from 1 to 5, which allows the script to process a specific subset of the available files so that different scripts can process different files."
         print "OR"
         print "f: Provide the name of a routing file in readable format."
@@ -372,9 +458,12 @@ def main(argv):
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'Usage: {} -h | -p <files path> -t <visibility/routing> (-A <archive folder> -n <process number> | -f <readable routing file>) [-D]'.format(sys.argv[0])
+            print 'Usage: {} -h | -p <files path> -t <visibility/routing/updates> (-A <archive folder> -n <process number> | -f <readable routing file>) [-D]'.format(sys.argv[0])
             print "p: Provide the path to a folder to use to save files."
-            print "t: Data type. Type of data to be inserted into the DB. Visibility -> to insert the dates during which prefixes, origin ASes and middle ASes were seen in the routing table. Routing -> To insert into the routing_data table the list of rows in the BGP routing table for a specific date."
+            print "t: Data type. Type of data to be inserted into the DB."
+            print "Visibility -> To insert the dates during which prefixes, origin ASes and middle ASes were seen in the routing table."
+            print "Routing -> To insert into the routing_data table the list of rows in the BGP routing table for the available dates."
+            print "Updates -> To insert into the updates table the BGP updates for the available dates."
             print "Visibility will be used by default."
             print "A: Provide the path to the folder containing hitorical routing data."
             print "AND"
@@ -387,8 +476,8 @@ def main(argv):
             files_path = os.path.abspath(arg)
         elif opt == '-t':
             data_type = arg
-            if data_type != 'visibility' and data_type != 'routing':
-                print "Wrong data type! You MUST choose between 'visibility' and 'routing'."
+            if data_type != 'visibility' and data_type != 'routing' and data_type != 'updates':
+                print "Wrong data type! You MUST choose between 'visibility', 'routing' and 'updates'."
                 sys.exit(-1)
         elif opt == '-A':
             archive_folder = os.path.abspath(arg)
@@ -412,7 +501,7 @@ def main(argv):
     else:
         readables_path = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
     
-    output_file = '{}/{}_{}_{}.output'.format(files_path, sys.argv[0], proc_num, datetime.today().date())
+    output_file = '{}/CSVgeneration_{}_{}_{}.output'.format(files_path, data_type, proc_num, datetime.today().date())
 
     bgp_handler = BGPDataHandler(DEBUG, readables_path)
     
@@ -429,34 +518,47 @@ def main(argv):
             existing_dates_pref = set(db_handler.getListOfDatesForPrefixes())
     
             for date in existing_dates_pref:
-                # The insertions into the DB are bulk insertions, therefore, we
-                # assume that if the date is present in the prefixes table,
-                # all the prefixes for that date, v4 and v6, have already been inserted
+                # The insertions into the DB are bulk insertions that are
+                # performed once we have all the data for the corresponding
+                # date, therefore, we assume that if the date is present
+                # in the prefixes table, all the prefixes for that date,
+                # v4 and v6, have already been inserted
                 prefixes_dates_ready[date] = {'v4_ready':True, 'v6_ready':True}
     
             existing_dates_orASes = set(db_handler.getListOfDatesForOriginASes())
             existing_dates_midASes = set(db_handler.getListOfDatesForMiddleASes())
             
-            existing_dates_routing_data = None
+            routing_data_dates_ready = None
 
         elif data_type == 'routing':
             prefixes_dates_ready = None
             existing_dates_orASes = None
             existing_dates_midASes = None
-            existing_dates_routing_data = set(db_handler.getListOfDatesForRoutingData())
+#            existing_dates_routing_data = set(db_handler.getListOfDatesForRoutingData())
             
-        existing_dates_routing_data, prefixes_dates_ready,\
+            routing_data_dates_ready = dict()
+            
+#            for date in existing_dates_routing_data:
+#                # The insertions into the DB are bulk insertions that are
+#                # performed once we have all the data for the corresponding
+#                # date, therefore, we assume that if the date is present
+#                # in the routing_data table, all the prefixes for that date,
+#                # v4 and v6, have already been inserted
+#                routing_data_dates_ready[date] = {'v4_ready':True,
+#                                                                'v6_ready':True}
+                                                                
+        routing_data_dates_ready, prefixes_dates_ready,\
             existing_dates_orASes, existing_dates_midASes =\
             getDatesOfExistingCSVs(files_path, data_type,
-                                   existing_dates_routing_data,
+                                   routing_data_dates_ready,
                                    prefixes_dates_ready,
                                    existing_dates_orASes,
                                    existing_dates_midASes)
         
-        existing_dates_routing_data, prefixes_dates_ready,\
+        routing_data_dates_ready, prefixes_dates_ready,\
             existing_dates_orASes, existing_dates_midASes =\
             generateFilesFromReadables(readables_path, data_type,
-                                       existing_dates_routing_data,
+                                       routing_data_dates_ready,
                                        prefixes_dates_ready,
                                        existing_dates_orASes,
                                        existing_dates_midASes,
@@ -464,20 +566,22 @@ def main(argv):
         
         readable_dates = getDatesForExistingReadables(readables_path)
         
-        existing_dates_routing_data, prefixes_dates_ready,\
+        routing_data_dates_ready, prefixes_dates_ready,\
             existing_dates_orASes, existing_dates_midASes, readable_dates =\
             generateFilesFromOtherRoutingFiles(archive_folder, readable_dates,
-                                               data_type, prefixes_dates_ready,
+                                               data_type, routing_data_dates_ready,
+                                               prefixes_dates_ready,
                                                existing_dates_orASes,
                                                existing_dates_midASes,
                                                files_path, bgp_handler,
                                                proc_num, 'bgprib.mrt',
                                                output_file)
         
-        existing_dates_routing_data, prefixes_dates_ready,\
+        routing_data_dates_ready, prefixes_dates_ready,\
             existing_dates_orASes, existing_dates_midASes, readable_dates =\
             generateFilesFromOtherRoutingFiles(archive_folder, readable_dates,
-                                               data_type, prefixes_dates_ready,
+                                               data_type, routing_data_dates_ready,
+                                               prefixes_dates_ready,
                                                existing_dates_orASes,
                                                existing_dates_midASes,
                                                files_path, bgp_handler,
@@ -491,13 +595,13 @@ def main(argv):
     
                 for date in completeDatesSet:
                     if date not in prefixes_dates_ready:
-                        output.write('v4 not ready for date {}\n'.format(date))
-                        output.write('v6 not ready for date {}\n'.format(date))
+                        output.write('Visibility data about v4 prefixes not ready for date {}\n'.format(date))
+                        output.write('Visibility data about v6 prefixes not ready for date {}\n'.format(date))
                     else:
                         if not prefixes_dates_ready[date]['v4_ready']:
-                            output.write('v4 not ready for date {}\n'.format(date))
+                            output.write('Visibility data about v4 prefixes not ready for date {}\n'.format(date))
                         if not prefixes_dates_ready[date]['v6_ready']:
-                            output.write('v6 not ready for date {}\n'.format(date))
+                            output.write('Visibility data about v6 prefixes not ready for date {}\n'.format(date))
     
                     if date not in existing_dates_orASes:
                         output.write('Origin ASes not ready for date {}\n'.format(date))
@@ -506,12 +610,18 @@ def main(argv):
                         output.write('Middle ASes not ready for date {}\n'.format(date))                        
 
             elif data_type == 'routing':
-                output.write('Dates that are not in the routing_data table in the DB and for which the CSV files were not created.\n')
+                output.write('Dates that are not in the routing_data table in the DB and for which some of the CSV files were not created.\n')
 
                 for date in completeDatesSet:
-                    if date not in existing_dates_routing_data:
-                        output.write('Routing data not ready for date {}\n'.format(date))
-                        
+                    if date not in routing_data_dates_ready:
+                        output.write('Routing data about v4 prefixes not ready for date {}\n'.format(date))
+                        output.write('Routing data about v6 prefixes not ready for date {}\n'.format(date))
+                    else:
+                        if not routing_data_dates_ready[date]['v4_ready']:
+                            output.write('Routing data about v4 prefixes not ready for date {}\n'.format(date))
+                        if not routing_data_dates_ready[date]['v6_ready']:
+                            output.write('Routing data about v6 prefixes not ready for date {}\n'.format(date))
+    
             sys.stdout.write('Finished generating CSV files. Output file {} created.\n'.format(output_file))
             
             
