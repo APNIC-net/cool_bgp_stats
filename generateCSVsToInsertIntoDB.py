@@ -515,11 +515,6 @@ def main(argv):
     data_type = 'visibility'
     DEBUG = False
     
-    # For DEBUG
-    routing_file = '/Users/sofiasilva/BGP_files/2017-01-16_test.bgprib.readable'
-    files_path = '/Users/sofiasilva/BGP_files'
-    data_type = 'routing'
-    
 
     try:
         opts, args = getopt.getopt(argv,"hp:t:A:f:n:D", ['files_path=', 'data_type=', 'archive_folder=', 'procNumber=', 'routingFile=',])
@@ -639,7 +634,7 @@ def main(argv):
                 dates_ready[date]['updates'] = True
 
         elif data_type == 'routing':
-            existing_dates = ?? # TODO Implement
+            existing_dates = [] # TODO Implement
             
             for date in existing_dates:
                 # TODO Repensar esto
@@ -733,3 +728,4 @@ for file in readables_path:
     insert into DB: routing_date, path to file in archive
     
 Ver si tener un campo tipo array para los paths, en caso afirmativo, crear csv para bulk insertion
+'''
