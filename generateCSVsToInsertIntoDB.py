@@ -502,11 +502,6 @@ def main(argv):
     data_type = 'visibility'
     DEBUG = False
     
-    # For DEBUG
-    routing_file = '/Users/sofiasilva/BGP_files/2017-01-16_test.bgprib.readable'
-    files_path = '/Users/sofiasilva/BGP_files'
-    data_type = 'routing'
-    
 
     try:
         opts, args = getopt.getopt(argv,"hp:t:A:f:n:D", ['files_path=', 'data_type=', 'archive_folder=', 'procNumber=', 'routingFile=',])
