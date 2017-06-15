@@ -280,12 +280,36 @@ class DBHandler:
             sys.stderr.write("Unable to get the list of distinct dates for the middle ASes in the DB.")
             return []
     
-    def getListOfDatesForRoutingData(self):
+    def getListOfDatesForUpdates(self):
         try:
-            self.cur.execute("SELECT distinct(routing_date) from routing_data")
+            self.cur.execute("SELECT distinct(update_date) from updates")
             return list(chain(*self.cur.fetchall()))
         except:
-            sys.stderr.write("Unable to get the list of distinct dates for the routing data in the DB.")
+            sys.stderr.write("Unable to get the list of distinct dates for the updates in the DB.")
+            return []
+    
+    def getListOfDatesForRoutingData_v4Only(self):
+        try:
+            self.cur.execute("SELECT distinct(routing_date) from routing_data where extension = 'dmp.gz'")
+            return list(chain(*self.cur.fetchall()))
+        except:
+            sys.stderr.write("Unable to get the list of distinct dates for v4 only routing data in the DB.")
+            return []
+    
+    def getListOfDatesForRoutingData_v6Only(self):
+        try:
+            self.cur.execute("SELECT distinct(routing_date) from routing_data where extension = 'v6.dmp.gz'")
+            return list(chain(*self.cur.fetchall()))
+        except:
+            sys.stderr.write("Unable to get the list of distinct dates for v6 only routing data in the DB.")
+            return []
+    
+    def getListOfDatesForRoutingData_v4andv6(self):
+        try:
+            self.cur.execute("SELECT distinct(routing_date) from routing_data where extension = 'bgprib.mrt'")
+            return list(chain(*self.cur.fetchall()))
+        except:
+            sys.stderr.write("Unable to get the list of distinct dates for v4 and v6 routing data in the DB.")
             return []
             
     @staticmethod    
