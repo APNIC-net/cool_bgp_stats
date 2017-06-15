@@ -419,7 +419,7 @@ class BGPRIB(dict):
                             network = previous_network
                             nexthop = line_parts[1]
                         else:
-                            if len(line_parts[1]) > 18:
+                            if len(line_parts) > 1 and len(line_parts[1]) > 18:
                                 field_parts = line_parts[1].split('/')
                                 network = '{}/{}'.format(field_parts[0], field_parts[1][0:2])
                                 nexthop = field_parts[2:]
