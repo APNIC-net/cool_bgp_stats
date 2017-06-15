@@ -861,10 +861,11 @@ class BGPDataHandler:
         
     # This function converts a file containing the output of the 'show ip bgp' command
     # to a file in the same format used for BGPDump outputs
-    def convertBGPoutput(self, routing_file):
-        output_file_name = '%s/%s.readable' % (self.files_path, '.'.join(routing_file.split('/')[-1].split('.')[:-1]))
-        output_file = open(output_file_name, 'w')
-        
+    def convertBGPoutput(self, routing_file, onlyFirstLine):
+        if not onlyFirstLine:
+            output_file_name = '%s/%s.readable' % (self.files_path, '.'.join(routing_file.split('/')[-1].split('.')[:-1]))
+            output_file = open(output_file_name, 'w')
+            
         i = 0
         # load routing table info  (the next loop does it automatically)
         for entry_n, bgp_entry in enumerate(bgp_rib.BGPRIB.parse_cisco_show_ip_bgp_generator(routing_file)):
@@ -896,7 +897,12 @@ class BGPDataHandler:
 
             #the order for each line is
             #TABLE_DUMP2|date|B|nexthop|NextAS|prefix|AS_PATH|Origin
-            output_file.write('TABLE_DUMP|'+timestamp+'|B|'+next_hop+'|'+nextas+'|'+prefix+'|'+" ".join(as_path)+'|'+origin+'\n')
+            line = 'TABLE_DUMP|'+timestamp+'|B|'+next_hop+'|'+nextas+'|'+prefix+'|'+" ".join(as_path)+'|'+origin+'\n'
+            
+            if onlyFirstLine:
+                return line
+            else:
+                output_file.write(line)
     
             i += 1
             if self.DEBUG and i > 10:
@@ -1048,9 +1054,61 @@ class BGPDataHandler:
             # If the file contains the output of the 'show ip bgp' command,
             # we convert it to the same format used by BGPdump for its outputs
             else:
-                readable_file_name = self.convertBGPoutput(source)
+                readable_file_name = self.convertBGPoutput(source, False)
 
         return readable_file_name
+        
+    # This function downloads a routing file if the source provided is a URL
+    # If the file is compressed, it is unzipped
+    # and finally it is processed using BGPdump if the file is a MRTfile
+    # or using the functions provided by get_rib.py if the file contains the
+    # output of the 'show ip bgp' command
+    # The first line of the file in readable format is returned
+    def getReadableFirstLine(self, source, isURL):
+    
+        source_filename = source.split('/')[-1]
+        
+        # If a routing file is not provided, download it from the provided URL        
+        if isURL:
+            routing_file = '%s/%s' % (self.files_path, source_filename)
+            get_file(source, routing_file)
+            source = routing_file
+        
+        # If the routing file is compressed we unzip it
+        if source.endswith('.gz'):
+            output_file = '%s/%s' % (self.files_path,\
+                                os.path.splitext(source)[0].split('/')[-1])
+            
+            with gzip.open(source, 'rb') as gzip_file,\
+                open(output_file, 'wb') as output:
+                try:
+                    output.write(gzip_file.read())
+                except IOError:
+                    return ''
+            
+            source = output_file
+            source_filename = source.split('/')[-1]
+
+        # If the routing file is a MRT file, we process it using BGPdump
+        if source.endswith('mrt'):            
+            cmd = shlex.split('{} -m {}'.format(bgpdump, source))
+            #        cmd = shlex.split('bgpdump -m -O %s %s' % (readable_file_name, routing_file))   
+    
+            #  BGPDUMP
+            #  -m         one-line per entry with unix timestamps
+            #  -O <file>  output to <file> instead of STDOUT
+    
+            p1 = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+            
+            cmd2 = shlex.split('head -1')
+            first_line = subprocess.check_output(cmd2, stdin=p1.stdout)
+        
+        # If the file contains the output of the 'show ip bgp' command,
+        # we convert it to the same format used by BGPdump for its outputs
+        else:
+            first_line = self.convertBGPoutput(source, True)
+
+        return first_line
            
     # This function walks a folder with historical routing info and creates a
     # file with a list of paths to the files with the provided extension
