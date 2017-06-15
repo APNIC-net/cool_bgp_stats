@@ -79,7 +79,7 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
     return dates_ready
 
 
-def getDatesForExistingReadables(files_path, data_type):
+def getDatesForExistingReadables(files_path):
     readable_dates = dict()
         
     for root, subdirs, files in os.walk(files_path):
