@@ -350,11 +350,13 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                     dates_ready[routing_date]['middleASes'] = True
 
                     sys.exit(0)
-        
-    else: # data_type == 'routing'
+                    
+    return dates_ready
+    
+#    else: # data_type == 'routing'
             # TODO Cambiar esto
 
-            '''
+'''
             Idea:
             for file in readables_path:
                 get routing date
@@ -448,7 +450,7 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                         
                     dates_ready[routing_date]['routing_v6'] = True
 '''                
-    return dates_ready
+#    return dates_ready
 
 # We assume the routing files have routing info for a single date,
 # therefore we get the routing date from the first line of the file.
