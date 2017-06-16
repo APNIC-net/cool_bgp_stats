@@ -565,7 +565,7 @@ def main(argv):
             print "If you don't provide the path to a routing file you MUST provide a process number."
             sys.exit(-1)
         else:
-            file_date = getDateFromFile(routing_file)
+            file_date = getDateFromFileName(routing_file)
             
             if file_date.year in [2007, 2008, 2009]:
                 proc_num = 1
