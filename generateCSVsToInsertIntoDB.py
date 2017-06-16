@@ -16,31 +16,20 @@ from glob import glob
                        
 def getDatesOfExistingCSVs(files_path, data_type, dates_ready):
     if data_type == 'visibility':
-        for existing_file in glob('{}/prefixes*.csv'.format(files_path)):
-            routing_date = getDateFromFileName(existing_file)
+        
+        for item in ['prefixes', 'originASes', 'middleASes']:
+            for existing_file in glob('{}/{}*.csv'.format(files_path, item)):
+                routing_date = getDateFromFileName(existing_file)
 
-            if 'v4' in existing_file:
-                if routing_date not in dates_ready:
-                    dates_ready[routing_date] = defaultdict(bool)
-                dates_ready[routing_date]['prefixes_v4'] = True
-            if 'v6' in existing_file:
-                if routing_date not in dates_ready:
-                    dates_ready[routing_date] = defaultdict(bool)
-                dates_ready[routing_date]['prefixes_v6'] = True
-
-        for existing_file in glob('{}/originASes*.csv'.format(files_path)):
-            routing_date = getDateFromFileName(existing_file)
-
-            if routing_date not in dates_ready:
-                dates_ready[routing_date] = defaultdict(bool)
-            dates_ready[routing_date]['originASes'] = True
-
-        for existing_file in glob('{}/middleASes*.csv'.format(files_path)):
-            routing_date = getDateFromFileName(existing_file)
-
-            if routing_date not in dates_ready:
-                dates_ready[routing_date] = defaultdict(bool)
-            dates_ready[routing_date]['middleASes'] = True
+                for v in ['v4', 'v6']:    
+                    if v in existing_file:
+                        if routing_date not in dates_ready:
+                            dates_ready[routing_date] = defaultdict(bool)
+                        
+                        if item not in dates_ready[routing_date]:
+                            dates_ready[routing_date][item] = defaultdict(bool)
+                            
+                        dates_ready[routing_date][item][v] = True
 
     elif data_type == 'routing':
         for existing_file in glob('{}/routing_data*.csv'.format(files_path)):
@@ -72,17 +61,15 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
         if file_date not in readables_dict:
             readables_dict[file_date] = defaultdict(bool)
         
-        readables_dict[file_date]['v4'] = True
-        readables_dict[file_date]['v6'] = True
+        readables_dict[file_date]['bgprib.mrt'] = True
         
         if routing_date not in dates_ready or\
         data_type == 'visibility' and (routing_date in dates_ready and\
-        (not dates_ready[routing_date]['prefixes_v4'] or\
-        not dates_ready[routing_date]['prefixes_v6'] or\
-        not dates_ready[routing_date]['originASes'] or\
-        not dates_ready[routing_date]['middleASes'])) or\
+        ('prefixes' not in dates_ready[routing_date] or\
+        'originASes' not in dates_ready[routing_date] or\
+        'middleASes' not in dates_ready[routing_date])) or\
         data_type == 'routing' and (routing_date in dates_ready and\
-        (not dates_ready[routing_date]['routing_v4'] or\
+        (not dates_ready[routing_date]['routing_v4'] and\
         not dates_ready[routing_date]['routing_v6'])):
             dates_ready = generateFilesFromRoutingFile(files_path,
                                                        readable_file,
@@ -101,13 +88,16 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
         if file_date not in readables_dict:
             readables_dict[file_date] = defaultdict(bool)
         
-        readables_dict[file_date]['v6'] = True
+        readables_dict[file_date]['v6.dmp.gz'] = True
         
         if routing_date not in dates_ready or\
         data_type == 'visibility' and (routing_date in dates_ready and\
-        (not dates_ready[routing_date]['prefixes_v6'] or\
-        not dates_ready[routing_date]['originASes'] or\
-        not dates_ready[routing_date]['middleASes'])) or\
+        ('prefixes' not in dates_ready[routing_date] or\
+        not dates_ready[routing_date]['prefixes']['v6'] or\
+        'originASes' not in dates_ready[routing_date] or\
+        not dates_ready[routing_date]['originASes']['v6'] or\
+        'middleASes' not in dates_ready[routing_date] or\
+        not dates_ready[routing_date]['middleASes']['v6'])) or\
         data_type == 'routing' and routing_date in dates_ready and\
         not dates_ready[routing_date]['routing_v6']:
             dates_ready = generateFilesFromRoutingFile(files_path,
@@ -129,13 +119,16 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
             if file_date not in readables_dict:
                 readables_dict[file_date] = defaultdict(bool)
             
-            readables_dict[file_date]['v4'] = True
+            readables_dict[file_date]['dmp.gz'] = True
             
             if routing_date not in dates_ready or\
             data_type == 'visibility' and (routing_date in dates_ready and\
-            (not dates_ready[routing_date]['prefixes_v4'] or\
-            not dates_ready[routing_date]['originASes'] or\
-            not dates_ready[routing_date]['middleASes'])) or\
+            ('prefixes' not in dates_ready[routing_date] or\
+            not dates_ready[routing_date]['prefixes']['v4'] or\
+            'originASes' not in dates_ready[routing_date] or\
+            not dates_ready[routing_date]['originASes']['v4'] or\
+            'middleASes' not in dates_ready[routing_date] or\
+            not dates_ready[routing_date]['middleASes']['v4'])) or\
             data_type == 'routing' and routing_date in dates_ready and\
             not dates_ready[routing_date]['routing_v4']:
                 dates_ready = generateFilesFromRoutingFile(files_path,
@@ -154,16 +147,6 @@ def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates, data_type
     
     yearsForProcNums = {1:[2007, 2008, 2009], 2:[2010, 2011], 3:[2012, 2013],
                         4:[2014, 2015], 5:[2016, 2017]}
-                        
-    contains_v4 = False
-    contains_v6 = False
-    if extension == 'bgprib.mrt':
-        contains_v4 = True
-        contains_v6 = True
-    elif extension == 'v6.dmp.gz':
-        contains_v6 = True
-    elif extension == 'dmp.gz':
-        contains_v4 = True
 
     # Routing files in the archive folder for dates that haven't been
     # inserted into the DB yet
@@ -176,9 +159,8 @@ def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates, data_type
                 # For paralelization we check for the year of the file, so that
                 # different files are processed by different scripts
                 if (file_date not in readable_dates or\
-                    (file_date in readable_dates and (contains_v4 and\
-                    not readable_dates[file_date]['v4'] or contains_v6 and\
-                    not readable_dates[file_date]['v6']))) and\
+                    (file_date in readable_dates and\
+                    not readable_dates[file_date][extension])) and\
                     file_date.year in yearsForProcNums[proc_num]:
     
                     full_filename = os.path.join(root, filename)
@@ -189,28 +171,40 @@ def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates, data_type
                             output.write('Got an empty readable file name for file {}\n'.format(full_filename))
                         continue
                     
-    
-                    if contains_v4:
-                        if file_date not in readable_dates:
-                            readable_dates[file_date] = defaultdict(bool)
-                        readable_dates[file_date]['v4'] = True
-                    
-                    if contains_v6:
-                        if file_date not in readable_dates:
-                            readable_dates[file_date] = defaultdict(bool)
-                        readable_dates[file_date]['v6'] = True
+                    if file_date not in readable_dates:
+                        readable_dates[file_date] = defaultdict(bool)
+                    readable_dates[file_date][extension] = True
     
                     routing_date = getDateFromFile(readable_file, output_file)
                     
                     if routing_date not in dates_ready or\
                         (data_type == 'visibility' and\
-                        (contains_v4 and not dates_ready[routing_date]['prefixes_v4'] or\
-                        contains_v6 and not dates_ready[routing_date]['prefixes_v6'] or\
-                        not dates_ready[routing_date]['originASes'] or\
-                        not dates_ready[routing_date]['middleASes']) or\
-                        data_type == 'routing' and\
-                        (contains_v4 and not dates_ready[routing_date]['routing_v4'] or\
-                        contains_v6 and not dates_ready[routing_date]['routing_v6'])):
+                        (extension == 'bgptib.mrt' and\
+                        ('prefixes' not in dates_ready[routing_date] or\
+                        'originASes' not in dates_ready[routing_date] or\
+                        'middleASes' not in dates_ready[routing_date])) or\
+                        (extension == 'dmp.gz' and\
+                        ('prefixes' not in dates_ready[routing_date] or\
+                        not dates_ready[routing_date]['prefixes']['v4'] or\
+                        'originASes' not in dates_ready[routing_date] or\
+                        not dates_ready[routing_date]['originASes']['v4'] or\
+                        'middleASes' not in dates_ready[routing_date] or\
+                        not dates_ready[routing_date]['middleASes']['v4'])) or\
+                        (extension == 'v6.dmp.gz' and\
+                        ('prefixes' not in dates_ready[routing_date] or\
+                        not dates_ready[routing_date]['prefixes']['v6'] or\
+                        'originASes' not in dates_ready[routing_date] or\
+                        not dates_ready[routing_date]['originASes']['v6'] or\
+                        'middleASes' not in dates_ready[routing_date] or\
+                        not dates_ready[routing_date]['middleASes']['v6']))) or\
+                        (data_type == 'routing' and\
+                        (extension == 'bgprib.mrt' and\
+                        not dates_ready[routing_date]['routing_v4'] and\
+                        not dates_ready[routing_date]['routing_v6']) or\
+                        (extension == 'dmp.gz' and\
+                        not dates_ready[routing_date]['routing_v4']) or\
+                        (extension == 'v6.dmp.gz' and\
+                        not dates_ready[routing_date]['routing_v6'])):
                             
                         dates_ready = generateFilesFromRoutingFile(files_path,
                                                                          readable_file,
@@ -232,23 +226,53 @@ def writeCSVfiles(file_path, tuples):
                         
         wr.writerows(tuples)
 
-def generateFilesForItem(name, item_list, files_path, routing_date):
-    start = time()
-    
-    if 'prefixes' in name:
-        tuples = zip(item_list, [routing_date]*len(item_list))
-    elif name == 'originASes':
-        tuples = zip(item_list, [True]*len(item_list), [routing_date]*len(item_list))
-    else: # name == 'middleASes'
-        tuples = zip(item_list, [False]*len(item_list), [routing_date]*len(item_list))
+def generateFilesForItem(item_name, suffix, item_list, files_path,\
+                            routing_date, dates_ready):
+    if len(item_list) > 0 and (routing_date not in dates_ready or\
+        (routing_date in dates_ready and (suffix == 'v4andv6' and\
+        not dates_ready[routing_date][item_name]['v4'] and\
+        not dates_ready[routing_date][item_name]['v6']) or\
+        (suffix == 'v4' and\
+        not dates_ready[routing_date][item_name]['v4']) or\
+        (suffix == 'v6' and\
+        not dates_ready[routing_date][item_name]['v6']))):
+
+        start = time()
         
-    file_path = '{}/{}_{}.csv'.format(files_path, name, routing_date)
+        if item_name == 'prefixes':
+            tuples = zip(item_list, [routing_date]*len(item_list))
+        elif item_name == 'originASes':
+            tuples = zip(item_list, [True]*len(item_list), [routing_date]*len(item_list))
+        else: # item_name == 'middleASes'
+            tuples = zip(item_list, [False]*len(item_list), [routing_date]*len(item_list))
+            
+        file_path = '{}/{}_{}_{}.csv'.format(files_path, item_name, suffix, routing_date)
+        
+        if not os.path.exists(file_path):
+            writeCSVfiles(file_path, tuples)
+        
+            end = time()
+            sys.stdout.write('It took {} seconds to generate the CSV and CTL files for the insertion of {} ({}) for {}.\n'.format(end-start, item_name, suffix, routing_date))
+        
+        if 'v4' in suffix:
+            if routing_date not in dates_ready:
+                dates_ready[routing_date] = defaultdict(bool)
+            
+            if item_name not in dates_ready[routing_date]:
+                dates_ready[routing_date][item_name] = defaultdict(bool)
+                
+            dates_ready[routing_date][item_name]['v4'] = True
     
-    if not os.path.exists(file_path):
-        writeCSVfiles(file_path, tuples)
+        if 'v6' in suffix:
+            if routing_date not in dates_ready:
+                dates_ready[routing_date] = defaultdict(bool)
     
-        end = time()
-        sys.stdout.write('It took {} seconds to generate the CSV and CTL files for the insertion of {} for {}.\n'.format(end-start, name, routing_date))
+            if item_name not in dates_ready[routing_date]:
+                dates_ready[routing_date][item_name] = defaultdict(bool)
+                
+            dates_ready[routing_date][item_name]['v6'] = True
+            
+    return dates_ready
     
 def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                                     data_type, dates_ready, output_file,
@@ -259,19 +283,16 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
     if 'bgprib' in routing_file:
         contains_v4 = True
         contains_v6 = True
-        pref_name = 'prefixes_v4andv6'
+        suffix = 'v4andv6'
         extension = 'bgprib.mrt'
-        routing_name = 'routing_data_v4andv6'
     elif 'v6' in routing_file:
         contains_v6 = True
-        pref_name = 'prefixes_v6'
+        suffix = 'v6'
         extension = 'v6.dmp.gz'
-        routing_name = 'routing_data_v6'
     else:
         contains_v4 = True
-        pref_name = 'prefixes_v4'
+        suffix = 'v4'
         extension = 'dmp.gz'
-        routing_name = 'routing_data_v4'
             
     if data_type == 'visibility':
         start = time()
@@ -279,7 +300,7 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                             bgp_handler.getPrefixesASesAndDate(routing_file)
         end = time()
         sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
-    
+
         if routing_date is not None:
             if routing_date.year == 1970:
                 os.remove(routing_file)
@@ -304,104 +325,49 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                                                                      dates_ready,
                                                                      output_file,
                                                                      archive_folder)
-                        
-            if len(prefixes) > 0 and (routing_date not in dates_ready or\
-                (routing_date in dates_ready and (contains_v4 and\
-                not dates_ready[routing_date]['prefixes_v4']) or\
-                (contains_v6 and not dates_ready[routing_date]['prefixes_v6']))):
-                try:
-                    generateFilesForItem(pref_name, prefixes, files_path, routing_date)
-                    
-                    if contains_v4:
-                        if routing_date not in dates_ready:
-                            dates_ready[routing_date] = defaultdict(bool)
-                            
-                        dates_ready[routing_date]['prefixes_v4'] = True
-
-                    if contains_v6:
-                        if routing_date not in dates_ready:
-                            dates_ready[routing_date] = defaultdict(bool)
-                            
-                        dates_ready[routing_date]['prefixes_v6'] = True                        
-                    
-                except KeyboardInterrupt:
-                    sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-                    generateFilesForItem(pref_name, prefixes, files_path, routing_date)
-
-                    if contains_v4:
-                        if routing_date not in dates_ready:
-                            dates_ready[routing_date] = defaultdict(bool)
-                            
-                        dates_ready[routing_date]['prefixes_v4'] = True
-
-                    if contains_v6:
-                        if routing_date not in dates_ready:
-                            dates_ready[routing_date] = defaultdict(bool)
-                            
-                        dates_ready[routing_date]['prefixes_v6'] = True 
+  
+            try:
+                generateFilesForItem('prefixes', suffix, prefixes, files_path,
+                                     routing_date, dates_ready)
+                
+            except KeyboardInterrupt:
+                sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
+                generateFilesForItem('prefixes', suffix, prefixes, files_path,
+                                     routing_date, dates_ready)
                                                             
-                    if len(originASes) > 0 and (routing_date not in dates_ready or\
-                        routing_date in dates_ready and not dates_ready[routing_date]['originASes']):
-                        generateFilesForItem('originASes', originASes, files_path, routing_date)
+                generateFilesForItem('originASes', suffix, originASes,
+                                     files_path, routing_date, dates_ready)
 
-                        if routing_date not in dates_ready:
-                            dates_ready[routing_date] = defaultdict(bool)
-                        dates_ready[routing_date]['originASes'] = True
+                generateFilesForItem('middleASes', suffix, middleASes,
+                                     files_path, routing_date, dates_ready)
                         
-                    if len(middleASes) > 0 and (routing_date not in dates_ready or\
-                        routing_date in dates_ready and not dates_ready[routing_date]['middleASes']):
-                        generateFilesForItem('middleASes', middleASes, files_path, routing_date)
+                sys.exit(0)
+        
 
-                        if routing_date not in dates_ready:
-                            dates_ready[routing_date] = defaultdict(bool)
-                        dates_ready[routing_date]['middleASes'] = True
-                        
-                    sys.exit(0)
+            try:
+                generateFilesForItem('originASes', suffix, originASes,
+                                     files_path, routing_date, dates_ready)
         
-            if len(originASes) > 0 and (routing_date not in dates_ready or\
-                routing_date in dates_ready and not dates_ready[routing_date]['middleASes']):
-                try:
-                    generateFilesForItem('originASes', originASes, files_path, routing_date)
-                    
-                    if routing_date not in dates_ready:
-                        dates_ready[routing_date] = defaultdict(bool)
-                    dates_ready[routing_date]['originASes'] = True
+            except KeyboardInterrupt:
+                sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
+                generateFilesForItem('originASes', suffix, originASes,
+                                     files_path, routing_date, dates_ready)
+                
+                generateFilesForItem('middleASes', suffix, middleASes,
+                                     files_path, routing_date, dates_ready)
         
-                except KeyboardInterrupt:
-                    sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-                    generateFilesForItem('originASes', originASes, files_path, routing_date)
-                    
-                    if routing_date not in dates_ready:
-                        dates_ready[routing_date] = defaultdict(bool)
-                    dates_ready[routing_date]['originASes'] = True
+                sys.exit(0)
         
-                    if len(middleASes) > 0 and (routing_date not in dates_ready or\
-                        routing_date in dates_ready and not dates_ready[routing_date]['middleASes']):
-                        generateFilesForItem('middleASes', middleASes, files_path, routing_date)
-                        
-                        if routing_date not in dates_ready:
-                            dates_ready[routing_date] = defaultdict(bool)
-                        dates_ready[routing_date]['middleASes'] = True
+            try:
+                generateFilesForItem('middleASes', suffix, middleASes,
+                                     files_path, routing_date, dates_ready)
         
-                    sys.exit(0)
-        
-            if len(middleASes) > 0 and (routing_date not in dates_ready or\
-                routing_date in dates_ready and not dates_ready[routing_date]['middleASes']):
-                try:
-                    generateFilesForItem('middleASes', middleASes, files_path, routing_date)
-                    if routing_date not in dates_ready:
-                        dates_ready[routing_date] = defaultdict(bool)
-                    dates_ready[routing_date]['middleASes'] = True
-        
-                except KeyboardInterrupt:
-                    sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-                    generateFilesForItem('middleASes', middleASes, files_path, routing_date)
+            except KeyboardInterrupt:
+                sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
+                generateFilesForItem('middleASes', suffix, middleASes,
+                                     files_path, routing_date, dates_ready)
 
-                    if routing_date not in dates_ready:
-                        dates_ready[routing_date] = defaultdict(bool)
-                    dates_ready[routing_date]['middleASes'] = True
-
-                    sys.exit(0)
+                sys.exit(0)
                         
     else: # data_type == 'routing'
         if not routing_file.endswith('readable'):
@@ -435,7 +401,8 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
             else:
                 original_file = routing_file
             
-            csv_file = '{}/{}_{}.csv'.format(files_path, routing_name, routing_date)
+            csv_file = '{}/routing_data_{}_{}.csv'.format(files_path, suffix,
+                                                            routing_date)
             
             with open(csv_file, 'a') as csv_f:
                 csv_f.write('"{}","{}","{}"\n'.format(routing_date, extension,
@@ -602,7 +569,7 @@ def main(argv):
             existing_dates_pref = set(db_handler.getListOfDatesForPrefixes())
     
             for ex_date in existing_dates_pref:            
-                # We don't want to insert duplicate data,
+                # We don't want to insert duplicated data,
                 # therefore, we assume that if the date is present
                 # in the prefixes table, all the prefixes for that date,
                 # v4 and v6, have already been inserted.
@@ -610,22 +577,33 @@ def main(argv):
                 # to be checked to determine if there is any missing data.
                 if ex_date not in dates_ready:
                     dates_ready[ex_date] = defaultdict(bool)
-                dates_ready[ex_date]['prefixes_v4'] = True
-                dates_ready[ex_date]['prefixes_v6'] = True
+                if 'prefixes' not in dates_ready[ex_date]:
+                    dates_ready[ex_date]['prefixes'] = defaultdict(bool)
+                    
+                dates_ready[ex_date]['prefixes']['v4'] = True
+                dates_ready[ex_date]['prefixes']['v6'] = True
     
             existing_dates_orASes = set(db_handler.getListOfDatesForOriginASes())
             
             for ex_date in existing_dates_orASes:
                 if ex_date not in dates_ready:
                     dates_ready[ex_date] = defaultdict(bool)
-                dates_ready[ex_date]['originASes'] = True
+                if 'originASes' not in dates_ready[ex_date]:
+                    dates_ready[ex_date]['originASes'] = defaultdict(bool)
+                    
+                dates_ready[ex_date]['originASes']['v4'] = True
+                dates_ready[ex_date]['originASes']['v6'] = True
                 
             existing_dates_midASes = set(db_handler.getListOfDatesForMiddleASes())
 
             for ex_date in existing_dates_midASes:
                 if ex_date not in dates_ready:
                     dates_ready[ex_date] = defaultdict(bool)
-                dates_ready[ex_date]['middleASes'] = True
+                if 'middleASes' not in dates_ready[ex_date]:
+                    dates_ready[ex_date]['middleASes'] = defaultdict(bool)
+                    
+                dates_ready[ex_date]['middleASes']['v4'] = True
+                dates_ready[ex_date]['middleASes']['v6'] = True
 
         elif data_type == 'routing':
             existing_dates_v4 = set(db_handler.getListOfDatesForRoutingData_v4Only())
@@ -682,20 +660,15 @@ def main(argv):
     
                 for ex_date in completeDatesSet:
                     if ex_date not in dates_ready:
-                        output.write('Visibility data about v4 prefixes not ready for date {}\n'.format(ex_date))
-                        output.write('Visibility data about v6 prefixes not ready for date {}\n'.format(ex_date))
-                        output.write('Origin ASes not ready for date {}\n'.format(ex_date))
-                        output.write('Middle ASes not ready for date {}\n'.format(ex_date))                        
-
+                        output.write('Visibility data not ready for date {}\n'.format(ex_date))
                     else:
-                        if not dates_ready[ex_date]['prefixes_v4']:
-                            output.write('Visibility data about v4 prefixes not ready for date {}\n'.format(ex_date))
-                        if not dates_ready[ex_date]['prefixes_v6']:
-                            output.write('Visibility data about v6 prefixes not ready for date {}\n'.format(ex_date))
-                        if not dates_ready[ex_date]['originASes']:
-                            output.write('Origin ASes not ready for date {}\n'.format(ex_date))
-                        if not dates_ready[ex_date]['middleASes']:
-                            output.write('Middle ASes not ready for date {}\n'.format(ex_date))   
+                        for item in ['prefixes', 'originASes', 'middleASes']:
+                            if item not in dates_ready[ex_date]:
+                                output.write('Visibility data for {} not ready for date {}\n'.format(item, ex_date))
+                            else:
+                                for v in ['v4', 'v6']:
+                                    if not dates_ready[ex_date][v]:
+                                        output.write('Visibility data for {} coming from {} file not ready for date {}.\n'.format(item, v, ex_date))
 
             elif data_type == 'routing':
                 output.write('Dates that are not in the routing_data table in the DB and for which some of the CSV files were not created.\n')
