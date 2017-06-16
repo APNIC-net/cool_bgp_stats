@@ -569,7 +569,7 @@ def main(argv):
             
             if file_date.year in [2007, 2008, 2009]:
                 proc_num = 1
-            elif file_date.year in [2010, 2011]
+            elif file_date.year in [2010, 2011]:
                 proc_num = 2
             elif file_date.year in [2012, 2013]:
                 proc_num = 3
