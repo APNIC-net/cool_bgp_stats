@@ -24,7 +24,7 @@ def getDatesOfExistingCSVs(files_path, data_type, dates_ready):
                 for v in ['v4', 'v6']:    
                     if v in existing_file:
                         if routing_date not in dates_ready:
-                            dates_ready[routing_date] = defaultdict(bool)
+                            dates_ready[routing_date] = dict()
                         
                         if item not in dates_ready[routing_date]:
                             dates_ready[routing_date][item] = defaultdict(bool)
@@ -254,23 +254,15 @@ def generateFilesForItem(item_name, suffix, item_list, files_path,\
             end = time()
             sys.stdout.write('It took {} seconds to generate the CSV and CTL files for the insertion of {} ({}) for {}.\n'.format(end-start, item_name, suffix, routing_date))
         
-        if 'v4' in suffix:
-            if routing_date not in dates_ready:
-                dates_ready[routing_date] = defaultdict(bool)
-            
-            if item_name not in dates_ready[routing_date]:
-                dates_ready[routing_date][item_name] = defaultdict(bool)
+        for v in ['v4', 'v6']:        
+            if v in suffix:
+                if routing_date not in dates_ready:
+                    dates_ready[routing_date] = dict()
                 
-            dates_ready[routing_date][item_name]['v4'] = True
-    
-        if 'v6' in suffix:
-            if routing_date not in dates_ready:
-                dates_ready[routing_date] = defaultdict(bool)
-    
-            if item_name not in dates_ready[routing_date]:
-                dates_ready[routing_date][item_name] = defaultdict(bool)
-                
-            dates_ready[routing_date][item_name]['v6'] = True
+                if item_name not in dates_ready[routing_date]:
+                    dates_ready[routing_date][item_name] = defaultdict(bool)
+                    
+                dates_ready[routing_date][item_name][v] = True
             
     return dates_ready
     
@@ -576,7 +568,7 @@ def main(argv):
                 # After finishing with the bulk insertion, all the dates need
                 # to be checked to determine if there is any missing data.
                 if ex_date not in dates_ready:
-                    dates_ready[ex_date] = defaultdict(bool)
+                    dates_ready[ex_date] = dict()
                 if 'prefixes' not in dates_ready[ex_date]:
                     dates_ready[ex_date]['prefixes'] = defaultdict(bool)
                     
@@ -587,7 +579,7 @@ def main(argv):
             
             for ex_date in existing_dates_orASes:
                 if ex_date not in dates_ready:
-                    dates_ready[ex_date] = defaultdict(bool)
+                    dates_ready[ex_date] = dict()
                 if 'originASes' not in dates_ready[ex_date]:
                     dates_ready[ex_date]['originASes'] = defaultdict(bool)
                     
@@ -598,7 +590,7 @@ def main(argv):
 
             for ex_date in existing_dates_midASes:
                 if ex_date not in dates_ready:
-                    dates_ready[ex_date] = defaultdict(bool)
+                    dates_ready[ex_date] = dict()
                 if 'middleASes' not in dates_ready[ex_date]:
                     dates_ready[ex_date]['middleASes'] = defaultdict(bool)
                     
