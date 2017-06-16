@@ -564,8 +564,24 @@ def main(argv):
         if routing_file == '':
             print "If you don't provide the path to a routing file you MUST provide a process number."
             sys.exit(-1)
-    else:
-        readables_path = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
+        else:
+            file_date = getDateFromFile(routing_file)
+            
+            if file_date.year in [2007, 2008, 2009]:
+                proc_num = 1
+            elif file_date.year in [2010, 2011]
+                proc_num = 2
+            elif file_date.year in [2012, 2013]:
+                proc_num = 3
+            elif file_date.year in [2014, 2015]:
+                proc_num = 4
+            elif file_date.year in[2016, 2017]:
+                proc_num = 5
+            else:
+                print "Routing file corresponds to date out of the considered range."
+                sys.exit(-1)
+            
+    readables_path = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
 
     
     output_file = '{}/CSVgeneration_{}_{}_{}.output'.format(files_path, data_type, proc_num, datetime.today().date())
