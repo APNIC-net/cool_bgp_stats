@@ -229,13 +229,14 @@ def writeCSVfiles(file_path, tuples):
 def generateFilesForItem(item_name, suffix, item_list, files_path,\
                             routing_date, dates_ready):
     if len(item_list) > 0 and (routing_date not in dates_ready or\
-        (routing_date in dates_ready and (suffix == 'v4andv6' and\
+        (routing_date in dates_ready and\
+        (item_name not in dates_ready[routing_date] or (suffix == 'v4andv6' and\
         not dates_ready[routing_date][item_name]['v4'] and\
         not dates_ready[routing_date][item_name]['v6']) or\
         (suffix == 'v4' and\
         not dates_ready[routing_date][item_name]['v4']) or\
         (suffix == 'v6' and\
-        not dates_ready[routing_date][item_name]['v6']))):
+        not dates_ready[routing_date][item_name]['v6'])))):
 
         start = time()
         
