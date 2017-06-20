@@ -198,13 +198,13 @@ def generateFilesFromOtherRoutingFiles(archive_folder, readable_dates, data_type
                         'middleASes' not in dates_ready[routing_date] or\
                         not dates_ready[routing_date]['middleASes']['v6']))) or\
                         (data_type == 'routing' and\
-                        (extension == 'bgprib.mrt' and\
+                        ((extension == 'bgprib.mrt' and\
                         not dates_ready[routing_date]['routing_v4'] and\
                         not dates_ready[routing_date]['routing_v6']) or\
                         (extension == 'dmp.gz' and\
                         not dates_ready[routing_date]['routing_v4']) or\
                         (extension == 'v6.dmp.gz' and\
-                        not dates_ready[routing_date]['routing_v6'])):
+                        not dates_ready[routing_date]['routing_v6']))):
                             
                         dates_ready = generateFilesFromRoutingFile(files_path,
                                                                          readable_file,
@@ -660,7 +660,7 @@ def main(argv):
                                 output.write('Visibility data for {} not ready for date {}\n'.format(item, ex_date))
                             else:
                                 for v in ['v4', 'v6']:
-                                    if not dates_ready[ex_date][v]:
+                                    if not dates_ready[ex_date][item][v]:
                                         output.write('Visibility data for {} coming from {} file not ready for date {}.\n'.format(item, v, ex_date))
 
             elif data_type == 'routing':
