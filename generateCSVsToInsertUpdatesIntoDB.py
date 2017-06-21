@@ -5,88 +5,138 @@ Created on Wed Jun 14 17:43:13 2017
 @author: sofiasilva
 """
 import os, sys, getopt
+os.chdir(os.path.dirname(os.path.realpath(__file__)))
+from BGPDataHandler import BGPDataHandler
 import gzip
-from datetime import datetime
+import re, shlex, subprocess
+from datetime import datetime, date, timedelta
 
-'''
-Buscar bgpupd.mrt primero
-si no hay, usar archivo .log.gz
-
-Update:
-en bgpupd file
-BGP4MP|1493535309|A|202.12.28.1|4777|146.226.224.0/19|4777 2500 2500 2500 7660 22388 11537 20080 20243|IGP|202.12.28.1|0|0||NAG||
-
-
-Withdraw:
-en bgpupd file
-BGP4MP|1493514069|W|202.12.28.1|4777|208.84.36.0/23
-
-updates table:
-update_date date not null,
-upd_type char not null,
-bgp_neighbor ip address not null,
-peerAS long,
-prefix ip network not null
-'''
-
-def writeUpdateToCSV(update_date, upd_type, bgp_neighbor, peerAS, prefix):
-    # TODO Implement
-    return None
-
-def generateCSVFromUpdatesFile(updates_file, files_path):
+yearsForProcNums = {1:[2007, 2008, 2009], 2:[2010, 2011], 3:[2012, 2013],
+                    4:[2014, 2015], 5:[2016, 2017]}
+                        
+def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_file):
+    filename = updates_file.split('/')[-1]
+    csv_file = '{}/{}.csv'.format(files_path, filename)
+    
+    if os.path.exists(csv_file):
+        with open(output_file, 'a') as output:
+            output.write('CSV file for updates file {} already exists.\n'.format(updates_file))
+        return ''
+    
     if updates_file.endswith('log.gz'):
-        unzipped_file = '{}/{}'.format(files_path, updates_file.split('/')[-1][:-3])
-            
-        with gzip.open(updates_file, 'rb') as gzip_file,\
-            open(unzipped_file, 'wb') as output:
-            try:
-                output.write(gzip_file.read())
-            except IOError:
-                sys.stderr.write('IOError unzipping file {}\n'.format(updates_file))
-                return ??
+        unzipped_file = '{}/{}'.format(files_path, filename[:-3])
         
-        with open(unzipped_file, 'r') as log:
+        if not os.path.exists(unzipped_file):
+            with gzip.open(updates_file, 'rb') as gzip_file,\
+                open(unzipped_file, 'wb') as output:
+                try:
+                    output.write(gzip_file.read())
+                except IOError:
+                    with open(output_file, 'a') as output:
+                        output.write('IOError unzipping file {}\n'.format(updates_file))
+                    return ''
+                    
+        filtered_file = '{}.filtered'.format(unzipped_file)
+        
+        if not os.path.exists(filtered_file):
+            with open(filtered_file, 'w') as filtered:
+                cmd = shlex.split('grep debugging {}'.format(unzipped_file))
+                p = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+                
+                cmd2 = shlex.split('grep rcvd')
+                p2 = subprocess.Popen(cmd2, stdin=p.stdout, stdout=filtered)
+                p2.communicate()
+    
+        with open(filtered_file, 'rb+') as log, open(csv_file, 'a') as csv_f:
             announcement_in_progress = False
-            update_date = None
+            update_date = ''
+            update_time = ''
             upd_type = ''
             bgp_neighbor = ''
             peerAS = -1
             prefixes = []
             
             for line in log:
-                if 'debugging' in line:
-                    line_parts = line.strip().split()
-                    update_date = datetime.strptime(line_parts[0], '%Y/%m/%d')
-                    bgp_neighbor = line_parts[4]
+                line_parts = line.strip().split()
+                update_date = line_parts[0]
+                update_time = line_parts[1]
+                bgp_neighbor = line_parts[4]
 
-                    if 'withdrawn' in line or 'UPDATE' in line:
-                        if announcement_in_progress:
-                            for prefix in prefixes:
-                                writeUpdateToCSV(update_date, upd_type,
-                                                 bgp_neighbor, peerAS, prefix)
-                            announcement_in_progress = False
-                        
-                        if 'withdrawn' in line:
-                            upd_type = 'W'
-    #                    2015/08/01 00:01:31 debugging: BGP: 202.12.28.1 rcvd UPDATE about 199.60.233.0/24 — withdrawn
-                            prefix = line_parts[8]
-                            peerAS = -1
-                            writeUpdateToCSV(update_date, upd_type, bgp_neighbor,
-                                             peerAS, prefix)
-                        else: # 'UPDATE' in line                                
-    #                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd UPDATE w/ attr: nexthop 64.71.180.177, origin i, path 6939 3491 12389 57617
-    #                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 91.106.234.0/24
-    #                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 37.1.77.0/24
-    #                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 37.1.64.0/20
-    #                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 91.106.232.0/21
-                            announcement_in_progress = True
-                            upd_type = 'A'
-                            peerAS = long(line_parts[14])
-                    elif announcement_in_progress:
-                        prefixes.append(line_parts[6])
-    return ??
-    # TODO Pensar si voy a llevar una lista de las fechas para las que ya procesé archivo de updates
-                        
+                if 'withdrawn' in line or 'UPDATE' in line:
+                    if announcement_in_progress:
+                        for prefix in prefixes:
+                            csv_f.write('"{}","{}","{}",{},"{}","{}"\n'\
+                                        .format(update_date, update_time,
+                                                upd_type, bgp_neighbor, peerAS,
+                                                prefix, updates_file))
+                                             
+                        announcement_in_progress = False
+                    
+                    if 'withdrawn' in line:
+                        upd_type = 'W'
+#                    2015/08/01 00:01:31 debugging: BGP: 202.12.28.1 rcvd UPDATE about 199.60.233.0/24 — withdrawn
+                        prefix = line_parts[8]
+                        peerAS = -1
+                        csv_f.write('"{}","{}","{}",{},"{}","{}"\n'\
+                                    .format(update_date, update_time, upd_type,
+                                            bgp_neighbor, peerAS, prefix,
+                                            updates_file))
+                                            
+                    else: # 'UPDATE' in line                                
+#                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd UPDATE w/ attr: nexthop 64.71.180.177, origin i, path 6939 3491 12389 57617
+#                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 91.106.234.0/24
+#                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 37.1.77.0/24
+#                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 37.1.64.0/20
+#                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 91.106.232.0/21
+                        announcement_in_progress = True
+                        upd_type = 'A'
+                        peerAS = line.split('path')[1].split()[0]
+                elif announcement_in_progress:
+                    prefixes.append(line_parts[6])
+
+    elif updates_file.endswith('bgpupd.mrt'):
+        readable_file = bgp_handler.getReadableFile(updates_file, False)
+        
+        with open(readable_file, 'r') as mrt, open(csv_file, 'a') as csv_f:
+            for line in mrt:
+                if 'STATE' not in line:
+                    # BGP4MP|1493535309|A|202.12.28.1|4777|146.226.224.0/19|4777 2500 2500 2500 7660 22388 11537 20080 20243|IGP|202.12.28.1|0|0||NAG||
+                    # BGP4MP|1493514069|W|202.12.28.1|4777|208.84.36.0/23
+
+                    line_parts = line.strip().split('|')
+                    update_datetime = datetime.utcfromtimestamp(float(line_parts[1]))
+                    update_date = update_datetime.date().strftime('%Y/%m/%d')
+                    update_time = update_datetime.time().strftime('%H:%M:%S')
+                    upd_type = line_parts[2]
+                    bgp_neighbor = line_parts[3]
+                    peerAS = long(line_parts[4])
+                    prefix = line_parts[5]
+
+                    csv_f.write('"{}","{}","{}",{},"{}","{}"\n'\
+                                .format(update_date, update_time, upd_type,
+                                        bgp_neighbor, peerAS, prefix,
+                                        updates_file))
+
+        
+    return csv_file
+  
+def getCompleteDatesSet(proc_num):
+    initial_date = date(yearsForProcNums[proc_num][0], 1, 1)
+    final_date = date(yearsForProcNums[proc_num][-1], 12, 31)
+    numOfDays = (final_date - initial_date).days
+    return set([final_date - timedelta(days=x) for x in range(0, numOfDays)])
+
+        
+def getDateFromFileName(filename):        
+    dates = re.findall('(?P<year>[1-2][9,0][0,1,8,9][0-9])[-_]*(?P<month>[0-1][0-9])[-_]*(?P<day>[0-3][0-9])',\
+                filename)
+                
+    if len(dates) > 0:
+        file_date = '{}{}{}'.format(dates[0][0], dates[0][1], dates[0][2])
+        return datetime.strptime(file_date, '%Y%m%d').date()
+    else:
+        return None
+                    
                         
 def main(argv):
     files_path = '/home/sofia/BGP_stats_files'
@@ -140,14 +190,63 @@ def main(argv):
         if updates_file == '':
             print "If you don't provide the path to an updates file you MUST provide a process number."
             sys.exit(-1)
-    else:
-        readables_path = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
+        else:
+            file_date = getDateFromFileName(updates_file)
+            
+            for i in range(1, 6):
+                if file_date.year in yearsForProcNums[i]:
+                    proc_num = i
+                    break
+                
+            if proc_num == -1:
+                print "Updates file corresponds to a date that is out of the considered range of years."
+                sys.exit(-1)
+            
+    readables_path = '/home/sofia/BGP_stats_files/readable_updates{}'.format(proc_num)
     
     output_file = '{}/CSVgeneration_updates_{}_{}.output'.format(files_path, proc_num, datetime.today().date())
     
+    bgp_handler = BGPDataHandler(DEBUG, readables_path)
+    
     if updates_file != '':
-        generateCSVFromUpdatesFile(updates_file, files_path)
+        generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler,
+                                   output_file)
+    else:
+        datesSet = getCompleteDatesSet(proc_num)
         
+        for date_to_process in datesSet:
+            bgpupd_date = date_to_process + timedelta(days=1)
+            
+            updates_file = '{}/{}/{}/{}/{}-{}-{}.bgpupd.mrt'.format(archive_folder,
+                                                                    bgpupd_date.year,
+                                                                    bgpupd_date.month,
+                                                                    bgpupd_date.day,
+                                                                    bgpupd_date.year,
+                                                                    bgpupd_date.month,
+                                                                    bgpupd_date.day)
+            
+            if not os.path.exists(updates_file):
+                updates_file = '{}/{}/{}/{}/{}-{}-{}.log.gz'.format(archive_folder,
+                                                                    date_to_process.year,
+                                                                    date_to_process.month,
+                                                                    date_to_process.day,
+                                                                    date_to_process.year,
+                                                                    date_to_process.month,
+                                                                    date_to_process.day)
+            
+                if not os.path.exists(updates_file):
+                    with open(output_file, 'a') as output:
+                        output.write('Updates file not available for date {}\n'.format(date_to_process))
+                        continue
+            
+            csv_file = generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler,
+                                                  output_file)
+
+            with open(output_file, 'a') as output:        
+                if csv_file == '':
+                    output.write('CSV file for date {} could not be generated.\n'.format(date_to_process))
+                else:
+                    output.write('CSV file {} generated for date {}.\n'.format(csv_file, date_to_process))
         
 if __name__ == "__main__":
     main(sys.argv[1:])
