@@ -564,7 +564,7 @@ def main(argv):
                                                                 
         dates_ready = getDatesOfExistingCSVs(files_path, data_type, dates_ready)
         
-        dates_ready, readable_dates = generateFilesFromReadables(readables_path,
+        dates_ready = generateFilesFromReadables(readables_path,
                                                                   data_type,
                                                                   dates_ready,
                                                                   files_path,
@@ -572,12 +572,12 @@ def main(argv):
                                                                   output_file,
                                                                   archive_folder)
                 
-        dates_ready, readable_dates = generateFilesFromOtherRoutingFiles(\
+        dates_ready = generateFilesFromOtherRoutingFiles(\
                                         archive_folder, data_type, dates_ready,
                                         files_path, bgp_handler, proc_num,
                                         'bgprib.mrt', output_file)
         
-        dates_ready, readable_dates = generateFilesFromOtherRoutingFiles(\
+        dates_ready = generateFilesFromOtherRoutingFiles(\
                                         archive_folder, data_type, dates_ready,
                                         files_path, bgp_handler, proc_num,
                                         'dmp.gz', output_file)
