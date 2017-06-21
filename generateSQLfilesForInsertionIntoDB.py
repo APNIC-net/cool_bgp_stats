@@ -157,7 +157,9 @@ def main(argv):
         print "Wrong data type. You MUST choose between 'visibility', 'routing' and 'updates'."
         sys.exit(-1)
         
-    output_file = '{}/generateSQLfiles_{}_{}.output'.format(data_type, date.today())
+    output_file = '{}/generateSQLfiles_{}_{}.output'.format(files_path,
+                                                            data_type,
+                                                            date.today())
 
     db_handler = VisibilityDBHandler()
 
