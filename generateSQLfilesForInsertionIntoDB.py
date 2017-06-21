@@ -51,16 +51,14 @@ def createSQLFile(item, suffix, existing_dates, files_path, generated_dates):
 
     return sql_file, generated_dates
 
-def createSQLFileForUpdates(existing_dates, files_path):
+def createSQLFileForUpdates(files_path):
     sql_file = '{}/updates_{}.sql'.format(files_path, today)
         
     with open(sql_file, 'wb') as f:
         f.write('\connect sofia\n')
 
-        for existing_file in glob('{}/updates*.csv'.format(files_path)):
-            file_date = getDateFromFileName(existing_file)
-            
-            if file_date not in existing_dates:
+        for extension in ['bgpupd.mrt', 'log.gz']:
+            for existing_file in glob('{}/*{}.csv'.format(files_path, extension)):
                 f.write('''copy updates (update_date, update_time, upd_type,
                             bgp_neighbor, peeras, prefix, source_file) from
                             '{}' WITH (FORMAT csv);\n'''.format(existing_file))
@@ -206,7 +204,7 @@ def main(argv):
                      
         sys.stdout.write('{} was generated for the insertion of Middle ASes.\n'.format(\
                         middleASesSQLfile))
-    
+                            
     elif data_type == 'routing':
         with open(output_file, 'a') as output:
             output.write('Date|Type|inDB|Generated\n')
@@ -248,14 +246,12 @@ def main(argv):
                         v6dmpSQLfile))
                         
     elif data_type == 'updates':
-        existing_dates = set(db_handler. getListOfDatesForUpdates())
-        updatesSQLfile = createSQLFileForUpdates(existing_dates, files_path)
+        updatesSQLfile = createSQLFileForUpdates(files_path)
         
         sys.stdout.write('{} was generated for the insertion of BGP updates.\n'.format(\
                         updatesSQLfile))
+                        
+    sys.stdout.write('Report about execution in {}\n'.format(output_file))
     
 if __name__ == "__main__":
     main(sys.argv[1:])
-
-# TODO DEBUG
-# TODO Generate list of missing dates for updates?
