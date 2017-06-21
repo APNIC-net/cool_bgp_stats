@@ -122,7 +122,7 @@ def checkMissingRoutingData(suffix, output_file, completeDatesSet, existingInDB,
                                                          generated))
             
             if not inDB and not generated:
-                sys.stdout.write('{} routing data not ready for date {}'.format(suffix, day))
+                sys.stdout.write('{} routing data not ready for date {}\n'.format(suffix, day))
     
 def main(argv):
     files_path = '/home/sofia/BGP_stats_files/CSVsAndCTLs'
