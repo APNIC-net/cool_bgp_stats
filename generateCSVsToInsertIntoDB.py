@@ -352,10 +352,6 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                 dates_ready[routing_date] = defaultdict(bool)
                 
             dates_ready[routing_date]['routing_{}'.format(suffix)] = True
-            
-            if suffix == 'v4andv6':
-                dates_ready[routing_date]['routing_v4'] = True
-                dates_ready[routing_date]['routing_v6'] = True
               
     return dates_ready
 
@@ -577,16 +573,14 @@ def main(argv):
                                                                   archive_folder)
                 
         dates_ready, readable_dates = generateFilesFromOtherRoutingFiles(\
-                                        archive_folder, readable_dates,
-                                        data_type, dates_ready, files_path,
-                                        bgp_handler, proc_num, 'bgprib.mrt',
-                                        output_file)
+                                        archive_folder, data_type, dates_ready,
+                                        files_path, bgp_handler, proc_num,
+                                        'bgprib.mrt', output_file)
         
         dates_ready, readable_dates = generateFilesFromOtherRoutingFiles(\
-                                        archive_folder, readable_dates,
-                                        data_type, dates_ready, files_path,
-                                        bgp_handler, proc_num, 'dmp.gz',
-                                        output_file)
+                                        archive_folder, data_type, dates_ready,
+                                        files_path, bgp_handler, proc_num,
+                                        'dmp.gz', output_file)
                                                                     
         completeDatesSet = getCompleteDatesSet(proc_num)
 
