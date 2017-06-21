@@ -52,13 +52,13 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
         routing_date = getDateFromFile(readable_file, output_file)
         
         if routing_date not in dates_ready or\
-        ((data_type == 'visibility' and routing_date in dates_ready and\
+        ((data_type == 'visibility' and (routing_date in dates_ready and\
         ('prefixes' not in dates_ready[routing_date] or\
         not dates_ready[routing_date]['prefixes']['v4andv6'] or\
         'originASes' not in dates_ready[routing_date] or\
         not dates_ready[routing_date]['originASes']['v4andv6'] or\
         'middleASes' not in dates_ready[routing_date] or\
-        not dates_ready[routing_date]['middleASes']['v4andv6'])) or\
+        not dates_ready[routing_date]['middleASes']['v4andv6']))) or\
         (data_type == 'routing' and routing_date in dates_ready and\
         not dates_ready[routing_date]['routing_v4andv6'])):
             dates_ready = generateFilesFromRoutingFile(files_path,
