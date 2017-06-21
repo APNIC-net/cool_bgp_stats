@@ -226,14 +226,18 @@ def main(argv):
                                                                     bgpupd_date.day)
             
             if not os.path.exists(updates_file):
-                updates_file = '{}/{}/{}/{}/{}-{}-{}.log.gz'.format(archive_folder,
+                log_file = '{}/{}/{}/{}/{}-{}-{}.log.gz'.format(archive_folder,
                                                                     date_to_process.year,
                                                                     date_to_process.month,
                                                                     date_to_process.day,
                                                                     date_to_process.year,
                                                                     date_to_process.month,
                                                                     date_to_process.day)
+                with open(output_file, 'a') as output:
+                    output.write('{} not present. Looking for log file {}\n'.format(updates_file, log_file))
             
+                updates_file = log_file
+                
                 if not os.path.exists(updates_file):
                     with open(output_file, 'a') as output:
                         output.write('Updates file not available for date {}\n'.format(date_to_process))
