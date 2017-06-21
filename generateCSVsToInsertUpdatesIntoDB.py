@@ -219,20 +219,20 @@ def main(argv):
             
             updates_file = '{}/{}/{}/{}/{}-{}-{}.bgpupd.mrt'.format(archive_folder,
                                                                     bgpupd_date.year,
-                                                                    bgpupd_date.month,
-                                                                    bgpupd_date.day,
+                                                                    bgpupd_date.strftime('%m'),
+                                                                    bgpupd_date.strftime('%d'),
                                                                     bgpupd_date.year,
-                                                                    bgpupd_date.month,
-                                                                    bgpupd_date.day)
+                                                                    bgpupd_date.strftime('%m'),
+                                                                    bgpupd_date.strftime('%d'))
             
             if not os.path.exists(updates_file):
                 log_file = '{}/{}/{}/{}/{}-{}-{}.log.gz'.format(archive_folder,
                                                                     date_to_process.year,
-                                                                    date_to_process.month,
-                                                                    date_to_process.day,
+                                                                    date_to_process.strftime('%m'),
+                                                                    date_to_process.strftime('%d'),
                                                                     date_to_process.year,
-                                                                    date_to_process.month,
-                                                                    date_to_process.day)
+                                                                    date_to_process.strftime('%m'),
+                                                                    date_to_process.strftime('%d'))
                 with open(output_file, 'a') as output:
                     output.write('{} not present. Looking for log file {}\n'.format(updates_file, log_file))
             
