@@ -248,24 +248,21 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                 # If the year is 1970, the timestamp was wrongly converted when
                 # creating the readable file, that's why we remove the file.
                 
-                routing_files = bgp_handler.getSpecificFilesFromArchive(routing_date,
-                                                                        archive_folder,
-                                                                        'bgprib.mrt', [])
-                for new_routing_file in routing_files:
-                    if ('bgprib' in routing_file and 'bgprib' in new_routing_file) or\
-                        ('v6.dmp' in routing_file and 'v6.dmp' in new_routing_file) or\
-                        ('v6' not in  routing_file and 'dmp' in routing_file and\
-                        'v6' not in routing_file and 'dmp' in new_routing_file):
-                        readable_file = bgp_handler.getReadableFile(new_routing_file,
-                                                                    False)
-                                                                    
-                        dates_ready = generateFilesFromRoutingFile(files_path,
-                                                                     readable_file,
-                                                                     bgp_handler,
-                                                                     data_type,
-                                                                     dates_ready,
-                                                                     output_file,
-                                                                     archive_folder)
+                file_date = getDateFromFileName(routing_file)
+                
+                new_routing_file = '{}/{}/{}/{}/{}-{}-{}.{}'\
+                                    .format(archive_folder, file_date.year,
+                                    file_date.strftime('%m'),
+                                    file_date.strftime('%d'), file_date.year,
+                                    file_date.strftime('%m'),
+                                    file_date.strftime('%d'), extension)
+                dates_ready = generateFilesFromRoutingFile(files_path,
+                                                             new_routing_file,
+                                                             bgp_handler,
+                                                             data_type,
+                                                             dates_ready,
+                                                             output_file,
+                                                             archive_folder)
   
             try:
                 generateFilesForItem('prefixes', suffix, prefixes, files_path,
