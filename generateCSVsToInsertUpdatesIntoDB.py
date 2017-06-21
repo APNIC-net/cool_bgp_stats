@@ -21,7 +21,7 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
     if os.path.exists(csv_file):
         with open(output_file, 'a') as output:
             output.write('CSV file for updates file {} already exists.\n'.format(updates_file))
-        return ''
+        return 'already_existed'
     
     if updates_file.endswith('log.gz'):
         unzipped_file = '{}/{}'.format(files_path, filename[:-3])
@@ -249,7 +249,7 @@ def main(argv):
             with open(output_file, 'a') as output:        
                 if csv_file == '':
                     output.write('CSV file for date {} could not be generated.\n'.format(date_to_process))
-                else:
+                elif csv_file != 'already_existed':
                     output.write('CSV file {} generated for date {}.\n'.format(csv_file, date_to_process))
         
 if __name__ == "__main__":
