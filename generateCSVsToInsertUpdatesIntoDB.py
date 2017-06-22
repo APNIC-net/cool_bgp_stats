@@ -47,53 +47,81 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
                 cmd2 = shlex.split('grep rcvd')
                 p2 = subprocess.Popen(cmd2, stdin=p.stdout, stdout=filtered)
                 p2.communicate()
-    
-        with open(filtered_file, 'rb+') as log, open(csv_file, 'a') as csv_f:
-            announcement_in_progress = False
+        
+        announcements_file = '{}.announcements'.format(unzipped_file)
+        
+        if not os.path.exists(announcements_file):
+            with open(announcements_file, 'w') as announcements_f:
+                cmd = shlex.split("grep -v withdrawn {}".format(filtered_file))
+                p = subprocess.Popen(cmd, stdout=announcements_f)
+                p.communicate()
+
+        withdrawals_file = '{}.withdrawals'.format(unzipped_file)
+        
+        if not os.path.exists(withdrawals_file):
+            with open(withdrawals_file, 'w') as withdrawals_f:
+                cmd = shlex.split("grep withdrawn {}".format(filtered_file))
+                p = subprocess.Popen(cmd, stdout=withdrawals_f)
+                p.communicate()
+                
+#       2015/08/01 00:01:31 debugging: BGP: 202.12.28.1 rcvd UPDATE about 199.60.233.0/24 — withdrawn
+        withdrawals_df = pd.read_csv(withdrawals_file, header=None, sep=' ',\
+                                index_col=False, usecols=[0,1,4,8],\
+                                names=['update_date',
+                                        'update_time',
+                                        'bgp_neighbor',
+                                        'prefix'])
+                                        
+        withdrawals_df['upd_type'] = 'W'
+        withdrawals_df['peerAS'] = -1
+        withdrawals_df['source_file'] = updates_file
+        
+        withdrawals_df.to_csv(csv_file, header=False, index=False, quoting=2,
+                          columns=['update_date', 'update_time', 'upd_type',
+                                   'bgp_neighbor', 'peerAS', 'prefix', 'source_file'])
+                
+        with open(announcements_file, 'rb+') as announcements_f, open(csv_file, 'a') as csv_f:
             update_date = ''
             update_time = ''
-            upd_type = ''
             bgp_neighbor = ''
             peerAS = -1
             prefixes = []
             
-            for line in log:
+            for line in announcements_f:
                 line_parts = line.strip().split()
-                update_date = line_parts[0]
-                update_time = line_parts[1]
-                bgp_neighbor = line_parts[4]
 
-                if 'withdrawn' in line or 'UPDATE' in line:
-                    if announcement_in_progress:
+                # If a new announcement starts
+#               2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd UPDATE w/ attr: nexthop 64.71.180.177, origin i, path 6939 3491 12389 57617
+#               2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 91.106.234.0/24
+#               2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 37.1.77.0/24
+#               2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 37.1.64.0/20
+#               2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 91.106.232.0/21
+                if 'UPDATE' in line:                   
+                    # If we were processing another announcement, we write it
+                    # to the csv file
+                    if len(prefixes) > 0:
                         for prefix in prefixes:
                             csv_f.write('"{}","{}","{}",{},"{}","{}","{}"\n'\
                                         .format(update_date, update_time,
-                                                upd_type, bgp_neighbor, peerAS,
+                                                'A', bgp_neighbor, peerAS,
                                                 prefix, updates_file))
-                                             
-                        announcement_in_progress = False
                     
-                    if 'withdrawn' in line:
-                        upd_type = 'W'
-#                    2015/08/01 00:01:31 debugging: BGP: 202.12.28.1 rcvd UPDATE about 199.60.233.0/24 — withdrawn
-                        prefix = line_parts[8]
-                        peerAS = -1
-                        csv_f.write('"{}","{}","{}",{},"{}","{}","{}"\n'\
-                                    .format(update_date, update_time, upd_type,
-                                            bgp_neighbor, peerAS, prefix,
-                                            updates_file))
-                                            
-                    else: # 'UPDATE' in line                                
-#                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd UPDATE w/ attr: nexthop 64.71.180.177, origin i, path 6939 3491 12389 57617
-#                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 91.106.234.0/24
-#                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 37.1.77.0/24
-#                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 37.1.64.0/20
-#                        2015/08/01 00:01:26 debugging: BGP: 64.71.180.177 rcvd 91.106.232.0/21
-                        announcement_in_progress = True
-                        upd_type = 'A'
-                        peerAS = line.split('path')[1].split()[0]
-                elif announcement_in_progress:
+                    update_date = line_parts[0]
+                    update_time = line_parts[1]
+                    bgp_neighbor = line_parts[4]
+                    peerAS = line.split('path')[1].split()[0]
+                    prefixes = []
+                                             
+                else:
                     prefixes.append(line_parts[6])
+
+            # WE have to write to the csv file the last announcement            
+            if len(prefixes) > 0:
+                for prefix in prefixes:
+                    csv_f.write('"{}","{}","{}",{},"{}","{}","{}"\n'\
+                                .format(update_date, update_time,
+                                        'A', bgp_neighbor, peerAS,
+                                        prefix, updates_file))
 
     elif updates_file.endswith('bgpupd.mrt'):
         readable_file = bgp_handler.getReadableFile(updates_file, False)
@@ -156,9 +184,6 @@ def main(argv):
     updates_file = ''
     DEBUG = False
     
-    files_path = '/Users/sofiasilva/BGP_files'
-    updates_file = '/Users/sofiasilva/BGP_files/2017-04-30.bgpupd.mrt'
-    
     try:
         opts, args = getopt.getopt(argv,"hp:A:n:f:D", ['files_path=', 'archive_folder=', 'procNumber=', 'updatesFile=',])
     except getopt.GetoptError:
@@ -217,9 +242,6 @@ def main(argv):
                 sys.exit(-1)
             
     readables_path = '/home/sofia/BGP_stats_files/readable_updates{}'.format(proc_num)
-    
-    # for DEBUG
-    readables_path = files_path
     
     output_file = '{}/CSVgeneration_updates_{}_{}.output'.format(files_path, proc_num, datetime.today().date())
     
