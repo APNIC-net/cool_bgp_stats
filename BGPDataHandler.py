@@ -10,7 +10,7 @@ import bgp_rib
 import pickle
 import radix
 from calendar import timegm
-from datetime import datetime, date, timedelta
+from datetime import datetime, date
 import pandas as pd
 from DBHandler import DBHandler
 from time import time
@@ -59,7 +59,7 @@ class BGPDataHandler:
     def __init__(self, DEBUG, files_path):
         self.DEBUG = DEBUG
         self.files_path = files_path
-        self.output_file = '{}/BGPDataHandler.output'.format(files_path)
+        self.output_file = '{}/BGPDataHandler_{}.output'.format(files_path, date.today())
 
         sys.stdout.write("BGPDataHandler instantiated successfully! Remember to load the data structures.\n")
     
@@ -191,25 +191,22 @@ class BGPDataHandler:
     # This function loads the data structures of the class with the routing
     # data contained in the archive folder corresponding to the routing
     # date provided or to the most recent date present in the archive
-    def loadStructuresFromArchive(self, archive_folder='/data/wattle/bgplog', extension='',
-                                  routing_date=''):
+    def loadStructuresFromArchive(self, routing_date=''):
         
         if routing_date == '':
-            date_files  =\
-                        self.getMostRecentsFromArchive(archive_folder,
-                                                       extension, [])
+            db_handler = DBHandler('')
+            routing_files  =\
+                        db_handler.getMostRecentRoutingFilesFromArchive([])
+            db_handler.close()
         
-            if len(date_files) == 0:
-                if extension == '':
-                    sys.stderr.write("There are no files in the archive!\n".format(extension))
-                else:
-                    sys.stderr.write("There are no files with extension {} in the archive!\n".format(extension))
+            if len(routing_files) == 0:
+                sys.stderr.write("There are no files in the archive!\n")
                 return False
                 
         else:
-            routing_files = self.getSpecificFilesFromArchive(routing_date,
-                                                             archive_folder,
-                                                             extension, [])
+            db_handler = DBHandler('')
+            routing_files = db_handler.getPathsToRoutingFilesForDate(routing_date)
+            db_handler.close()
                                                           
             if len(routing_files) == 0:
                 sys.stderr.write("There is no routing file in the archive for the date provided.\n")
@@ -255,127 +252,38 @@ class BGPDataHandler:
         return True
         
 
-    def storeHistoricalDataFromArchive(self, startDate, endDate,
-                                        archive_folder='/data/wattle/bgplog',
-                                        extension=''):
-
-        historical_files = self.getPathsToHistoricalData(startDate,
-                                                         endDate,
-                                                         archive_folder,
-                                                         extension, [])
-        if len(historical_files) == 0:
-            if extension == '':
-                extension = 'Any'
-            
+    def storeVisibilityDataForPeriod(self, startDate, endDate):
+        db_handler = DBHandler('')
+        routing_files = db_handler.getPathsToRoutingFilesForPeriod(startDate, endDate)
+        db_handler.close()
+        
+        if len(routing_files) == 0:
             if startDate == '' or startDate is None:
                 startDate = 'Any'
                 
             if endDate == '' or endDate is None:
                 endDate = 'Any'
                 
-            sys.stderr.write("There are no routing files in the archive that meet the criteria (extension ({}) and period of time ({}-{})).".format(extension, startDate, endDate))
+            sys.stderr.write("There are no routing files in the archive for the period of time specified ({}-{})).".format(startDate, endDate))
         else:
-            self.storeHistoricalData(historical_files)
-            sys.stdout.write("Historical data inserted into database successfully!\n")
+            self.storeVisibilityData(routing_files)
+            sys.stdout.write("Visibility data inserted into database successfully!\n")
 
-    
-    # This function returns a list of paths to the routing files from the files
-    # in the archive corresponding to the provided date
-    def getSpecificFilesFromArchive(self, routing_date,
-                                    archive_folder='/data/wattle/bgplog',
-                                    extension='', routing_files=[]):
+    # This function stores the routing data from the files listed in the
+    # historical_files list
+    def storeVisibilityData(self, routing_files):
         
-        # We have to add 1 to the provided date as the files in the
-        # archive contain routing data corresponding to the day before to the
-        # date specified in the file name.
-       
-        # TODO Check if this is always the case for bgprib files
+        i = 0
+        for r_file in routing_files:
+             # If we work with several routing files
+            sys.stdout.write("Starting to work with %s\n" % r_file)
 
-#        routing_date = routing_date + timedelta(1)
-
-        if extension == '':
-            routing_files = self.getSpecificFilesFromArchive(self, routing_date,
-                                                             archive_folder,
-                                                             'bgprib.mrt',
-                                                             routing_files)
-            routing_files = self.getSpecificFilesFromArchive(self, routing_date,
-                                                             archive_folder,
-                                                             'bgpupd.mrt',
-                                                             routing_files)
-            return routing_files
+            self.storeVisibilityDataFromFile(r_file)
+                        
+            i += 1
+            if self.DEBUG and i > 1:
+                break
         
-        else:
-            month = str(routing_date.month)
-            if len(month) == 1:
-                month = '0{}'.format(month)
-            
-            day = str(routing_date.day)
-            if len(day) == 1:
-                day = '0{}'.format(day)
-            
-            routing_folder = '{}/{}/{}/{}'.format(archive_folder, routing_date.year,
-                                                    month, day)
-                                                    
-            try:
-                for item in os.listdir(routing_folder):
-                    if item.endswith(extension):
-                        routing_files.append(os.path.join(routing_folder, item))
-                if len(routing_files) == 0 and extension == 'bgprib.mrt':
-                    return self.getSpecificFilesFromArchive(routing_date,
-                                                            archive_folder,
-                                                            'dmp.gz',
-                                                            routing_files)
-            except OSError:
-                # If the archive folder does not have the structure
-                # <archive_folder>/<year>/<month>/<day>, we walk the folder
-                for root, subdirs, files in os.walk(archive_folder):
-                    for filename in files:
-                        if filename.endswith(extension) and\
-                            self.getDateFromFileName(filename) == routing_date:
-                            routing_files.append(os.path.join(root, filename))
-            
-            return routing_files
-        
-        
-    # This function returns a path to the routing file from the provided list 
-    # of historical files corresponding to the provided date
-    def getSpecificFilesFromHistoricalList(self, historical_list, routing_date):
-        
-        routing_files = []
-        for hist_file in historical_list:
-            file_date = self.getDateFromFileName(hist_file)
-            
-            # We have to add 1 daye to the provided date as the files in the
-            # archive contain routing data corresponding to the day before to the
-            # date specified in the file name.
-#            if file_date == routing_date + timedelta(1):
-#               routing_files.append(hist_file)
-               
-            # TODO Check if this is always the case for bgprib/bgpupd files
-            if file_date == routing_date:
-                routing_files.append(hist_file)
-    
-        return routing_files
-        
-    # This function returns a path to the most recent file in the provided list 
-    # of historical files
-    def getMostRecentFromHistoricalList(self, historical_files):
-        mostRecentDate = datetime.strptime('1970', '%Y').date()
-        mostRecentFiles = []
-        
-        for hist_file in historical_files:
-            file_date = self.getDateFromFileName(hist_file)
-            
-            if file_date > mostRecentDate:
-                # We add 1 to the endDate because the files in the archive
-                # have routing data for the day before of the date in the
-                # name of the file
-                mostRecentDate = file_date
-                mostRecentFiles = [hist_file]
-            elif file_date == mostRecentDate:
-                mostRecentFiles.append(hist_file)
-    
-        return mostRecentFiles
         
     @staticmethod
     def getDateFromFileName(filename):
@@ -388,22 +296,7 @@ class BGPDataHandler:
             return datetime.strptime(file_date, '%Y%m%d').date()
         else:
             return None
-    
-    # This function stores the routing data from the files listed in the
-    # historical_files list skipping the mostRecent routing file provided,
-    # as the data contained in this file has already been stored.
-    def storeHistoricalData(self, historical_files):
-        
-        i = 0
-        for hist_file in historical_files:
-             # If we work with several routing files
-            sys.stdout.write("Starting to work with %s\n" % hist_file)
 
-            self.storeHistoricalDataFromFile(hist_file)
-                        
-            i += 1
-            if self.DEBUG and i > 1:
-                break
 
     # This function checks for existing prefixes, origin ASes or middle ASes
     # in the corresponding table for the provided date. If the number of
@@ -451,7 +344,7 @@ class BGPDataHandler:
 
     # This function stores the routing data from the routing_file provided
     # into the database
-    def storeHistoricalDataFromFile(self, routing_file):
+    def storeVisibilityDataFromFile(self, routing_file):
         prefixes, originASes, middleASes, routing_date =\
                         self.getPrefixesASesAndDate(routing_file)
         
@@ -628,122 +521,7 @@ class BGPDataHandler:
                 routing_date
         else:
             return {}, {}, {}, None
-
-    # Reading the readable routing file line by line and char by char takes
-    # much longer than loading the routing file into a DataFrame, that's why
-    # we stick to the other implementation of this function.
-    # The code for this implementation is left here commented as a reference.
-#    def getPrefixesASesAndDate(self, routing_file):
-#        start = time()
-#        if not routing_file.endswith('readable'):
-#            readable_file_name = self.getReadableFile(routing_file, False)
-#        else:
-#            readable_file_name = routing_file
-#        end = time()
-#        sys.stdout.write('It took {} seconds to get a readable file.\n'.format(end-start))
-#        
-#        if readable_file_name == '':
-#            return [], [], ''
-#
-#        file_date = None
-#        prefixes = set()
-#        originASes = set()
-#        middleASes = set()
-#        
-#        start = time()
-#        with open(readable_file_name, 'rb') as readable_f:
-#            line = readable_f.readline()
-#            isFirstLine = True
-#            
-#            while line:
-#                curr_field = ''
-#                curr_pos = 0
-#                ASes = []
-#                curr_asn = ''
-#                for char in line:
-#                    if curr_pos in [1, 5, 6]:
-#                        if curr_pos == 6:
-#                            if char == ' ' or char == '|':
-#                                ASes.append(curr_asn)
-#                                curr_asn = ''
-#                            else:
-#                                curr_asn = '{}{}'.format(curr_asn, char)
-#                                
-#                        if char == '|':
-#                            if isFirstLine and curr_pos == 1:
-#                                isFirstLine = False
-#                                file_date = datetime.utcfromtimestamp(float(curr_field)).strftime('%Y%m%d')
-#                            elif curr_pos == 5:
-#                                prefixes.add(curr_field)
-#                            elif curr_pos == 6:
-#                                if len(ASes) > 0 :
-#                                    middleASes = middleASes.union(set(ASes[0:-1]))
-#                                    originASes.add(ASes[-1])
-#                            curr_field = ''                            
-#                            
-#                        else:
-#                            curr_field = '{}{}'.format(curr_field, char)
-#
-#                    if char == '|':
-#                        curr_pos += 1
-#                        if curr_pos > 6:
-#                            break
-#
-#                line = readable_f.readline()
-#
-#        end = time()
-#        sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
-#        
-#        return prefixes, originASes, middleASes, file_date
-
-    # Reading the readable routing file line by line and then using split takes
-    # longer than loading the routing file into a DataFrame, that's why
-    # we stick to the other implementation of this function.
-    # The code for this implementation is left here commented as a reference.
-#    def getPrefixesASesAndDate(self, routing_file):
-#        start = time()
-#        if not routing_file.endswith('readable'):
-#            readable_file_name = self.getReadableFile(routing_file, False)
-#        else:
-#            readable_file_name = routing_file
-#        end = time()
-#        sys.stdout.write('It took {} seconds to get a readable file.\n'.format(end-start))
-#        
-#        if readable_file_name == '':
-#            return [], [], ''
-#
-#        file_date = None
-#        prefixes = set()
-#        originASes = set()
-#        middleASes = set()
-#        
-#        start = time()
-#        with open(readable_file_name, 'rb') as readable_f:
-#            line = readable_f.readline()
-#            isFirstLine = True
-#            
-#            while line:
-#                line_parts = line.split('|')
-#
-#                if isFirstLine:
-#                    file_date = line_parts[1]
-#                    isFirstLine = False
-#                
-#                if line_parts[5] != '':
-#                    prefixes.add(line_parts[5])
-#
-#                ASpath_parts = line_parts[6].split(' ')
-#
-#                if len(ASpath_parts) > 0:
-#                    originASes.add(ASpath_parts[-1])
-#                    middleASes = middleASes.union(set(ASpath_parts[0:-1]))
-#
-#                line = readable_f.readline()
-#
-#        end = time()
-#        sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes from the DataFrame.\n'.format(end-start))
-#        
-#        return prefixes, originASes, middleASes, file_date
+            
         
     # This function downloads and processes all the files in the provided list.
     # The boolean variable containsURLs must be True if the files_list is a list
@@ -824,40 +602,6 @@ class BGPDataHandler:
                 ipv4Prefixes_radix, ipv6Prefixes_radix,\
                 ipv4_longest_pref, ipv6_longest_pref
     
-    
-    def completeRadixesFromRoutingFile(self, r_file, ipv4_radix, ipv6_radix):
-        if not r_file.endswith('readable'):
-            readable_file_name =  self.getReadableFile(r_file, False)
-        else:
-            readable_file_name = r_file
-
-        bgp_df = pd.read_table(readable_file_name, header=None, sep='|',\
-                                index_col=False, usecols=[1,3,5,6,7],\
-                                names=['timestamp',\
-                                        'peer',\
-                                        'prefix',\
-                                        'ASpath',\
-                                        'origin'])
-        
-        if bgp_df.shape[0] > 0:
-        
-            if self.DEBUG:
-                bgp_df = bgp_df[0:10]
-            
-            for prefix, prefix_subset in bgp_df.groupby('prefix'):
-                network = IPNetwork(prefix)
-                if network.version == 4:
-                    prefixes_radix = ipv4_radix
-                    
-                else:
-                    prefixes_radix = ipv6_radix
-                    
-                node = prefixes_radix.search_exact(prefix)
-
-                if node is None:
-                    node = prefixes_radix.add(prefix)
-
-        return ipv4_radix, ipv6_radix
         
     # This function converts a file containing the output of the 'show ip bgp' command
     # to a file in the same format used for BGPDump outputs
@@ -1109,124 +853,7 @@ class BGPDataHandler:
             first_line = self.convertBGPoutput(source, True)
 
         return first_line
-           
-    # This function walks a folder with historical routing info and creates a
-    # file with a list of paths to the files with the provided extension
-    # in the archive folder. If an extension is not provided, 'bgprib.mrt' is used.
-    # It returns the path to the created file
-    def getPathsToHistoricalData(self, startDate, endDate,
-                                 archive_folder='/data/wattle/bgplog',
-                                 extension='', files_list=[]):
-
-        if extension == '':
-            files_list = self.getPathsToHistoricalData(startDate, endDate,
-                                                       archive_folder,
-                                                       'bgprib.mrt',
-                                                       files_list)
-            files_list = self.getPathsToHistoricalData(startDate, endDate,
-                                                       archive_folder,
-                                                       'bgpupd.mrt',
-                                                       files_list)
-            return files_list
-
-        else:        
-            for root, subdirs, files in os.walk(archive_folder):
-                for filename in files:
-                    if filename.endswith(extension):
-                        file_date = self.getDateFromFileName(filename)
-                        if (endDate != '' and file_date <= endDate + timedelta(1) or endDate == '') and\
-                            (startDate != '' and file_date > startDate or startDate == ''):
-                            files_list.append(os.path.join(root, filename))
-            
-            if len(files_list) == 0:
-                if extension == 'bgprib.mrt':
-                    return self.getPathsToHistoricalData(startDate, endDate,
-                                                         archive_folder,
-                                                         'dmp.gz', files_list)
-                else:
-                    return []
-            else:
-                return sorted(files_list)
-    
-    def getMostRecentsFromArchive(self, archive_folder, extension, files_list):
-        if extension == '':
-            files_list = self.getMostRecentsFromArchive(archive_folder,
-                                                        'bgprib.mrt',
-                                                        files_list)
-            files_list = self.getMostRecentsFromArchive(archive_folder,
-                                                        'bgpupd.mrt',
-                                                        files_list)
-            return files_list
-            
-        else:
-            mostRecentDate = datetime.strptime('1970', '%Y').date()
-            
-            for root, subdirs, files in os.walk(archive_folder):
-                for filename in files:
-                    if filename.endswith(extension):
-                        file_date = self.getDateFromFileName(filename)
-                        if file_date > mostRecentDate:
-                            files_list = [os.path.join(root, filename)]
-                            mostRecentDate = file_date
-                        elif file_date == mostRecentDate:
-                            files_list.append(os.path.join(root, filename))
-            
-            if len(files_list) == 0:
-                if extension == 'bgprib.mrt':
-                    return self.getMostRecentsFromArchive(archive_folder,
-                                                          'dmp.gz', files_list)
-                else:
-                    return []
-            else:
-                return files_list
-
-
-    # This function walks a folder with historical routing info and returns
-    # a dictionary indexed by date containing the paths to the files
-    # in the archive folder for the corresponding date that have the provided
-    # extension. If no extension is provided, ALL the files in the archive
-    # for each date are included in the dict
-    # (bgprib.mrt, dmp.gz and bgpupd.mrt files)
-    def getPathsToHistoricalData_dict(self, startDate, endDate,
-                                         archive_folder, extension='',
-                                         files_dict=dict()):
-                                             
-        if extension == '':
-            files_dict = self.getPathsToHistoricalData_dict(startDate, endDate,
-                                                            archive_folder,
-                                                            'bgprib.mrt',
-                                                            files_dict)
-            
-            files_dict = self.getPathsToHistoricalData_dict(startDate, endDate,
-                                                            archive_folder,
-                                                            'dmp.gz',
-                                                            files_dict)
-                                                            
-            files_dict = self.getPathsToHistoricalData_dict(startDate, endDate,
-                                                            archive_folder,
-                                                            'bgpupd.mrt',
-                                                            files_dict)
-            return files_dict
-        else:
-            for root, subdirs, files in os.walk(archive_folder):
-                for filename in files:
-                    if filename.endswith(extension):
-                        file_date = self.getDateFromFileName(filename)
-                        if (endDate != '' and file_date <= endDate or\
-                            endDate == '') and (startDate != '' and\
-                            file_date >= startDate or startDate == ''):
-                                file_path = os.path.join(root, filename)
-
-                                if file_date not in files_dict:
-                                    files_dict[file_date] = dict()
-                                    files_dict[file_date][extension] = [file_path]
-                                else:
-                                    if extension not in files_dict[file_date]:
-                                        files_dict[file_date][extension] = [file_path]
-                                    else:
-                                        files_dict[file_date][extension].append(file_path)
-    
-            return files_dict
+        
 
     # This function saves the data structures of the class to pickle files
     def saveDataToFiles(self):
