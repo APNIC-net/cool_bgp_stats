@@ -65,7 +65,7 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
                 if 'withdrawn' in line or 'UPDATE' in line:
                     if announcement_in_progress:
                         for prefix in prefixes:
-                            csv_f.write('"{}","{}","{}",{},"{}","{}"\n'\
+                            csv_f.write('"{}","{}","{}",{},"{}","{}","{}"\n'\
                                         .format(update_date, update_time,
                                                 upd_type, bgp_neighbor, peerAS,
                                                 prefix, updates_file))
@@ -77,7 +77,7 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
 #                    2015/08/01 00:01:31 debugging: BGP: 202.12.28.1 rcvd UPDATE about 199.60.233.0/24 — withdrawn
                         prefix = line_parts[8]
                         peerAS = -1
-                        csv_f.write('"{}","{}","{}",{},"{}","{}"\n'\
+                        csv_f.write('"{}","{}","{}",{},"{}","{}","{}"\n'\
                                     .format(update_date, update_time, upd_type,
                                             bgp_neighbor, peerAS, prefix,
                                             updates_file))
@@ -112,7 +112,7 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
                     peerAS = long(line_parts[4])
                     prefix = line_parts[5]
 
-                    csv_f.write('"{}","{}","{}",{},"{}","{}"\n'\
+                    csv_f.write('"{}","{}","{}",{},"{}","{}","{}"\n'\
                                 .format(update_date, update_time, upd_type,
                                         bgp_neighbor, peerAS, prefix,
                                         updates_file))
