@@ -12,6 +12,8 @@ import psycopg2
 import psycopg2.extras
 from datetime import date
 from itertools import chain
+import pandas as pd
+import sqlalchemy as sq
 
  # Radix indexed by routed IPv4 prefix containing as values dictionaries
     # with the following keys:
@@ -40,7 +42,7 @@ class DBHandler:
         try:
             # TODO Check if there is any case in which I need to increment timeout.
             # If there is, add: "options='-c statement_timeout=1000'" to connection statement
-            self.conn = psycopg2.connect("dbname='{}' user='{}' host='{}' "\
+            self.conn = psycopg2.connect("dbname='{}' user='{}' host='{}'"\
                                     .format(self.dbname, self.user, self.host))
             self.cur = self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             psycopg2.extras.register_inet()
@@ -261,7 +263,7 @@ class DBHandler:
             self.cur.execute("SELECT distinct(dateseen) from prefixes")
             return list(chain(*self.cur.fetchall()))
         except:
-            sys.stderr.write("Unable to get the list of distinct dates for the prefixes in the DB.")
+            sys.stderr.write("Unable to get the list of distinct dates for the prefixes in the DB.\n")
             return []
 
     def getListOfDatesForOriginASes(self):
@@ -269,7 +271,7 @@ class DBHandler:
             self.cur.execute("SELECT distinct(dateseen) from asns where isorigin = True")
             return list(chain(*self.cur.fetchall()))
         except:
-            sys.stderr.write("Unable to get the list of distinct dates for the origin ASes in the DB.")
+            sys.stderr.write("Unable to get the list of distinct dates for the origin ASes in the DB.\n")
             return []
 
     def getListOfDatesForMiddleASes(self):
@@ -277,7 +279,7 @@ class DBHandler:
             self.cur.execute("SELECT distinct(dateseen) from asns where isorigin = False")
             return list(chain(*self.cur.fetchall()))
         except:
-            sys.stderr.write("Unable to get the list of distinct dates for the middle ASes in the DB.")
+            sys.stderr.write("Unable to get the list of distinct dates for the middle ASes in the DB.\n")
             return []
     
     def getListOfDatesForUpdates(self):
@@ -285,7 +287,7 @@ class DBHandler:
             self.cur.execute("SELECT distinct(update_date) from updates")
             return list(chain(*self.cur.fetchall()))
         except:
-            sys.stderr.write("Unable to get the list of distinct dates for the updates in the DB.")
+            sys.stderr.write("Unable to get the list of distinct dates for the updates in the DB.\n")
             return []
     
     def getListOfDatesForRoutingData_v4Only(self):
@@ -293,7 +295,7 @@ class DBHandler:
             self.cur.execute("SELECT distinct(routing_date) from routing_data where extension = 'dmp.gz'")
             return list(chain(*self.cur.fetchall()))
         except:
-            sys.stderr.write("Unable to get the list of distinct dates for v4 only routing data in the DB.")
+            sys.stderr.write("Unable to get the list of distinct dates for v4 only routing data in the DB.\n")
             return []
     
     def getListOfDatesForRoutingData_v6Only(self):
@@ -301,7 +303,7 @@ class DBHandler:
             self.cur.execute("SELECT distinct(routing_date) from routing_data where extension = 'v6.dmp.gz'")
             return list(chain(*self.cur.fetchall()))
         except:
-            sys.stderr.write("Unable to get the list of distinct dates for v6 only routing data in the DB.")
+            sys.stderr.write("Unable to get the list of distinct dates for v6 only routing data in the DB.\n")
             return []
     
     def getListOfDatesForRoutingData_v4andv6(self):
@@ -309,7 +311,7 @@ class DBHandler:
             self.cur.execute("SELECT distinct(routing_date) from routing_data where extension = 'bgprib.mrt'")
             return list(chain(*self.cur.fetchall()))
         except:
-            sys.stderr.write("Unable to get the list of distinct dates for v4 and v6 routing data in the DB.")
+            sys.stderr.write("Unable to get the list of distinct dates for v4 and v6 routing data in the DB.\n")
             return []
             
     @staticmethod    
@@ -349,3 +351,74 @@ class DBHandler:
                                                 prefixesPeriodsDict[pref], False)
         
         return prefixesPeriodsDict
+        
+    # This function returns a dictionary indexed by date containing the paths
+    # to the files in the archive folder for the dates within the provided
+    # period of time.
+    def getPathsToRoutingFilesForPeriod(self, startDate, endDate):
+        try:
+            self.cur.execute("""SELECT routing_date, extension, file_path from routing_data 
+                                where routing_date between %s and %s""",
+                                (startDate, endDate))
+                                
+            result_list = self.cur.fetchall()
+
+            routing_files = dict()            
+            for item in result_list:
+                # We have a list of lists of the form:
+                # [[date, extension, path], [date, extension, path], ...]
+                routing_files[item[0]] = dict()
+                routing_files[item[0]][item[1]] = item[2]
+            
+            return routing_files
+        except:
+            sys.stderr.write("Unable to get the list of paths to routing files \
+                                for the period {}-{}.\n".format(startDate, endDate))
+            return dict()
+        
+    # This function returns a list of paths to the routing files
+    # in the archive corresponding to the provided date.
+    def getPathsToRoutingFilesForDate(self, routing_date):
+        try:
+            self.cur.execute("""SELECT extension, file_path from routing_data 
+                                where routing_date = %s""", (routing_date))
+                                
+            result_list = self.cur.fetchall()
+            
+            routing_files = dict()
+            for item in result_list:
+                # We have a list of lists of the form:
+                # [[extension, file_path], [extension, file_path],...]
+                routing_files[item[0]] = item[1]
+            
+            return routing_files
+
+        except:
+            sys.stderr.write("Unable to get the list of paths to routing files \
+                                for date {}.\n".format(routing_date))
+            return dict()
+            
+    def getPathsToMostRecentRoutingFiles(self):
+        try:
+            self.cur.execute("""SELECT distinct(routing_date) from routing_data 
+                                order by routing_date desc limit 1""")
+
+            mostRecentDate = self.cur.fetchone()[0]
+            
+            return self.getPathsToRoutingFilesForDate(mostRecentDate)
+
+        except:
+            sys.stderr.write("Unable to get the list of paths to most recent \
+                                routing files\n")
+            return dict()
+            
+    def getUpdatesFD(self, updates_date):
+        try:
+            engine = sq.create_engine("postgresql+psycopg2://{}@{}/{}"\
+                                    .format(self.user, self.host, self.dbname))
+            
+            return pd.read_sql_query("SELECT update_date, upd_type, peerAS, prefix FROM updates;", engine)
+
+        except:
+            sys.stderr.write("Unable to get updates DataFrame for date {}.\n".format(updates_date))
+            return pd.DataFrame()

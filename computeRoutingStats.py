@@ -493,7 +493,6 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
         statsForPrefix['cc'] = prefix_row['cc']
         statsForPrefix['region'] = prefix_row['region']
         statsForPrefix['routing_date'] = str(routingStatsObj.bgp_handler.routingDate)
-        statsForPrefix['updates_date'] = str(routingStatsObj.bgp_handler.updatesDate)
 
         delNetwork = IPNetwork(prefix)
         
@@ -744,7 +743,6 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
         del_date = expanded_del_asns_df.ix[i]['date'].to_pydatetime().date()
         statsForAS['del_date'] = del_date
         statsForAS['routing_date'] = str(routingStatsObj.bgp_handler.routingDate)
-        statsForAS['updates_date'] = str(routingStatsObj.bgp_handler.updatesDate)
         
         # We comment this line out as the URL to download CAIDA's AS relationships
         # dataset does not always work. It is not conceived to be automatically
@@ -765,11 +763,11 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
                             str.contains(str(asn)))]['prefix']))
         
         asn_subset = routingStatsObj.bgp_handler.updates_df[\
-                        routingStatsObj.bgp_handler.updates_df['peerAS'] == asn]
+                        routingStatsObj.bgp_handler.updates_df['peeras'] == asn]
                         
-        if len(asn_subset['peerAS'].tolist()) > 0:
-            statsForAS['numOfAnnouncements'] = len(asn_subset[asn_subset['upd_type'] == 'A']['peerAS'].tolist())
-            statsForAS['numOfWithdraws'] = len(asn_subset[asn_subset['upd_type'] == 'W']['peerAS'].tolist())
+        if len(asn_subset['peeras'].tolist()) > 0:
+            statsForAS['numOfAnnouncements'] = len(asn_subset[asn_subset['upd_type'] == 'A']['peeras'].tolist())
+            statsForAS['numOfWithdraws'] = len(asn_subset[asn_subset['upd_type'] == 'W']['peeras'].tolist())
                 
         if TEMPORAL_DATA:
             daysUsable = (today-del_date).days + 1
@@ -829,10 +827,8 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
     
 def main(argv):
     
-    urls_file = ''
     files_path = ''
     routing_file = ''
-    updates_file = ''
     KEEP = False
     DEBUG = False
     EXTENDED = False
@@ -847,54 +843,36 @@ def main(argv):
     bgp_df_file = ''
     routing_date = ''
     updates_df_file = ''
-    updates_date = ''
-    archive_folder = '/data/wattle/bgplog' 
     INCREMENTAL = False
     final_existing_date = ''
     TEMPORAL_DATA = False
     es_host = ''
     
-    # For DEBUG
-    archive_folder = ''
-    files_path = '/Users/sofiasilva/BGP_files'
-    routing_file = '/Users/sofiasilva/BGP_files/2017-05-01.bgprib.readable'
-    updates_file = '/Users/sofiasilva/BGP_files/2017-05-01.bgpupd.readable'
-    routing_date = '20170501'
-    startDate = '20161201'
-    endDate = '20161215'
-    KEEP = True
-    DEBUG = False
-    del_file = '/Users/sofiasilva/BGP_files/extended_apnic_2017-05-23.txt'
-    EXTENDED = True
+
     
     try:
-        opts, args = getopt.getopt(argv, "hf:L:r:u:H:S:E:Tkd:xp:a:4:6:B:R:b:U:D:",
-                                        ["files_path=", "urls_file=", "routing_file=",
-                                         "updates_file=", "Historcial_data_folder=",
+        opts, args = getopt.getopt(argv, "hf:r:S:E:Tkd:xp:a:4:6:B:R:U:D:",
+                                        ["files_path=", "routing_file=",
                                         "StartDate=", "EndDate=", "delegated_file=",
                                         "prefixes_stats_file=", "ases_stats_file=",
                                         "IPv4_prefixes_ASes_file=",
                                         "IPv6_prefixes_ASes_file=",
                                         "BGP_df_file=",
                                         "Routing date=",
-                                        "bgp_updates_df_file=",
-                                        "Updates date=",
+                                        "Updates_df_file=",
                                         "ElasticsearchDB_host="])
     except getopt.GetoptError:
-        print 'Usage: computeRoutingStats.py -h | -f <files path> [-L <urLs file> | -r <routing file> -u <updates_file> | -H <Historical data folder>] [-S <Start date>] [-E <End Date>] [-T] [-k] [-d <delegated file>] [-x] [-R <Routing date>] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -B <BGP DataFrame file> -b <BGP updates DataFrame file> -U <Updates data date>] [-D <Elasticsearch Database host>]'
+        print 'Usage: computeRoutingStats.py -h | -f <files path> [-r <routing file>] [-S <Start date>] [-E <End Date>] [-T] [-k] [-d <delegated file>] [-x] [-R <Routing date>] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -B <BGP DataFrame file> -U <BGP updates DataFrame file>] [-D <Elasticsearch Database host>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: computeRoutingStats.py -h | -f <files path> [-L <urLs file> | -r <routing file> -u <updates_file> | -H <Historical data folder>] [-S <Start date>] [-E <End Date>] [-T] [-k] [-d <delegated file>] [-x] [-R <Routing date>] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -B <BGP DataFrame file> -b <BGP updates DataFrame file> -U <Updates data date>] [-D <Elasticsearch Database host>]'
+            print 'Usage: computeRoutingStats.py -h | -f <files path> [-r <routing file>] [-S <Start date>] [-E <End Date>] [-T] [-k] [-d <delegated file>] [-x] [-R <Routing date>] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -B <BGP DataFrame file> -b <BGP updates DataFrame file>] [-D <Elasticsearch Database host>]'
             print 'h = Help'
             print "f = Path to folder in which Files will be saved. (MANDATORY)"
-            print 'L = URLs file. File which contains a list of URLs of the files to be downloaded.'
-            print 'r = Use existing Internet Routing data file.'
+            print 'r = Work with routing data from Internet Routing data file.'
             print 'If the routing file contains a "show ip bgp" output, the "-o" option must be used to specify this.'
-            print 'u = Use existing BGP updates file.'
-            print "H = Historical data. Use the routing data contained in the archive folder provided."
-            print "If none of the four options -L, -r, -u or -H are provided, the script will try to work with routing data from the archive /data/wattle/bgplog"
+            print "If no routing file is provided, the script will try to work with routing data from the archive /data/wattle/bgplog for the routing date specified with option -R or for the date before today."
             print "S = Start date in format YYYY or YYYYmm or YYYYmmdd. The start date of the period of time during which the considered resources were delegated."
             print 'E = End date in format YYYY or YYYYmm or YYYYmmdd. The end date of the period of time during which the considered resources were delegated.'
             print "T = Temporal data available. Use this option if there is temporal data available in the database and you want to use it, even if you don't provide the path to the archive."
@@ -913,29 +891,17 @@ def main(argv):
             print "6 = IPv6 prefixes file. Path to pickle file containing IPv6 prefixes Radix."
             print "B = BGP DataFrame file. Path to pickle file containing DataFrame with routing data from routing file."
             print "If you use the options -4, -6 and -B you MUST use option -R to provide the date for the routing data in these files."
-            print "b = BGP updates DataFrame file. Path to a pickle file containing DataFrame with BGP updates from updates file."
-            print "U = Updates data Date in format YYYYmmdd. Date for the updates in the Updates DataFrame file. Date for which stats about BGP updates will be computed."
-            print "If you want to work with existing structures from files, the six options -4, -6, -B, -R, -b and -U must be used."
-            print "If not, none of these six options should be used."
+            print "U = BGP updates DataFrame file. Path to a pickle file containing DataFrame with BGP updates from updates file."
+            print "If you want to work with existing structures from files, the five options -4, -6, -B, -R and -U must be used."
+            print "And both the bgp_df and the updates_df MUST contain data for the routing date provided with the option -R."
+            print "If not, none of these five options should be used."
             print "D = Elasticsearch Database host. Host running Elasticsearch into which computed stats will be stored."
             sys.exit()
-        elif opt == '-L':
-            if arg != '':
-                urls_file = os.path.abspath(arg)
-            else:
-                print "If option -L is used, the path to a file which contains a list of URLs of the files to be downloaded MUST be provided."
-                sys.exit()
         elif opt == '-r':
             if arg != '':
                 routing_file = os.path.abspath(arg)
             else:
                 print "If option -r is used, the path to a file with Internet routing data MUST be provided."
-                sys.exit()
-        elif opt == '-u':
-            if arg != '':
-                updates_file = os.path.abspath(arg)
-            else:
-                print "If option -u is used, the path to a file with BGP updates MUST be provided."
                 sys.exit()
         elif opt == '-k':
             KEEP = True
@@ -1006,24 +972,12 @@ def main(argv):
             except ValueError:
                 print "If option -R is used, a date in format YYYYmmdd MUST be provided."
                 sys.exit()
-        elif opt == '-b':
+        elif opt == '-U':
             if arg != '':
                 updates_df_file = os.path.abspath(arg)
                 fromFiles = True
             else:
-                print "If option -b is used, the path to a pickle file containing a Prefixes updates DataFrame MUST be provided."
-                sys.exit()
-        elif opt == '-U':
-            try:
-                updates_date = datetime.strptime(arg, '%Y%m%d').date()
-            except ValueError:
-                print "If option -U is used, a date in format YYYYmmdd MUST be provided."
-                sys.exit()
-        elif opt == '-H':
-            if arg != '':
-                archive_folder = os.path.abspath(arg.rstrip('/'))
-            else:
-                print "If option -H is used, the path to a folder containing historical BGP data MUST be provided."
+                print "If option -U is used, the path to a pickle file containing an updates DataFrame MUST be provided."
                 sys.exit()
         elif opt == '-T':
             TEMPORAL_DATA = True
@@ -1031,19 +985,6 @@ def main(argv):
             es_host = arg
         else:
             assert False, 'Unhandled option'
-            
-    if urls_file != '' and (routing_file != '' or updates_file != '' or\
-        archive_folder != '') or (routing_file != '' and updates_file != '') and\
-        (urls_file != '' or archive_folder != '') or\
-        archive_folder != '' and (urls_file != '' or routing_file != '' or\
-        updates_file != '') or (routing_file != '' and updates_file == '') or\
-        (routing_file == '' and updates_file != ''):
-
-        print '''You MUST provide either a URLs file (with option -L),
-                a routing file and an updates file (with options -r and -u)
-                OR the path to an archive folder containing historical data
-                (with option -H) but not more than one of these options.'''
-        sys.exit()
         
     if startDate != '':
         try:
@@ -1143,9 +1084,9 @@ def main(argv):
     
     if fromFiles and (ipv4_prefixes_file == '' or\
         ipv6_prefixes_file == '' or bgp_df_file == '' or routing_date == '' or\
-        updates_df_file == '' or updates_date == ''):
-        print "If you want to work with BGP data from files, the six options -4, -6, -B, -R, -b and -U must be used."
-        print "If not, none of these six options should be used."
+        updates_df_file == ''):
+        print "If you want to work with BGP data from files, the five options -4, -6, -B, -R and -U must be used."
+        print "If not, none of these five options should be used."
         sys.exit()
     
     routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
@@ -1158,27 +1099,23 @@ def main(argv):
         
     if fromFiles:
         loaded = routingStatsObj.bgp_handler.loadStructuresFromFiles(
-                                                routing_date, updates_date,
+                                                routing_date,
                                                 bgp_df_file,
                                                 updates_df_file,
                                                 ipv4_prefixes_file,
                                                 ipv6_prefixes_file)
                                                      
     else:
-        if routing_file == '' and updates_file == '' and archive_folder == '':
-            loaded = routingStatsObj.bgp_handler.loadStructuresFromURLSfile(\
-                        urls_file)
+        if routing_file != '':
+            loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(\
+                                                                    routing_file)
 
-        elif routing_file != '' and updates_file != '':
-            loaded = (routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(\
-                        routing_file) and\
-                        routingStatsObj.bgp_handler.loadStructuresFromUpdatesFile(\
-                        updates_file))
+            if loaded:
+                loaded = routingStatsObj.bgp_handler.loadUpdatesDF(routingStatsObj.bgp_handler.routingDate)
 
-        else: # archive_folder not null
+        else:
             loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
-                                                archive_folder=archive_folder,
-                                                routing_date=routing_date)
+                                                    routing_date=routing_date)
     if not loaded:
         print "Data structures not loaded!\n"
         sys.exit()

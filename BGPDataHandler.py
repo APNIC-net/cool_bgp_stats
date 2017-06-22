@@ -49,7 +49,6 @@ class BGPDataHandler:
     updates_df = pd.DataFrame()
     
     routingDate = ''
-    updatesDate = ''
          
     # When we instantiate this class we set a boolean variable specifying
     # whether we will be working on DEBUG mode, we also set the variable with
@@ -66,12 +65,11 @@ class BGPDataHandler:
    
     # This function loads the data structures of the class from previously
     # generated pickle files containing the result of already processed routing data
-    def loadStructuresFromFiles(self, r_date, u_date, bgp_df_file,\
+    def loadStructuresFromFiles(self, r_date, bgp_df_file,\
                                 updates_df_file, ipv4_prefixes_file,\
                                 ipv6_prefixes_file):
      
         self.routingDate = r_date
-        self.updatesDate = u_date
         self.bgp_df = pickle.load(open(bgp_df_file, "rb"))
         self.updates_df = pickle.load(open(updates_df_file, "rb"))
         self.ipv4Prefixes_radix = pickle.load(open(ipv4_prefixes_file, "rb"))
@@ -84,10 +82,9 @@ class BGPDataHandler:
     # the URLs in the urls_file point, and loads the data structures of the class
     # with the results from this processing
     def loadStructuresFromURLSfile(self, urls_file):
-        files_date, update_files_date, bgp_df, updates_df,\
-            ipv4Prefixes_radix, ipv6Prefixes_radix,\
+        files_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ipv4_longest_pref, ipv6_longest_pref  =\
-                        self.processMultipleFiles(files_list=urls_file,\
+                        self.processMultipleRoutingFiles(files_list=urls_file,\
                                                 isList=False, containsURLs=True)
         
         aux_date = datetime.strptime('1970', '%Y').date()
@@ -95,14 +92,8 @@ class BGPDataHandler:
         if files_date != aux_date and files_date is not None:
             self.routingDate = files_date
 
-        if update_files_date != aux_date and update_files_date is not None:
-            self.updatesDate = update_files_date
-
         if bgp_df.shape[0] != 0:
             self.bgp_df = bgp_df
-
-        if updates_df.shape[0] != 0:
-            self.updates_df = updates_df
             
         if len(ipv4Prefixes_radix.prefixes()) != 0:
             self.ipv4Prefixes_radix = ipv4Prefixes_radix
@@ -122,29 +113,6 @@ class BGPDataHandler:
 
         sys.stdout.write("Class data structures from files in URLs file were loaded successfully!\n")
         return True
-
-    # This function processes the updates from the updates file and loads
-    # the corresponding variables of the class with the results from this processing
-    def loadStructuresFromUpdatesFile(self, updates_file):
-        if not updates_file.endswith('readable'):
-            readable_file_name = self.getReadableFile(updates_file, False)
-        else:
-            readable_file_name = updates_file
-            
-        updates_df = pd.DataFrame()
-        
-        if readable_file_name != '':
-            updates_file_date, updates_df =\
-                                self.processReadableUpdatesDF(readable_file_name)
-            
-            self.updatesDate = updates_file_date
-            self.updates_df = updates_df
-            
-            sys.stdout.write("Class data structures were loaded successfully with info from updates file!\n")
-            return True
-        else:
-            sys.stderr.write("Could not process updates file.\n")
-            return False
             
     # This function processes the routing data contained in the routing_file
     # and loads the corresponding variables of the class with
@@ -196,7 +164,7 @@ class BGPDataHandler:
         if routing_date == '':
             db_handler = DBHandler('')
             routing_files  =\
-                        db_handler.getMostRecentRoutingFilesFromArchive([])
+                        db_handler.getPathsToMostRecentRoutingFiles()
             db_handler.close()
         
             if len(routing_files) == 0:
@@ -209,27 +177,42 @@ class BGPDataHandler:
             db_handler.close()
                                                           
             if len(routing_files) == 0:
-                sys.stderr.write("There is no routing file in the archive for the date provided.\n")
+                sys.stderr.write("There are no paths to routing files for the date provided in the DB.\n")
                 return False
+
+        bgprib_file = []
+        dmp_files = []        
+        for extension in routing_files:
+            if extension == 'bgprib.mrt':
+                bgprib_file.append(routing_files[extension])
+                break
+            else: # extension == 'dmp.gz' or extension == 'v6.dmp.gz'
+                dmp_files.append(routing_files[extension])
+        
+        # If a bgprib file is available, we use it
+        if len(bgprib_file) > 0:
+            routing_files = bgprib_file
+        #If not, we use the dmp files
+        else:
+            routing_files = dmp_files
                     
-        files_date, update_files_date, bgp_df, updates_df,\
-            ipv4Prefixes_radix, ipv6Prefixes_radix,\
+        files_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ipv4_longest_pref, ipv6_longest_pref  =\
-                        self.processMultipleFiles(files_list=routing_files,
+                        self.processMultipleRoutingFiles(files_list=routing_files,
                                                 isList=True, containsURLs=False)
+        
         aux_date = datetime.strptime('1970', '%Y').date()
 
         if files_date != aux_date and files_date is not None:                    
             self.routingDate = files_date
-        
-        if update_files_date != aux_date and update_files_date is not None:
-            self.updatesDate = update_files_date
+            
+            updates_df = self.getUpdatesDataFromDB(files_date)
+            
+            if updates_df.shape[0] != 0:
+                self.updates_df = updates_df
 
         if bgp_df.shape[0] != 0:
             self.bgp_df = bgp_df
-        
-        if updates_df.shape[0] != 0:
-            self.updates_df = updates_df
             
         if len(ipv4Prefixes_radix.prefixes()) != 0:
             self.ipv4Prefixes_radix = ipv4Prefixes_radix
@@ -246,11 +229,18 @@ class BGPDataHandler:
             self.ipv6_longest_pref = ipv6_longest_pref
         else:
             self.ipv6_longest_pref = 64
-
+            
         sys.stdout.write("Class data structures were loaded successfully!\n")
             
         return True
         
+    # This function gets all the updates for the specified date from the DB
+    # and loads the updates_df class variable with them.
+    def loadUpdatesDF(self, updates_date):
+        db_handler = DBHandler('')
+        self.updates_df = db_handler.getUpdatesFD(updates_date)
+        db_handler.close()
+        return True        
 
     def storeVisibilityDataForPeriod(self, startDate, endDate):
         db_handler = DBHandler('')
@@ -266,7 +256,20 @@ class BGPDataHandler:
                 
             sys.stderr.write("There are no routing files in the archive for the period of time specified ({}-{})).".format(startDate, endDate))
         else:
-            self.storeVisibilityData(routing_files)
+            routing_files_list = []
+            
+            for day in routing_files:
+                # If a bgprib file is available, we use it
+                if 'bgprib.mrt' in routing_files[day]:
+                    routing_files_list.append(routing_files[day]['bgprib.mrt'])
+                # If not, we use the dmp files
+                else:
+                    if 'dmp.gz' in routing_files[day]:
+                        routing_files_list.append(routing_files[day]['dmp.gz'])
+                    if 'v6.dmp.gz' in routing_files[day]:
+                        routing_files_list.append(routing_files[day]['v6.dmp.gz'])
+                        
+            self.storeVisibilityData(routing_files_list)
             sys.stdout.write("Visibility data inserted into database successfully!\n")
 
     # This function stores the routing data from the files listed in the
@@ -523,21 +526,19 @@ class BGPDataHandler:
             return {}, {}, {}, None
             
         
-    # This function downloads and processes all the files in the provided list.
+    # This function downloads and processes all the routing files in the provided list.
     # The boolean variable containsURLs must be True if the files_list is a list
     # of URLs or False if it is a list of paths
-    def processMultipleFiles(self, files_list, isList, containsURLs):
+    def processMultipleRoutingFiles(self, files_list, isList, containsURLs):
         if not isList:
             files_list = open(files_list, 'r')
    
         bgp_df = pd.DataFrame() 
-        updates_df = pd.DataFrame()
         ipv4Prefixes_radix = radix.Radix()
         ipv6Prefixes_radix = radix.Radix()
         ipv4_longest_pref = -1
         ipv6_longest_pref = -1
         routingDate = datetime.strptime('1970', '%Y').date()
-        updatesDate = datetime.strptime('1970', '%Y').date()
         
         i = 0
         for line in files_list:
@@ -565,32 +566,21 @@ class BGPDataHandler:
                     else:
                         readable_file_name = line.strip()
                 
-                with open(readable_file_name, 'rb') as readable:
-                    first_line = readable.readline()
+                file_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
+                    ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
+                            self.processReadableDF(readable_file_name,
+                                                   bgp_df,
+                                                   ipv4Prefixes_radix,
+                                                   ipv6Prefixes_radix)
+                if file_date is not None and file_date > routingDate:
+                    routingDate = file_date
+                        
+                if ipv4_longest_pref_partial > ipv4_longest_pref:
+                    ipv4_longest_pref = ipv4_longest_pref_partial
                     
-                if 'TABLE_DUMP' in first_line:
-                    file_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
-                        ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
-                                self.processReadableDF(readable_file_name,
-                                                       bgp_df,
-                                                       ipv4Prefixes_radix,
-                                                       ipv6Prefixes_radix)
-                    if file_date is not None and file_date > routingDate:
-                        routingDate = file_date
-                            
-                    if ipv4_longest_pref_partial > ipv4_longest_pref:
-                        ipv4_longest_pref = ipv4_longest_pref_partial
+                if ipv6_longest_pref_partial > ipv6_longest_pref:
+                    ipv6_longest_pref = ipv6_longest_pref_partial
                         
-                    if ipv6_longest_pref_partial > ipv6_longest_pref:
-                        ipv6_longest_pref = ipv6_longest_pref_partial
-                        
-                elif 'BGP4MP' in first_line:
-                    updates_file_date, updates_df =\
-                                self.processReadableUpdatesDF(readable_file_name)
-            
-                    if updates_file_date > updatesDate:
-                        updatesDate = updates_file_date
-        
             i += 1
             if self.DEBUG and i > 1:
                 break
@@ -598,8 +588,7 @@ class BGPDataHandler:
         if not isList:        
             files_list.close()
         
-        return routingDate, updatesDate, bgp_df, updates_df,\
-                ipv4Prefixes_radix, ipv6Prefixes_radix,\
+        return routingDate, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
                 ipv4_longest_pref, ipv6_longest_pref
     
         
@@ -655,36 +644,6 @@ class BGPDataHandler:
         output_file.close()
         
         return output_file_name
-    
-    # This function processes a readable file corresponding to an updates
-    # (bgpupd) file and return a DataFrame with the summarized routing info:
-    # Number of announcements and number of withdraws for each prefix
-    # on a certain date
-    def processReadableUpdatesDF(self, readable_file_name):     
-        filtered_readable = '{}.filtered'.format(readable_file_name)
-        
-        cmd = shlex.split("grep -v STATE {}".format(readable_file_name))
-        with open(filtered_readable, 'w') as filtered:
-            p = subprocess.Popen(cmd, stdout=filtered)
-            p.wait()
-            filtered.flush()
-        
-        # BGP4MP|1493587722|A|202.12.28.1|4777|2a06:21c0::/29|4777 2497 6939 47869 51942|IGP|::ffff:202.12.28.1|0|0||NAG||
-
-        updates_df = pd.read_csv(filtered_readable, header=None, sep='|',\
-                                index_col=False, usecols=[1,2,4,5],\
-                                names=['timestamp',\
-                                        'upd_type',\
-                                        'peerAS',
-                                        'prefix'])
-        
-        if updates_df.shape[0] > 0:
-            # We assume all the updates included in the updates file correspond
-            # to the same date, but in case they don't, we take the most recent date.
-            return datetime.utcfromtimestamp(max(updates_df['timestamp'])).date(),\
-                    updates_df
-        else:
-            return None, pd.DataFrame()
  
     # This function processes a readable file with routing info
     # putting all the info into a Data Frame  
