@@ -10,6 +10,7 @@ from BGPDataHandler import BGPDataHandler
 import gzip
 import re, shlex, subprocess
 from datetime import datetime, date, timedelta
+import pandas as pd
 
 yearsForProcNums = {1:[2007, 2008, 2009], 2:[2010, 2011], 3:[2012, 2013],
                     4:[2014, 2015], 5:[2016, 2017]}
@@ -97,26 +98,36 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
     elif updates_file.endswith('bgpupd.mrt'):
         readable_file = bgp_handler.getReadableFile(updates_file, False)
         
-        with open(readable_file, 'r') as mrt, open(csv_file, 'a') as csv_f:
-            for line in mrt:
-                if 'STATE' not in line:
-                    # BGP4MP|1493535309|A|202.12.28.1|4777|146.226.224.0/19|4777 2500 2500 2500 7660 22388 11537 20080 20243|IGP|202.12.28.1|0|0||NAG||
-                    # BGP4MP|1493514069|W|202.12.28.1|4777|208.84.36.0/23
+        readable_woSTATE = '{}.woSTATE'.format(readable_file)
+        if not os.path.exists(readable_woSTATE):
+            with open(readable_woSTATE, 'w') as woSTATE:
+                cmd = shlex.split('grep -v STATE {}'.format(readable_file))
+                p = subprocess.Popen(cmd, stdout=woSTATE)
+                p.communicate()
 
-                    line_parts = line.strip().split('|')
-                    update_datetime = datetime.utcfromtimestamp(float(line_parts[1]))
-                    update_date = update_datetime.date().strftime('%Y/%m/%d')
-                    update_time = update_datetime.time().strftime('%H:%M:%S')
-                    upd_type = line_parts[2]
-                    bgp_neighbor = line_parts[3]
-                    peerAS = long(line_parts[4])
-                    prefix = line_parts[5]
-
-                    csv_f.write('"{}","{}","{}",{},"{}","{}","{}"\n'\
-                                .format(update_date, update_time, upd_type,
-                                        bgp_neighbor, peerAS, prefix,
-                                        updates_file))
-
+        updates_df = pd.read_csv(readable_woSTATE, header=None, sep='|',\
+                                index_col=False, usecols=[1,2,3,4,5],\
+                                names=['timestamp',
+                                        'upd_type',
+                                        'bgp_neighbor',
+                                        'peerAS',
+                                        'prefix'])
+                                        
+        updates_df['source_file'] = updates_file
+                                        
+        updates_df['update_datetime'] = updates_df.apply(lambda row:
+                                            datetime.utcfromtimestamp(
+                                            row['timestamp'])\
+                                            .strftime('%Y/%m/%d %H:%M:%S'),
+                                            axis=1)
+                                            
+        datetime_parts = updates_df.update_datetime.str.rsplit(' ', n=1, expand=True)
+        updates_df['update_date'] = datetime_parts[0]
+        updates_df['update_time'] = datetime_parts[1]
+        
+        updates_df.to_csv(csv_file, header=False, index=False, quoting=2,
+                          columns=['update_date', 'update_time', 'upd_type',
+                                   'bgp_neighbor', 'peerAS', 'prefix', 'source_file'])
         
     return csv_file
   
@@ -144,6 +155,9 @@ def main(argv):
     proc_num = -1
     updates_file = ''
     DEBUG = False
+    
+    files_path = '/Users/sofiasilva/BGP_files'
+    updates_file = '/Users/sofiasilva/BGP_files/2017-04-30.bgpupd.mrt'
     
     try:
         opts, args = getopt.getopt(argv,"hp:A:n:f:D", ['files_path=', 'archive_folder=', 'procNumber=', 'updatesFile=',])
@@ -203,6 +217,9 @@ def main(argv):
                 sys.exit(-1)
             
     readables_path = '/home/sofia/BGP_stats_files/readable_updates{}'.format(proc_num)
+    
+    # for DEBUG
+    readables_path = files_path
     
     output_file = '{}/CSVgeneration_updates_{}_{}.output'.format(files_path, proc_num, datetime.today().date())
     
