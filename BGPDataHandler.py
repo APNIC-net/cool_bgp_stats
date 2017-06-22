@@ -429,6 +429,12 @@ class BGPDataHandler:
         for asn in ases_list:
             if asn is None or asn == 'nan':
                 continue
+            elif '{' in str(asn):
+                cleanListOfASes_list.extend(self.cleanListOfASes(asn.replace('{', '').\
+                                                    replace('}', '').split(',')))
+            elif '(' in str(asn):
+                cleanListOfASes_list.extend(self.cleanListOfASes(asn.replace('(', '').\
+                                                    replace(')', '').split(',')))
             # If an ASN is in asdot format we convert it to asplain format
             elif '.' in asn:
                 left, right= asn.split('.')
@@ -436,12 +442,6 @@ class BGPDataHandler:
             # If the asn contains a bracket ({) or parenthesis ((),
             # it is an as-set, therefore, we split it (leaving the brackets out)
             # and consider each AS separately.
-            elif '{' in str(asn):
-                cleanListOfASes_list.extend(self.cleanListOfASes(asn.replace('{', '').\
-                                                    replace('}', '').split(',')))
-            elif '(' in str(asn):
-                cleanListOfASes_list.extend(self.cleanListOfASes(asn.replace('(', '').\
-                                                    replace(')', '').split(',')))
             else:
                 cleanListOfASes_list.append(asn)
         
