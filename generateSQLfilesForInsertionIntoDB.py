@@ -22,10 +22,13 @@ def createSQLFile(item, suffix, existing_dates, files_path, generated_dates):
     
     if item == 'prefixes':
         table_name = item
+        columns = '(prefix, dateseen)'
     elif item == 'originASes' or item == 'middleASes':
         table_name = 'asns'
+        columns = '(asn, isorigin, dateseen)'
     elif item == 'routing_data':
         table_name = 'routing_data'
+        columns = '(routing_date, extension, file_path)'
         suffixes = [suffix]
         
     with open(sql_file, 'wb') as f:
@@ -38,7 +41,7 @@ def createSQLFile(item, suffix, existing_dates, files_path, generated_dates):
                 if file_date not in existing_dates and\
                     (file_date not in generated_dates or\
                     not generated_dates[file_date][suffix]):
-                    f.write("copy {} from '{}' WITH (FORMAT csv);\n".format(table_name, existing_file))
+                    f.write("copy {} {} from '{}' WITH (FORMAT csv);\n".format(table_name, columns, existing_file))
                     
                     if file_date not in generated_dates:
                         generated_dates[file_date] = defaultdict(bool)
