@@ -61,13 +61,13 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
         not dates_ready[routing_date]['middleASes']['v4andv6']))) or\
         (data_type == 'routing' and routing_date in dates_ready and\
         not dates_ready[routing_date]['routing_v4andv6'])):
-            dates_ready = generateFilesFromRoutingFile(files_path,
-                                                       readable_file,
-                                                       bgp_handler,
-                                                       data_type,
-                                                       dates_ready,
-                                                       output_file,
-                                                       archive_folder)
+            dates_ready, csv_files = generateFilesFromRoutingFile(files_path,
+                                                                   readable_file,
+                                                                   bgp_handler,
+                                                                   data_type,
+                                                                   dates_ready,
+                                                                   output_file,
+                                                                   archive_folder)
 
     # We look for readable files coming from v6.dmp.gz files
     for readable_file in glob('{}/*.v6.readable'.format(readables_path)):
@@ -83,13 +83,13 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
         not dates_ready[routing_date]['middleASes']['v6'])) or\
         data_type == 'routing' and routing_date in dates_ready and\
         not dates_ready[routing_date]['routing_v6']:
-            dates_ready = generateFilesFromRoutingFile(files_path,
-                                                       readable_file,
-                                                       bgp_handler,
-                                                       data_type,
-                                                       dates_ready,
-                                                       output_file,
-                                                       archive_folder)
+            dates_ready, csv_files = generateFilesFromRoutingFile(files_path,
+                                                                   readable_file,
+                                                                   bgp_handler,
+                                                                   data_type,
+                                                                   dates_ready,
+                                                                   output_file,
+                                                                   archive_folder)
 
     for readable_file in glob('{}/*.readable'.format(readables_path)):
         # We look for the format used for readable files that come from dmp.gz files
@@ -107,13 +107,13 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
             not dates_ready[routing_date]['middleASes']['v4'])) or\
             data_type == 'routing' and routing_date in dates_ready and\
             not dates_ready[routing_date]['routing_v4']:
-                dates_ready = generateFilesFromRoutingFile(files_path,
-                                                           readable_file,
-                                                           bgp_handler,
-                                                           data_type,
-                                                           dates_ready,
-                                                           output_file,
-                                                           archive_folder)
+                dates_ready, csv_files = generateFilesFromRoutingFile(files_path,
+                                                                       readable_file,
+                                                                       bgp_handler,
+                                                                       data_type,
+                                                                       dates_ready,
+                                                                       output_file,
+                                                                       archive_folder)
 
     return dates_ready
    
@@ -164,13 +164,14 @@ def generateFilesFromOtherRoutingFiles(archive_folder, data_type, dates_ready,
                         (data_type == 'routing' and\
                         (not dates_ready[routing_date]['routing_{}'.format(suffix)])):
                             
-                        dates_ready = generateFilesFromRoutingFile(files_path,
-                                                                         readable_file,
-                                                                         bgp_handler,
-                                                                         data_type,
-                                                                         dates_ready,
-                                                                         output_file,
-                                                                         archive_folder)
+                        dates_ready, csv_files = generateFilesFromRoutingFile(\
+                                                                     files_path,
+                                                                     readable_file,
+                                                                     bgp_handler,
+                                                                     data_type,
+                                                                     dates_ready,
+                                                                     output_file,
+                                                                     archive_folder)
 
     return dates_ready
 
@@ -219,7 +220,7 @@ def generateFilesForItem(item_name, suffix, item_list, files_path,\
                 dates_ready[routing_date][item_name]['v4'] = True
                 dates_ready[routing_date][item_name]['v6'] = True
             
-    return dates_ready
+    return dates_ready, file_path
     
 def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                                     data_type, dates_ready, output_file,
@@ -256,56 +257,67 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                                     file_date.strftime('%d'), file_date.year,
                                     file_date.strftime('%m'),
                                     file_date.strftime('%d'), extension)
-                dates_ready = generateFilesFromRoutingFile(files_path,
-                                                             new_routing_file,
-                                                             bgp_handler,
-                                                             data_type,
-                                                             dates_ready,
-                                                             output_file,
-                                                             archive_folder)
+                dates_ready, csv_files = generateFilesFromRoutingFile(files_path,
+                                                                     new_routing_file,
+                                                                     bgp_handler,
+                                                                     data_type,
+                                                                     dates_ready,
+                                                                     output_file,
+                                                                     archive_folder)
   
             try:
-                generateFilesForItem('prefixes', suffix, prefixes, files_path,
-                                     routing_date, dates_ready)
+                prefixes_csv = generateFilesForItem('prefixes', suffix, prefixes,
+                                                    files_path, routing_date,
+                                                    dates_ready)
                 
             except KeyboardInterrupt:
                 sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-                generateFilesForItem('prefixes', suffix, prefixes, files_path,
-                                     routing_date, dates_ready)
+                prefixes_csv = generateFilesForItem('prefixes', suffix, prefixes,
+                                                    files_path, routing_date,
+                                                    dates_ready)
                                                             
-                generateFilesForItem('originASes', suffix, originASes,
-                                     files_path, routing_date, dates_ready)
+                originASes_csv = generateFilesForItem('originASes', suffix,
+                                                      originASes, files_path,
+                                                      routing_date, dates_ready)
 
-                generateFilesForItem('middleASes', suffix, middleASes,
-                                     files_path, routing_date, dates_ready)
+                middleASes_csv = generateFilesForItem('middleASes', suffix,
+                                                      middleASes, files_path,
+                                                      routing_date, dates_ready)
                         
                 sys.exit(0)
         
 
             try:
-                generateFilesForItem('originASes', suffix, originASes,
-                                     files_path, routing_date, dates_ready)
+                originASes_csv = generateFilesForItem('originASes', suffix,
+                                                      originASes, files_path,
+                                                      routing_date, dates_ready)
         
             except KeyboardInterrupt:
                 sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-                generateFilesForItem('originASes', suffix, originASes,
-                                     files_path, routing_date, dates_ready)
+                originASes_csv = generateFilesForItem('originASes', suffix,
+                                                      originASes, files_path,
+                                                      routing_date, dates_ready)
                 
-                generateFilesForItem('middleASes', suffix, middleASes,
-                                     files_path, routing_date, dates_ready)
+                middleASes_csv = generateFilesForItem('middleASes', suffix,
+                                                      middleASes, files_path,
+                                                      routing_date, dates_ready)
         
                 sys.exit(0)
         
             try:
-                generateFilesForItem('middleASes', suffix, middleASes,
-                                     files_path, routing_date, dates_ready)
+                middleASes_csv = generateFilesForItem('middleASes', suffix,
+                                                      middleASes, files_path,
+                                                      routing_date, dates_ready)
         
             except KeyboardInterrupt:
                 sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-                generateFilesForItem('middleASes', suffix, middleASes,
-                                     files_path, routing_date, dates_ready)
+                middleASes_csv = generateFilesForItem('middleASes', suffix,
+                                                      middleASes, files_path,
+                                                      routing_date, dates_ready)
 
                 sys.exit(0)
+
+            csvs_list = [prefixes_csv, originASes_csv, middleASes_csv]
                         
     else: # data_type == 'routing'
         if not routing_file.endswith('readable'):
@@ -349,8 +361,10 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                 dates_ready[routing_date] = defaultdict(bool)
                 
             dates_ready[routing_date]['routing_{}'.format(suffix)] = True
+            
+            csvs_list = [csv_file]
               
-    return dates_ready
+    return dates_ready, csvs_list
 
 # We assume the routing files have routing info for a single date,
 # therefore we get the routing date from the first line of the file.
