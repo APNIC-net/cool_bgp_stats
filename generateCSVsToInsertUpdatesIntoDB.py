@@ -109,7 +109,10 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
                     update_date = line_parts[0]
                     update_time = line_parts[1]
                     bgp_neighbor = line_parts[4]
-                    peerAS = line.split('path')[1].split()[0]
+                    if 'path' in line:
+                        peerAS = line.split('path')[1].split()[0]
+                    else:
+                        peerAS = -1
                     prefixes = []
                                              
                 else:
@@ -162,6 +165,8 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
 def getCompleteDatesSet(proc_num):
     initial_date = date(yearsForProcNums[proc_num][0], 1, 1)
     final_date = date(yearsForProcNums[proc_num][-1], 12, 31)
+    if final_date > date.today():
+        final_date = date.today()
     numOfDays = (final_date - initial_date).days
     return set([final_date - timedelta(days=x) for x in range(0, numOfDays)])
 
