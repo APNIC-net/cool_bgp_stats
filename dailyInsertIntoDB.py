@@ -6,10 +6,11 @@ Created on Fri Jun 23 15:43:32 2017
 
 Goal: To insert visibility, routing and updates data into the DB daily.
 """
-import os, sys
+import os
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from datetime import date, timedelta
 from glob import glob
+import shlex, subprocess
 from BGPDataHandler import BGPDataHandler
 from generateCSVsToInsertIntoDB import generateFilesFromRoutingFile
 from generateCSVsToInsertUpdatesIntoDB import generateCSVFromUpdatesFile
@@ -76,14 +77,16 @@ for readable_file in glob('{}/*.readable'.format(files_path)):
 sql_file = '{}/dailyInsertion_{}.sql'.format(files_path, date_to_insert)
 
 with open(sql_file, 'w') as sql_f:
-    sql_f.write("copy prefixes from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[0]))
-    sql_f.write("copy asns from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[1]))
-    sql_f.write("copy asns from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[2]))
-    sql_f.write("copy routing_data from '{}' WITH (FORMAT csv);\n".format(routing_bgprib_csv))
-    sql_f.write("copy routing_data from '{}' WITH (FORMAT csv);\n".format(routing_dmp_csv))
-    sql_f.write("copy routing_data from '{}' WITH (FORMAT csv);\n".format(routing_v6dmp_csv))
+    sql_f.write("\connect sofia;\n")
+    sql_f.write("copy prefixes (prefix, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[0]))
+    sql_f.write("copy asns (asn, isorigin, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[1]))
+    sql_f.write("copy asns (asn, isorigin, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[2]))
+    sql_f.write("copy routing_data (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_bgprib_csv))
+    sql_f.write("copy routing_data (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_dmp_csv))
+    sql_f.write("copy routing_data (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_v6dmp_csv))
     sql_f.write('''copy updates (update_date, update_time, upd_type,
                             bgp_neighbor, peeras, prefix, source_file) from
                             '{}' WITH (FORMAT csv);\n'''.format(updates_csv))
 
-sys.stdout.write('{}\n'.format(sql_file))
+cmd = shlex.split('psql -U postgres -f {}'.format(sql_file))
+subprocess.call(cmd)
