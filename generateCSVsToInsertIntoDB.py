@@ -225,6 +225,8 @@ def generateFilesForItem(item_name, suffix, item_list, files_path,\
 def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                                     data_type, dates_ready, output_file,
                                     archive_folder):
+                                        
+    csvs_list = []
     
     if 'bgprib' in routing_file:
         suffix = 'v4andv6'
