@@ -139,36 +139,60 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
                 cmd = shlex.split('grep -v STATE {}'.format(readable_file))
                 p = subprocess.Popen(cmd, stdout=woSTATE)
                 p.communicate()
+                
+        readable_announcements = '{}.announcements'.format(readable_file)
+        if not os.path.exists(readable_announcements):
+            with open(readable_announcements, 'w') as announcements:
+                cmd = shlex.split('grep \'|A|\' {}'.format(readable_woSTATE))
+                p = subprocess.Popen(cmd, stdout=announcements)
+                p.communicate()
 
-        updates_df = pd.read_csv(readable_woSTATE, header=None, sep='|',\
-                                index_col=False, usecols=[1,2,3,4,5],\
-                                names=['timestamp',
-                                        'upd_type',
+        announcements_df = getDF(readable_announcements, 'A', updates_file)
+
+        readable_withdrawals = '{}.withdrawals'.format(readable_file)
+        if not os.path.exists(readable_withdrawals):
+            with open(readable_withdrawals, 'w') as withdrawals:
+                cmd = shlex.split('grep \'|W|\' {}'.format(readable_woSTATE))
+                p = subprocess.Popen(cmd, stdout=withdrawals)
+                p.communicate()
+                
+        withdrawals_df = getDF(readable_withdrawals, 'W', updates_file)
+        
+        updates_df = pd.concat([announcements_df, withdrawals_df])
+        
+        updates_df.to_csv(csv_file, header=False, index=False, quoting=2,
+                          columns=['update_date', 'update_time', 'upd_type',
+                                   'bgp_neighbor', 'peerAS', 'prefix', 'source_file'])
+    
+        os.remove(readable_file)
+        os.remove(readable_woSTATE)
+        os.remove(readable_announcements)
+        os.remove(readable_withdrawals)
+        
+    return csv_file
+    
+def getDF(filtered_file, upd_type, updates_file):
+    df_from_file = pd.read_csv(filtered_file, header=None, sep='|',
+                               index_col=False, usecols=[1,3,4,5],
+                               names=['timestamp',
                                         'bgp_neighbor',
                                         'peerAS',
                                         'prefix'])
         
-        if updates_df.shape[0] > 0:
-            updates_df['source_file'] = updates_file
+    if df_from_file.shape[0] > 0:
+        df_from_file['upd_type'] = upd_type
+        df_from_file['source_file'] = updates_file
+        df_from_file['update_datetime'] = df_from_file.apply(lambda row:
+                                            datetime.utcfromtimestamp(
+                                            row['timestamp'])\
+                                            .strftime('%Y/%m/%d %H:%M:%S'),
+                                            axis=1)
                                             
-            updates_df['update_datetime'] = updates_df.apply(lambda row:
-                                                datetime.utcfromtimestamp(
-                                                row['timestamp'])\
-                                                .strftime('%Y/%m/%d %H:%M:%S'),
-                                                axis=1)
-                                                
-            datetime_parts = updates_df.update_datetime.str.rsplit(' ', n=1, expand=True)
-            updates_df['update_date'] = datetime_parts[0]
-            updates_df['update_time'] = datetime_parts[1]
-            
-            updates_df.to_csv(csv_file, header=False, index=False, quoting=2,
-                              columns=['update_date', 'update_time', 'upd_type',
-                                       'bgp_neighbor', 'peerAS', 'prefix', 'source_file'])
+        datetime_parts = df_from_file.update_datetime.str.rsplit(' ', n=1, expand=True)
+        df_from_file['update_date'] = datetime_parts[0]
+        df_from_file['update_time'] = datetime_parts[1]
     
-        os.remove(readable_file)
-        os.remove(readable_woSTATE)
-        
-    return csv_file
+    return df_from_file
   
 def getCompleteDatesSet(proc_num):
     initial_date = date(yearsForProcNums[proc_num][0], 1, 1)
