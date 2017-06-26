@@ -118,13 +118,17 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
                 else:
                     prefixes.append(line_parts[6])
 
-            # WE have to write to the csv file the last announcement            
+            # We have to write to the csv file the last announcement            
             if len(prefixes) > 0:
                 for prefix in prefixes:
                     csv_f.write('"{}","{}","{}",{},"{}","{}","{}"\n'\
                                 .format(update_date, update_time,
                                         'A', bgp_neighbor, peerAS,
                                         prefix, updates_file))
+        os.remove(unzipped_file)
+        os.remove(filtered_file)
+        os.remove(announcements_file)
+        os.remove(withdrawals_file)
 
     elif updates_file.endswith('bgpupd.mrt'):
         readable_file = bgp_handler.getReadableFile(updates_file, False)
@@ -143,22 +147,26 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
                                         'bgp_neighbor',
                                         'peerAS',
                                         'prefix'])
-                                        
-        updates_df['source_file'] = updates_file
-                                        
-        updates_df['update_datetime'] = updates_df.apply(lambda row:
-                                            datetime.utcfromtimestamp(
-                                            row['timestamp'])\
-                                            .strftime('%Y/%m/%d %H:%M:%S'),
-                                            axis=1)
-                                            
-        datetime_parts = updates_df.update_datetime.str.rsplit(' ', n=1, expand=True)
-        updates_df['update_date'] = datetime_parts[0]
-        updates_df['update_time'] = datetime_parts[1]
         
-        updates_df.to_csv(csv_file, header=False, index=False, quoting=2,
-                          columns=['update_date', 'update_time', 'upd_type',
-                                   'bgp_neighbor', 'peerAS', 'prefix', 'source_file'])
+        if updates_df.shape[0] > 0:
+            updates_df['source_file'] = updates_file
+                                            
+            updates_df['update_datetime'] = updates_df.apply(lambda row:
+                                                datetime.utcfromtimestamp(
+                                                row['timestamp'])\
+                                                .strftime('%Y/%m/%d %H:%M:%S'),
+                                                axis=1)
+                                                
+            datetime_parts = updates_df.update_datetime.str.rsplit(' ', n=1, expand=True)
+            updates_df['update_date'] = datetime_parts[0]
+            updates_df['update_time'] = datetime_parts[1]
+            
+            updates_df.to_csv(csv_file, header=False, index=False, quoting=2,
+                              columns=['update_date', 'update_time', 'upd_type',
+                                       'bgp_neighbor', 'peerAS', 'prefix', 'source_file'])
+    
+        os.remove(readable_file)
+        os.remove(readable_woSTATE)
         
     return csv_file
   
