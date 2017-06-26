@@ -187,6 +187,8 @@ def writeCSVfiles(file_path, tuples):
 
 def generateFilesForItem(item_name, suffix, item_list, files_path,\
                             routing_date, dates_ready):
+    file_path = ''
+    
     if len(item_list) > 0 and (routing_date not in dates_ready or\
         item_name not in dates_ready[routing_date] or\
         not dates_ready[routing_date][item_name][suffix]):
