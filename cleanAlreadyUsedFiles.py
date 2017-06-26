@@ -20,7 +20,7 @@ for csv_file in glob('{}/*.csv'.format(csvs_folder)):
     file_date_str = csv_file_name.split('.')[0]
     file_date = datetime.strptime(file_date_str, '%Y-%m-%d').date()
     
-    if 'bgpupg' in csv_file_name:   
+    if 'bgpupd' in csv_file_name:   
         readable_folder = '/home/sofia/BGP_stats_files/readable_updates{}'.format(procNumsForYears[file_date.year])
         
         os.remove('{}/{}.bgpupd.readable'.format(readable_folder, file_date_str))
