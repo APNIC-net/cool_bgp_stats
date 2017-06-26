@@ -49,7 +49,7 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
                                     
     # We look for readable files coming from bgprib.mrt files
     for readable_file in glob('{}/*.bgprib.readable'.format(readables_path)):
-        routing_date = getDateFromFile(readable_file, output_file)
+        routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
         
         if routing_date not in dates_ready or\
         ((data_type == 'visibility' and (routing_date in dates_ready and\
@@ -71,7 +71,7 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
 
     # We look for readable files coming from v6.dmp.gz files
     for readable_file in glob('{}/*.v6.readable'.format(readables_path)):
-        routing_date = getDateFromFile(readable_file, output_file)
+        routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
         
         if routing_date not in dates_ready or\
         data_type == 'visibility' and (routing_date in dates_ready and\
@@ -95,7 +95,7 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
         # We look for the format used for readable files that come from dmp.gz files
         pattern = re.compile('.*20[0,1][0-9]-[0,1][0-9]-[0-3][0-9].readable$')
         if pattern.match(readable_file) is not None:
-            routing_date = getDateFromFile(readable_file, output_file)
+            routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
             
             if routing_date not in dates_ready or\
             data_type == 'visibility' and (routing_date in dates_ready and\
@@ -151,7 +151,8 @@ def generateFilesFromOtherRoutingFiles(archive_folder, data_type, dates_ready,
                             output.write('Got an empty readable file name for file {}\n'.format(full_filename))
                         continue
     
-                    routing_date = getDateFromFile(readable_file, output_file)
+                    routing_date = getDateFromFile(readable_file, output_file,
+                                                   bgp_handler)
                     
                     if routing_date not in dates_ready or\
                         (data_type == 'visibility' and\
@@ -241,11 +242,7 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
         extension = 'dmp.gz'
             
     if data_type == 'visibility':
-        start = time()
-        prefixes, originASes, middleASes, routing_date =\
-                            bgp_handler.getPrefixesASesAndDate(routing_file)
-        end = time()
-        sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
+        routing_date = getDateFromFile(routing_file, output_file, bgp_handler)
 
         if routing_date is not None:
             if routing_date.year == 1970:
@@ -269,6 +266,12 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                                                                      output_file,
                                                                      archive_folder)
   
+            start = time()
+            prefixes, originASes, middleASes, routing_date =\
+                                bgp_handler.getPrefixesASesAndDate(routing_file)
+            end = time()
+            sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
+            
             try:
                 prefixes_csv = generateFilesForItem('prefixes', suffix, prefixes,
                                                     files_path, routing_date,
@@ -323,12 +326,9 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
 
             csvs_list = [prefixes_csv, originASes_csv, middleASes_csv]
                         
-    else: # data_type == 'routing'
-        if not routing_file.endswith('readable'):
-            first_line = bgp_handler.getReadableFirstLine(routing_file, False)
-            routing_date = datetime.utcfromtimestamp(float(first_line.split('|')[1])).date()
-        else:            
-            routing_date = getDateFromFile(routing_file, output_file)
+    else: # data_type == 'routing'        
+        routing_date = getDateFromFile(routing_file, output_file,
+                                       bgp_handler)
         
         if routing_date not in dates_ready or\
             not dates_ready[routing_date]['routing_{}'.format(suffix)]:
@@ -370,11 +370,10 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
               
     return dates_ready, csvs_list
 
-# We assume the routing files have routing info for a single date,
-# therefore we get the routing date from the first line of the file.
-def getDateFromFile(file_path, output_file):        
+def getDateFromReadableFile(file_path, output_file):
     with open(file_path, 'rb') as readable_file:
         first_line = readable_file.readline()
+        
         try:
             timestamp = float(first_line.split('|')[1])
         except IndexError:
@@ -391,7 +390,23 @@ def getDateFromFile(file_path, output_file):
                 with open(output_file, 'a') as output:
                     output.write('Cannot get date from content of file {}\n'.format(file_path))
                 return None
-        return datetime.utcfromtimestamp(timestamp).date()
+                
+# We assume the routing files have routing info for a single date,
+# therefore we get the routing date from the first line of the file.
+def getDateFromFile(file_path, output_file, bgp_handler):
+    if 'readable' in file_path:       
+        return getDateFromReadableFile(file_path, output_file)
+
+    else:
+        first_line = bgp_handler.getReadableFirstLine(file_path, False)
+        
+        try:
+            timestamp = float(first_line.split('|')[1])
+            return datetime.utcfromtimestamp(timestamp).date()
+            
+        except IndexError:
+            readable_file = bgp_handler.getReadableFile(file_path, False)
+            return getDateFromReadableFile(readable_file, output_file)
         
 def getDateFromFileName(filename):        
     dates = re.findall('(?P<year>[1-2][9,0][0,1,8,9][0-9])[-_]*(?P<month>[0-1][0-9])[-_]*(?P<day>[0-3][0-9])',\
