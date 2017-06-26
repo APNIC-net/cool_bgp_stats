@@ -413,7 +413,6 @@ def getCompleteDatesSet(proc_num):
     
 def main(argv):
     routing_file = ''
-    files_path = '/home/sofia/BGP_stats_files'
     readables_path = ''
     archive_folder = '/data/wattle/bgplog'
     proc_num = -1
@@ -422,10 +421,9 @@ def main(argv):
     
 
     try:
-        opts, args = getopt.getopt(argv,"hp:t:A:f:n:D", ['files_path=', 'data_type=', 'archive_folder=', 'procNumber=', 'routingFile=',])
+        opts, args = getopt.getopt(argv,"ht:A:f:n:D", ['data_type=', 'archive_folder=', 'procNumber=', 'routingFile=',])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -p <files path> -t <visibility/routing> (-A <archive folder> -n <process number> | -f <readable routing file>) [-D]'.format(sys.argv[0])
-        print "p: Provide the path to a folder to use to save files."
+        print 'Usage: {} -h | -t <visibility/routing> (-A <archive folder> -n <process number> | -f <readable routing file>) [-D]'.format(sys.argv[0])
         print "t: Data type. Type of data to be inserted into the DB."
         print "Visibility -> To insert the dates during which prefixes, origin ASes and middle ASes were seen in the routing table."
         print "Routing -> To insert into the routing_data table the list of rows in the BGP routing table for the available dates."
@@ -440,8 +438,7 @@ def main(argv):
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'Usage: {} -h | -p <files path> -t <visibility/routing> (-A <archive folder> -n <process number> | -f <readable routing file>) [-D]'.format(sys.argv[0])
-            print "p: Provide the path to a folder to use to save files."
+            print 'Usage: {} -h | -t <visibility/routing> (-A <archive folder> -n <process number> | -f <readable routing file>) [-D]'.format(sys.argv[0])
             print "t: Data type. Type of data to be inserted into the DB."
             print "Visibility -> To insert the dates during which prefixes, origin ASes and middle ASes were seen in the routing table."
             print "Routing -> To insert into the routing_data table the list of rows in the BGP routing table for the available dates."
@@ -453,8 +450,6 @@ def main(argv):
             print "f: Provide the path to a routing file."
             print "D: DEBUG mode"
             sys.exit()
-        elif opt == '-p':
-            files_path = os.path.abspath(arg)
         elif opt == '-t':
             data_type = arg
             if data_type != 'visibility' and data_type != 'routing':
@@ -497,6 +492,8 @@ def main(argv):
                 sys.exit(-1)
             
     readables_path = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
+    
+    files_path = '/home/sofia/BGP_stats_files/Visibility_Routing_CSVs/CSVs{}'.format(proc_num)
     
     output_file = '{}/CSVgeneration_{}_{}_{}.output'.format(files_path, data_type, proc_num, datetime.today().date())
 
