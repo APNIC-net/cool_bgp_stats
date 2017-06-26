@@ -231,6 +231,8 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                                         
     csvs_list = []
     
+    sys.stdout.write('Starting to work with {}\n'.format(routing_file))
+    
     if 'bgprib' in routing_file:
         suffix = 'v4andv6'
         extension = 'bgprib.mrt'
