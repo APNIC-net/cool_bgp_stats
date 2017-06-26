@@ -51,7 +51,7 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
     for readable_file in glob('{}/*.bgprib.readable'.format(readables_path)):
         routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
         
-        if routing_date not in dates_ready or\
+        if routing_date is not None and (routing_date not in dates_ready or\
         ((data_type == 'visibility' and (routing_date in dates_ready and\
         ('prefixes' not in dates_ready[routing_date] or\
         not dates_ready[routing_date]['prefixes']['v4andv6'] or\
@@ -60,7 +60,7 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
         'middleASes' not in dates_ready[routing_date] or\
         not dates_ready[routing_date]['middleASes']['v4andv6']))) or\
         (data_type == 'routing' and routing_date in dates_ready and\
-        not dates_ready[routing_date]['routing_v4andv6'])):
+        not dates_ready[routing_date]['routing_v4andv6']))):
             dates_ready, csv_files = generateFilesFromRoutingFile(files_path,
                                                                    readable_file,
                                                                    bgp_handler,
@@ -73,7 +73,7 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
     for readable_file in glob('{}/*.v6.readable'.format(readables_path)):
         routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
         
-        if routing_date not in dates_ready or\
+        if routing_date is not None and (routing_date not in dates_ready or\
         data_type == 'visibility' and (routing_date in dates_ready and\
         ('prefixes' not in dates_ready[routing_date] or\
         not dates_ready[routing_date]['prefixes']['v6'] or\
@@ -82,7 +82,7 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
         'middleASes' not in dates_ready[routing_date] or\
         not dates_ready[routing_date]['middleASes']['v6'])) or\
         data_type == 'routing' and routing_date in dates_ready and\
-        not dates_ready[routing_date]['routing_v6']:
+        not dates_ready[routing_date]['routing_v6']):
             dates_ready, csv_files = generateFilesFromRoutingFile(files_path,
                                                                    readable_file,
                                                                    bgp_handler,
@@ -96,8 +96,8 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
         pattern = re.compile('.*20[0,1][0-9]-[0,1][0-9]-[0-3][0-9].readable$')
         if pattern.match(readable_file) is not None:
             routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
-            
-            if routing_date not in dates_ready or\
+
+            if routing_date is not None and (routing_date not in dates_ready or\
             data_type == 'visibility' and (routing_date in dates_ready and\
             ('prefixes' not in dates_ready[routing_date] or\
             not dates_ready[routing_date]['prefixes']['v4'] or\
@@ -106,7 +106,7 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
             'middleASes' not in dates_ready[routing_date] or\
             not dates_ready[routing_date]['middleASes']['v4'])) or\
             data_type == 'routing' and routing_date in dates_ready and\
-            not dates_ready[routing_date]['routing_v4']:
+            not dates_ready[routing_date]['routing_v4']):
                 dates_ready, csv_files = generateFilesFromRoutingFile(files_path,
                                                                        readable_file,
                                                                        bgp_handler,
@@ -154,7 +154,8 @@ def generateFilesFromOtherRoutingFiles(archive_folder, data_type, dates_ready,
                     routing_date = getDateFromFile(readable_file, output_file,
                                                    bgp_handler)
                     
-                    if routing_date not in dates_ready or\
+                    if routing_date is not None and\
+                        (routing_date not in dates_ready or\
                         (data_type == 'visibility' and\
                         ('prefixes' not in dates_ready[routing_date] or\
                         not dates_ready[routing_date]['prefixes'][suffix] or\
@@ -163,7 +164,7 @@ def generateFilesFromOtherRoutingFiles(archive_folder, data_type, dates_ready,
                         'middleASes' not in dates_ready[routing_date] or\
                         not dates_ready[routing_date]['middleASes'][suffix])) or\
                         (data_type == 'routing' and\
-                        (not dates_ready[routing_date]['routing_{}'.format(suffix)])):
+                        (not dates_ready[routing_date]['routing_{}'.format(suffix)]))):
                             
                         dates_ready, csv_files = generateFilesFromRoutingFile(\
                                                                      files_path,
@@ -340,8 +341,8 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
         routing_date = getDateFromFile(routing_file, output_file,
                                        bgp_handler)
         
-        if routing_date not in dates_ready or\
-            not dates_ready[routing_date]['routing_{}'.format(suffix)]:
+        if routing_date is not None and (routing_date not in dates_ready or\
+            not dates_ready[routing_date]['routing_{}'.format(suffix)]):
             
             # If the routing file does not come from the archive
             if not routing_file.startswith(archive_folder):
@@ -405,6 +406,9 @@ def getDateFromReadableFile(file_path, output_file):
                         output.write('File {} is empty. Deleting it.\n'.format(file_path))
                         os.remove(file_path)
                 return None
+            else:
+                return datetime.utcfromtimestamp(timestamp).date()
+
                 
 # We assume the routing files have routing info for a single date,
 # therefore we get the routing date from the first line of the file.
