@@ -17,18 +17,19 @@ procNumsForYears = {2007:1, 2008:1, 2009:1, 2010:2, 2011:2, 2012:3, 2013:3, 2014
 
 for csv_file in glob('{}/*.csv'.format(csvs_folder)):
     csv_file_name = csv_file.split('/')[-1]
-    file_date = datetime.strptime(csv_file_name.split('.')[0], '%Y-%m-%d')
+    file_date_str = csv_file_name.split('.')[0]
+    file_date = datetime.strptime(file_date_str, '%Y-%m-%d').date()
     
     if 'bgpupg' in csv_file_name:   
         readable_folder = '/home/sofia/BGP_stats_files/readable_updates{}'.format(procNumsForYears[file_date.year])
         
-        os.remove('{}/{}.bgpupd.readable'.format(readable_folder, file_date))
-        os.remove('{}/{}.bgpupd.readable.woSTATE'.format(readable_folder, file_date))
+        os.remove('{}/{}.bgpupd.readable'.format(readable_folder, file_date_str))
+        os.remove('{}/{}.bgpupd.readable.woSTATE'.format(readable_folder, file_date_str))
     else:
-       os.remove('{}/{}.log'.format(csvs_folder, file_date))
-       os.remove('{}/{}.log.filtered'.format(csvs_folder, file_date)) 
-       os.remove('{}/{}.log.announcements'.format(csvs_folder, file_date)) 
-       os.remove('{}/{}.log.withdrawals'.format(csvs_folder, file_date))
+       os.remove('{}/{}.log'.format(csvs_folder, file_date_str))
+       os.remove('{}/{}.log.filtered'.format(csvs_folder, file_date_str)) 
+       os.remove('{}/{}.log.announcements'.format(csvs_folder, file_date_str)) 
+       os.remove('{}/{}.log.withdrawals'.format(csvs_folder, file_date_str))
     
     
     
