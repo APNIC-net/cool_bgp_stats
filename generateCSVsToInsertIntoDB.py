@@ -28,7 +28,7 @@ def getDatesOfExistingCSVs(files_path, data_type, dates_ready):
                         if item not in dates_ready[routing_date]:
                             dates_ready[routing_date][item] = defaultdict(bool)
                             
-                        dates_ready[routing_date][item][v] = True
+                        dates_ready[routing_date][item][v.replace('_', '')] = True
 
     elif data_type == 'routing':
         for existing_file in glob('{}/routing_data*.csv'.format(files_path)):
@@ -399,6 +399,11 @@ def getDateFromReadableFile(file_path, output_file):
             if timestamp == '':
                 with open(output_file, 'a') as output:
                     output.write('Cannot get date from content of file {}\n'.format(file_path))
+                    
+                    file_size = os.path.getsize(file_path)
+                    if file_size == 0:
+                        output.write('File {} is empty. Deleting it.\n'.format(file_path))
+                        os.remove(file_path)
                 return None
                 
 # We assume the routing files have routing info for a single date,
