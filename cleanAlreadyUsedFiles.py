@@ -23,13 +23,28 @@ for csv_file in glob('{}/*.csv'.format(csvs_folder)):
     if 'bgpupd' in csv_file_name:   
         readable_folder = '/home/sofia/BGP_stats_files/readable_updates{}'.format(procNumsForYears[file_date.year])
         
-        os.remove('{}/{}.bgpupd.readable'.format(readable_folder, file_date_str))
-        os.remove('{}/{}.bgpupd.readable.woSTATE'.format(readable_folder, file_date_str))
+        readable_file = '{}/{}.bgpupd.readable'.format(readable_folder, file_date_str)
+        if os.path.exists(readable_file):
+            os.remove(readable_file)
+        
+        woSTATE_file = '{}.woSTATE'.format(readable_file)
+        if os.path.exists(woSTATE_file):
+            os.remove(woSTATE_file)
+            
     else:
-       os.remove('{}/{}.log'.format(csvs_folder, file_date_str))
-       os.remove('{}/{}.log.filtered'.format(csvs_folder, file_date_str)) 
-       os.remove('{}/{}.log.announcements'.format(csvs_folder, file_date_str)) 
-       os.remove('{}/{}.log.withdrawals'.format(csvs_folder, file_date_str))
-    
-    
+        log_file = '{}/{}.log'.format(csvs_folder, file_date_str)
+        if os.path.exists(log_file):         
+            os.remove(log_file)
+
+        filtered_file = '{}.filtered'.format(log_file)
+        if os.path.exists(filtered_file):
+            os.remove(filtered_file)
+            
+        announcements_file = '{}.announcements'.format(log_file)
+        if os.path.exists(announcements_file):
+            os.remove(announcements_file)
+            
+        withdrawals_file = '{}.withdrawals'.format(log_file)
+        if os.path.exists(withdrawals_file):
+            os.remove(withdrawals_file)
     
