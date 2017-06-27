@@ -777,6 +777,7 @@ class BGPDataHandler:
     def getReadableFirstLine(self, source, isURL):
     
         source_filename = source.split('/')[-1]
+        compressed = False
         
         # If a routing file is not provided, download it from the provided URL        
         if isURL:
@@ -786,6 +787,7 @@ class BGPDataHandler:
         
         # If the routing file is compressed we unzip it
         if source.endswith('.gz'):
+            compressed = True
             output_file = '%s/%s' % (self.files_path,\
                                 os.path.splitext(source)[0].split('/')[-1])
             
@@ -817,6 +819,9 @@ class BGPDataHandler:
         # we convert it to the same format used by BGPdump for its outputs
         else:
             first_line = self.convertBGPoutput(source, True, '')
+            
+        if compressed:
+            os.remove(output_file)
 
         return first_line
         
