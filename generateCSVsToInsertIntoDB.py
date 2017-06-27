@@ -46,7 +46,7 @@ def getDatesOfExistingCSVs(files_path, data_type, dates_ready):
 def generateFilesFromReadables(readables_path, data_type, dates_ready,\
                                 files_path, bgp_handler, output_file,
                                 archive_folder):
-                                    
+
     # We look for readable files coming from bgprib.mrt files
     for readable_file in glob('{}/*.bgprib.readable'.format(readables_path)):
         routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
@@ -144,14 +144,8 @@ def generateFilesFromOtherRoutingFiles(archive_folder, data_type, dates_ready,
                 if file_date.year in yearsForProcNums[proc_num]:
     
                     full_filename = os.path.join(root, filename)
-                    readable_file = bgp_handler.getReadableFile(full_filename, False)
     
-                    if readable_file == '':
-                        with open(output_file, 'a') as output:
-                            output.write('Got an empty readable file name for file {}\n'.format(full_filename))
-                        continue
-    
-                    routing_date = getDateFromFile(readable_file, output_file,
+                    routing_date = getDateFromFile(full_filename, output_file,
                                                    bgp_handler)
                     
                     if routing_date is not None and\
@@ -168,7 +162,7 @@ def generateFilesFromOtherRoutingFiles(archive_folder, data_type, dates_ready,
                             
                         dates_ready, csv_files = generateFilesFromRoutingFile(\
                                                                      files_path,
-                                                                     readable_file,
+                                                                     full_filename,
                                                                      bgp_handler,
                                                                      data_type,
                                                                      dates_ready,
