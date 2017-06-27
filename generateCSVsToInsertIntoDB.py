@@ -544,6 +544,8 @@ def main(argv):
 
         if data_type == 'visibility':
             
+            sys.stdout.write('Checking for dates already in the DB\n')
+            
             existing_dates_pref = set(db_handler.getListOfDatesForPrefixes())
     
             for ex_date in existing_dates_pref:            
@@ -607,9 +609,12 @@ def main(argv):
                 dates_ready[ex_date]['routing_v6'] = True
                 
         db_handler.close()
-                                                                
+                         
+        sys.stdout.write('Checking for existing CSV files\n')
+                                       
         dates_ready = getDatesOfExistingCSVs(files_path, data_type, dates_ready)
-        
+
+        sys.stdout.write('Starting to generate CSV files from readable files\n')
         dates_ready = generateFilesFromReadables(readables_path,
                                                                   data_type,
                                                                   dates_ready,
@@ -617,12 +622,14 @@ def main(argv):
                                                                   bgp_handler,
                                                                   output_file,
                                                                   archive_folder)
-                
+
+        sys.stdout.write('Starting to generate CSV files from bgprib.mrt files\n')
         dates_ready = generateFilesFromOtherRoutingFiles(\
                                         archive_folder, data_type, dates_ready,
                                         files_path, bgp_handler, proc_num,
                                         'bgprib.mrt', output_file)
         
+        sys.stdout.write('Starting to generate CSV files from dmp.gz files\n')
         dates_ready = generateFilesFromOtherRoutingFiles(\
                                         archive_folder, data_type, dates_ready,
                                         files_path, bgp_handler, proc_num,
