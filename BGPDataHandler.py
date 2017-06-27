@@ -594,9 +594,8 @@ class BGPDataHandler:
         
     # This function converts a file containing the output of the 'show ip bgp' command
     # to a file in the same format used for BGPDump outputs
-    def convertBGPoutput(self, routing_file, onlyFirstLine):
+    def convertBGPoutput(self, routing_file, onlyFirstLine, output_file_name):
         if not onlyFirstLine:
-            output_file_name = '%s/%s.readable' % (self.files_path, '.'.join(routing_file.split('/')[-1].split('.')[:-1]))
             output_file = open(output_file_name, 'w')
             
         i = 0
@@ -716,33 +715,37 @@ class BGPDataHandler:
     # output of the 'show ip bgp' command
     # The path to the resulting readable file is returned
     def getReadableFile(self, source, isURL):
-    
+
+        compressed = False
+        
         source_filename = source.split('/')[-1]
         
-        # If a routing file is not provided, download it from the provided URL        
-        if isURL:
-            routing_file = '%s/%s' % (self.files_path, source_filename)
-            get_file(source, routing_file)
-            source = routing_file
-        
-        # If the routing file is compressed we unzip it
-        if source.endswith('.gz'):
-            output_file = '%s/%s' % (self.files_path,\
-                                os.path.splitext(source)[0].split('/')[-1])
-            
-            with gzip.open(source, 'rb') as gzip_file,\
-                open(output_file, 'wb') as output:
-                try:
-                    output.write(gzip_file.read())
-                except IOError:
-                    return ''
-            
-            source = output_file
-            source_filename = source.split('/')[-1]
-
         readable_file_name = '{}/{}.readable'.format(self.files_path, os.path.splitext(source_filename)[0])
-                
+
         if not os.path.exists(readable_file_name):
+            # If a routing file is not provided, download it from the provided URL        
+            if isURL:
+                routing_file = '%s/%s' % (self.files_path, source_filename)
+                get_file(source, routing_file)
+                source = routing_file
+            
+            # If the routing file is compressed we unzip it
+            if source.endswith('.gz'):
+                compressed = True
+                output_file = '%s/%s' % (self.files_path,\
+                                    os.path.splitext(source)[0].split('/')[-1])
+                
+                if not os.path.exists(output_file):
+                    with gzip.open(source, 'rb') as gzip_file,\
+                        open(output_file, 'wb') as output:
+                        try:
+                            output.write(gzip_file.read())
+                        except IOError:
+                            return ''
+                
+                source = output_file
+                source_filename = source.split('/')[-1]
+        
             # If the routing file is a MRT file, we process it using BGPdump
             if source.endswith('mrt'):            
                 cmd = shlex.split('%s -m -O %s %s' % (bgpdump, readable_file_name, source))
@@ -757,8 +760,12 @@ class BGPDataHandler:
             # If the file contains the output of the 'show ip bgp' command,
             # we convert it to the same format used by BGPdump for its outputs
             else:
-                readable_file_name = self.convertBGPoutput(source, False)
+                readable_file_name = self.convertBGPoutput(source, False,
+                                                           readable_file_name)
 
+        if compressed:
+            os.remove(output_file)
+            
         return readable_file_name
         
     # This function downloads a routing file if the source provided is a URL
@@ -809,7 +816,7 @@ class BGPDataHandler:
         # If the file contains the output of the 'show ip bgp' command,
         # we convert it to the same format used by BGPdump for its outputs
         else:
-            first_line = self.convertBGPoutput(source, True)
+            first_line = self.convertBGPoutput(source, True, '')
 
         return first_line
         
