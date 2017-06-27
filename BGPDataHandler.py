@@ -639,8 +639,12 @@ class BGPDataHandler:
             i += 1
             if self.DEBUG and i > 10:
                 break
-            
-        output_file.close()
+        
+        if not onlyFirstLine:  
+            output_file.close()
+        else:
+            # If we got here and onlyFirstLine is True, it means the dmp file is empty
+            return ''
         
         return output_file_name
  
