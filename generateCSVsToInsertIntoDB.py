@@ -70,7 +70,7 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
                                                                    archive_folder)
 
     # We look for readable files coming from v6.dmp.gz files
-    for readable_file in glob('{}/*.v6.readable'.format(readables_path)):
+    for readable_file in glob('{}/*.v6.dmp.readable'.format(readables_path)):
         routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
         
         if routing_date is not None and (routing_date not in dates_ready or\
@@ -91,9 +91,9 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
                                                                    output_file,
                                                                    archive_folder)
 
-    for readable_file in glob('{}/*.readable'.format(readables_path)):
+    for readable_file in glob('{}/*.dmp.readable'.format(readables_path)):
         # We look for the format used for readable files that come from dmp.gz files
-        pattern = re.compile('.*20[0,1][0-9]-[0,1][0-9]-[0-3][0-9].readable$')
+        pattern = re.compile('.*20[0,1][0-9]-[0,1][0-9]-[0-3][0-9].dmp.readable$')
         if pattern.match(readable_file) is not None:
             routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
 
