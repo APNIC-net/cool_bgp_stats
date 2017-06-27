@@ -277,6 +277,10 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                 end = time()
                 sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
                 
+                prefixes_csv = ''
+                originASes_csv = ''
+                middleASes_csv = ''
+                
                 try:
                     prefixes_csv = generateFilesForItem('prefixes', suffix, prefixes,
                                                         files_path, routing_date,
