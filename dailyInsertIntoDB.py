@@ -25,11 +25,11 @@ log_file = '{}/dailyInsertionsFor{}.log'.format(files_path, date_to_insert)
 
 file_name = '{}/{}/{}/{}/{}-{}-{}'.format(archive_folder,
                                                 date_to_insert.year,
-                                                date_to_insert.month,
-                                                date_to_insert.day,
+                                                date_to_insert.strftime('%m'),
+                                                date_to_insert.strftime('%d'),
                                                 date_to_insert.year,
-                                                date_to_insert.month,
-                                                date_to_insert.day)
+                                                date_to_insert.strftime('%m'),
+                                                date_to_insert.strftime('%d'))
 
 bgprib_file = '{}.bgprib.mrt'.format(file_name)
 
