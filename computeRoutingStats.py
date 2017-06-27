@@ -823,7 +823,96 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
                     statsForAS['maxPeriodLength'] = periodsLengths.max()
 
         writeStatsLineToFile(statsForAS, routingStatsObj.allAttr_ases, stats_filename)
-            
+
+def completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
+                             TEMPORAL_DATA, es_host, prefixes_stats_file,
+                             ases_stats_file):
+    start_time = time()
+    computePerPrefixStats(routingStatsObj, prefixes_stats_file, files_path,
+                          TEMPORAL_DATA)
+    end_time = time()
+    sys.stderr.write("Stats for prefixes computed successfully!\n")
+    sys.stderr.write("Prefixes statistics computation took {} seconds\n".format(end_time-start_time))
+    
+    if routingStatsObj.orgHeuristics is not None:        
+        routingStatsObj.orgHeuristics.dumpToPickleFiles()
+    
+        sys.stderr.write(
+            "OrgHeuristics was invoked {} times, consuming in total {} seconds.\n"\
+                .format(routingStatsObj.orgHeuristics.invokedCounter,
+                    routingStatsObj.orgHeuristics.totalTimeConsumed))
+    # TODO Si es demasiado el tiempo consumido, guardar parejas de prefijos
+    # y sus ASes de origen en una estructura y aplicar heurística aparte.
+    # Ver TODO más arriba
+
+    prefixes_stats_df = pd.read_csv(prefixes_stats_file, sep = ',')
+    prefixes_json_filename = '{}_prefixes.json'.format(file_name)
+    prefixes_stats_df.to_json(prefixes_json_filename, orient='index')
+    sys.stderr.write("Prefixes stats saved to JSON and CSV files successfully!\n")
+    sys.stderr.write("Files generated:\n{}\n\nand\n\n{}\n".format(prefixes_stats_file,
+                                                    prefixes_json_filename))
+    
+    if es_host != '':
+        esImporter = ElasticSearchImporter(es_host)
+        esImporter.createIndex(prefStats_ES_properties.mapping,
+                               prefStats_ES_properties.index_name)
+        numOfDocs = esImporter.ES.count(prefStats_ES_properties.index_name)['count']
+
+        prefixes_stats_df = prefixes_stats_df.fillna(-1)
+        
+        bulk_data, numOfDocs = esImporter.prepareData(prefixes_stats_df,
+                                                      prefStats_ES_properties.index_name,
+                                                      prefStats_ES_properties.doc_type,
+                                                      numOfDocs,
+                                                      prefStats_ES_properties.unique_index)
+                                            
+        dataImported = esImporter.inputData(prefStats_ES_properties.index_name,
+                                            bulk_data, numOfDocs)
+
+        if dataImported:
+            sys.stderr.write("Stats about usage of prefixes delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
+        else:
+            sys.stderr.write("Stats about usage of prefixes delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
+        
+    
+    start_time = time()
+    computeASesStats(routingStatsObj, ases_stats_file, TEMPORAL_DATA)
+    end_time = time()
+    sys.stderr.write("Stats for ASes computed successfully!\n")
+    sys.stderr.write("ASes statistics computation took {} seconds\n".format(end_time-start_time))   
+
+    if TEMPORAL_DATA:
+        routingStatsObj.db_handler.close()
+
+    ases_stats_df = pd.read_csv(ases_stats_file, sep = ',')
+    ases_json_filename = '{}_ases.json'.format(file_name)
+    ases_stats_df.to_json(ases_json_filename, orient='index')
+    sys.stderr.write("ASes stats saved to JSON and CSV files successfully!\n")
+    sys.stderr.write("Files generated:\n{}\n\nand\n\n{}\n".format(ases_stats_file,
+                                                                ases_json_filename))
+    
+    if es_host != '':
+        esImporter.createIndex(ASesStats_ES_properties.mapping,
+                               ASesStats_ES_properties.index_name)
+        numOfDocs = esImporter.ES.count(ASesStats_ES_properties.index_name)['count']
+
+        ases_stats_df = ases_stats_df.fillna(-1)
+        
+        bulk_data, numOfDocs = esImporter.prepareData(ases_stats_df,
+                                                      ASesStats_ES_properties.index_name,
+                                                      ASesStats_ES_properties.doc_type,
+                                                      numOfDocs,
+                                                      ASesStats_ES_properties.unique_index)
+                                            
+        dataImported = esImporter.inputData(ASesStats_ES_properties.index_name,
+                                            bulk_data, numOfDocs)
+
+        if dataImported:
+            sys.stderr.write("Stats about usage of ASNs delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
+        else:
+            sys.stderr.write("Stats about usage of ASNs delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
+
+          
     
 def main(argv):
     
@@ -848,8 +937,6 @@ def main(argv):
     TEMPORAL_DATA = False
     es_host = ''
     
-
-    
     try:
         opts, args = getopt.getopt(argv, "hf:r:S:E:Tkd:xp:a:4:6:B:R:U:D:",
                                         ["files_path=", "routing_file=",
@@ -867,7 +954,7 @@ def main(argv):
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: computeRoutingStats.py -h | -f <files path> [-r <routing file>] [-S <Start date>] [-E <End Date>] [-T] [-k] [-d <delegated file>] [-x] [-R <Routing date>] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -B <BGP DataFrame file> -b <BGP updates DataFrame file>] [-D <Elasticsearch Database host>]'
+            print 'Usage: computeRoutingStats.py -h | -f <files path> [-r <routing file>] [-S <Start date>] [-E <End Date>] [-T] [-k] [-d <delegated file>] [-x] [-R <Routing date>] [-p <prefixes stats file> -a <ases stats file>] [-4 <IPv4 prefixes file> -6 <IPv6 prefixes file> -B <BGP DataFrame file> -U <BGP updates DataFrame file>] [-D <Elasticsearch Database host>]'
             print 'h = Help'
             print "f = Path to folder in which Files will be saved. (MANDATORY)"
             print 'r = Work with routing data from Internet Routing data file.'
@@ -1120,91 +1207,9 @@ def main(argv):
         print "Data structures not loaded!\n"
         sys.exit()
     
-    start_time = time()
-    computePerPrefixStats(routingStatsObj, prefixes_stats_file, files_path,
-                          TEMPORAL_DATA)
-    end_time = time()
-    sys.stderr.write("Stats for prefixes computed successfully!\n")
-    sys.stderr.write("Prefixes statistics computation took {} seconds\n".format(end_time-start_time))
-    
-    if routingStatsObj.orgHeuristics is not None:        
-        routingStatsObj.orgHeuristics.dumpToPickleFiles()
-    
-        sys.stderr.write(
-            "OrgHeuristics was invoked {} times, consuming in total {} seconds.\n"\
-                .format(routingStatsObj.orgHeuristics.invokedCounter,
-                    routingStatsObj.orgHeuristics.totalTimeConsumed))
-    # TODO Si es demasiado el tiempo consumido, guardar parejas de prefijos
-    # y sus ASes de origen en una estructura y aplicar heurística aparte.
-    # Ver TODO más arriba
-
-    prefixes_stats_df = pd.read_csv(prefixes_stats_file, sep = ',')
-    prefixes_json_filename = '{}_prefixes.json'.format(file_name)
-    prefixes_stats_df.to_json(prefixes_json_filename, orient='index')
-    sys.stderr.write("Prefixes stats saved to JSON and CSV files successfully!\n")
-    sys.stderr.write("Files generated:\n{}\n\nand\n\n{}\n".format(prefixes_stats_file,
-                                                    prefixes_json_filename))
-    
-    if es_host != '':
-        esImporter = ElasticSearchImporter(es_host)
-        esImporter.createIndex(prefStats_ES_properties.mapping,
-                               prefStats_ES_properties.index_name)
-        numOfDocs = esImporter.ES.count(prefStats_ES_properties.index_name)['count']
-
-        prefixes_stats_df = prefixes_stats_df.fillna(-1)
-        
-        bulk_data, numOfDocs = esImporter.prepareData(prefixes_stats_df,
-                                                      prefStats_ES_properties.index_name,
-                                                      prefStats_ES_properties.doc_type,
-                                                      numOfDocs,
-                                                      prefStats_ES_properties.unique_index)
-                                            
-        dataImported = esImporter.inputData(prefStats_ES_properties.index_name,
-                                            bulk_data, numOfDocs)
-
-        if dataImported:
-            sys.stderr.write("Stats about usage of prefixes delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
-        else:
-            sys.stderr.write("Stats about usage of prefixes delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
-        
-    
-    start_time = time()
-    computeASesStats(routingStatsObj, ases_stats_file, TEMPORAL_DATA)
-    end_time = time()
-    sys.stderr.write("Stats for ASes computed successfully!\n")
-    sys.stderr.write("ASes statistics computation took {} seconds\n".format(end_time-start_time))   
-
-    if TEMPORAL_DATA:
-        routingStatsObj.db_handler.close()
-
-    ases_stats_df = pd.read_csv(ases_stats_file, sep = ',')
-    ases_json_filename = '{}_ases.json'.format(file_name)
-    ases_stats_df.to_json(ases_json_filename, orient='index')
-    sys.stderr.write("ASes stats saved to JSON and CSV files successfully!\n")
-    sys.stderr.write("Files generated:\n{}\n\nand\n\n{}\n".format(ases_stats_file,
-                                                                ases_json_filename))
-    
-    if es_host != '':
-        esImporter.createIndex(ASesStats_ES_properties.mapping,
-                               ASesStats_ES_properties.index_name)
-        numOfDocs = esImporter.ES.count(ASesStats_ES_properties.index_name)['count']
-
-        ases_stats_df = ases_stats_df.fillna(-1)
-        
-        bulk_data, numOfDocs = esImporter.prepareData(ases_stats_df,
-                                                      ASesStats_ES_properties.index_name,
-                                                      ASesStats_ES_properties.doc_type,
-                                                      numOfDocs,
-                                                      ASesStats_ES_properties.unique_index)
-                                            
-        dataImported = esImporter.inputData(ASesStats_ES_properties.index_name,
-                                            bulk_data, numOfDocs)
-
-        if dataImported:
-            sys.stderr.write("Stats about usage of ASNs delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
-        else:
-            sys.stderr.write("Stats about usage of ASNs delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
-
+    completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
+                             TEMPORAL_DATA, es_host, prefixes_stats_file,
+                             ases_stats_file)
         
 if __name__ == "__main__":
     main(sys.argv[1:])
