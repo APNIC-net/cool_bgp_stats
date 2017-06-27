@@ -282,54 +282,81 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                 middleASes_csv = ''
                 
                 try:
-                    prefixes_csv = generateFilesForItem('prefixes', suffix, prefixes,
-                                                        files_path, routing_date,
-                                                        dates_ready)
+                    dates_ready, prefixes_csv = generateFilesForItem('prefixes',
+                                                                     suffix,
+                                                                     prefixes,
+                                                                     files_path,
+                                                                     routing_date,
+                                                                     dates_ready)
                     
                 except KeyboardInterrupt:
                     sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-                    prefixes_csv = generateFilesForItem('prefixes', suffix, prefixes,
-                                                        files_path, routing_date,
-                                                        dates_ready)
+                    dates_ready, prefixes_csv = generateFilesForItem('prefixes',
+                                                                     suffix,
+                                                                     prefixes,
+                                                                     files_path,
+                                                                     routing_date,
+                                                                     dates_ready)
                                                                 
-                    originASes_csv = generateFilesForItem('originASes', suffix,
-                                                          originASes, files_path,
-                                                          routing_date, dates_ready)
+                    dates_ready, originASes_csv = generateFilesForItem('originASes',
+                                                                       suffix,
+                                                                       originASes,
+                                                                       files_path,
+                                                                       routing_date,
+                                                                       dates_ready)
     
-                    middleASes_csv = generateFilesForItem('middleASes', suffix,
-                                                          middleASes, files_path,
-                                                          routing_date, dates_ready)
+                    dates_ready, middleASes_csv = generateFilesForItem('middleASes',
+                                                                       suffix,
+                                                                       middleASes,
+                                                                       files_path,
+                                                                       routing_date,
+                                                                       dates_ready)
                             
                     sys.exit(0)
             
     
                 try:
-                    originASes_csv = generateFilesForItem('originASes', suffix,
-                                                          originASes, files_path,
-                                                          routing_date, dates_ready)
+                    dates_ready, originASes_csv = generateFilesForItem('originASes',
+                                                                       suffix,
+                                                                       originASes,
+                                                                       files_path,
+                                                                       routing_date,
+                                                                       dates_ready)
             
                 except KeyboardInterrupt:
                     sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-                    originASes_csv = generateFilesForItem('originASes', suffix,
-                                                          originASes, files_path,
-                                                          routing_date, dates_ready)
+                    dates_ready, originASes_csv = generateFilesForItem('originASes',
+                                                                       suffix,
+                                                                       originASes,
+                                                                       files_path,
+                                                                       routing_date,
+                                                                       dates_ready)
                     
-                    middleASes_csv = generateFilesForItem('middleASes', suffix,
-                                                          middleASes, files_path,
-                                                          routing_date, dates_ready)
+                    dates_ready, middleASes_csv = generateFilesForItem('middleASes',
+                                                                       suffix,
+                                                                       middleASes,
+                                                                       files_path,
+                                                                       routing_date,
+                                                                       dates_ready)
             
                     sys.exit(0)
             
                 try:
-                    middleASes_csv = generateFilesForItem('middleASes', suffix,
-                                                          middleASes, files_path,
-                                                          routing_date, dates_ready)
+                    dates_ready, middleASes_csv = generateFilesForItem('middleASes',
+                                                                       suffix,
+                                                                       middleASes,
+                                                                       files_path,
+                                                                       routing_date,
+                                                                       dates_ready)
             
                 except KeyboardInterrupt:
                     sys.stdout.write('Keyboard Interrupt received. Files for current routing file will be generated before aborting.')
-                    middleASes_csv = generateFilesForItem('middleASes', suffix,
-                                                          middleASes, files_path,
-                                                          routing_date, dates_ready)
+                    dates_ready, middleASes_csv = generateFilesForItem('middleASes',
+                                                                       suffix,
+                                                                       middleASes,
+                                                                       files_path,
+                                                                       routing_date,
+                                                                       dates_ready)
     
                     sys.exit(0)
 
