@@ -24,7 +24,7 @@ from BGPDataHandler import BGPDataHandler
 from netaddr import IPNetwork
 import pandas as pd
 import subprocess, shlex
-from datetime import datetime
+from datetime import datetime, date
 from ElasticSearchImporter import ElasticSearchImporter
 import updatesStats_ES_properties
 import deaggStats_ES_properties
@@ -44,7 +44,6 @@ class StabilityAndDeagg:
         p = subprocess.Popen(cmd_echo, stdout=subprocess.PIPE)
         output = subprocess.check_output(cmd, stdin=p.stdout)
         return datetime.strptime(output.split(',')[1], '%Y%m%d').date()
-#        return datetime.today().date()
         
     def computeUpdatesStats(self, updates_df, stats_file):
         if updates_df.shape[0] > 0:
@@ -173,32 +172,30 @@ class StabilityAndDeagg:
 
 def main(argv):
     DEBUG = False
-    files_path = ''
-    routing_file = ''
-    updates_file = ''
+    files_path = '/home/sofia/BGP_stats_files'
+    routing_date = None
     es_host = ''
     
     # For DEBUG
     DEBUG = True
     files_path = '/Users/sofiasilva/BGP_files'
-    routing_file = '/Users/sofiasilva/BGP_files/2017-05-01.bgprib.readable' 
-    updates_file = '/Users/sofiasilva/BGP_files/2017-05-01_test.bgpupd.readable'
- 
+    routing_date = date.today()
     
     try:
-        opts, args = getopt.getopt(argv, "hp:DE:", ["files_path=", "ElasticSearch_host=",])
+        opts, args = getopt.getopt(argv, "hp:R:DE:", ["files_path=",
+                                                      "Routing_date=",
+                                                      "ElasticSearch_host=",])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -p <files path> -R <Routing file> -U <BGP Updates file> [-D] [-E <ElasticSearch host>]'.format(sys.argv[0])
+        print 'Usage: {} -h | -p <files path> -R <Routing date> [-D] [-E <ElasticSearch host>]'.format(sys.argv[0])
         sys.exit(-1)
         
     for opt, arg in opts:
         if opt == '-h':
             print "This script loads two tables with data about daily BGP updates and deaggregation in the BGP routing table."
-            print 'Usage: {} -h | -p <files path> -R <Routing file> -U <BGP Updates file> [-D] [-E <ElasticSearch host>]'.format(sys.argv[0])
+            print 'Usage: {} -h | -p <files path> -R <Routing date> [-D] [-E <ElasticSearch host>]'.format(sys.argv[0])
             print "h: Help"
             print "p: Path to folder in which files will be saved. (MANDATORY)"
-            print "R: Path to the routing file to be used. Can be an mrt or a dmp file. Can be a compressed file with extension .gz (MANDATORY)"
-            print "U: Path to the file with BGP updates to be used. Must be a bgpupd.mrt file. Can be a compressed file with extension .gz (MANDATORY)"
+            print "R: Routing date for the stats to be computed in format YYYYMMDD. If not provided, stats will be computed for the day before today."
             print "D: Debug mode. Use this option if you want the script to run in debug mode."
             print "E: Insert compute statistics into ElasticSearch. The hostname of the ElasticSearch host MUST be provided if this option is used."
         elif opt == '-p':
@@ -209,15 +206,9 @@ def main(argv):
                 sys.exit(-1)
         elif opt == '-R':
             if arg != '':
-                routing_file = os.path.abspath(arg)
+                routing_date = datetime.strptime(arg, '%Y%m%d')
             else:
-                print "If option -R is used, the path to the routing file to be used MUST be provided."
-                sys.exit(-1)
-        elif opt == '-U':
-            if arg != '':
-                updates_file = os.path.abspath(arg)
-            else:
-                print "If option -U is used, the path to the file with BGP updates to be used MUST be provided."
+                print "If option -R is used, the routing date for which stats will be computed MUST be provided."
                 sys.exit(-1)
         elif opt == '-D':
             DEBUG = True
@@ -230,12 +221,8 @@ def main(argv):
         else:
             assert False, 'Unhandled option'
     
-    if files_path == '' or routing_file == '' or updates_file == '':
-        print "You MUST provide the corresponding paths using options -p, -R and -U."
-        sys.exit(-1)
-    
-    StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, updates_file,
-                                               routing_file, es_host)
+    StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, routing_date,
+                                               es_host)
 
     StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats(DEBUG,
                                                                      files_path)

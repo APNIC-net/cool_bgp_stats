@@ -241,6 +241,10 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
     if data_type == 'visibility':
         routing_date = getDateFromFile(routing_file, output_file, bgp_handler)
 
+        prefixes_csv = ''
+        originASes_csv = ''
+        middleASes_csv = ''
+        
         if routing_date is not None:
             if routing_date.year == 1970:
                 os.remove(routing_file)
@@ -276,10 +280,6 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                                     bgp_handler.getPrefixesASesAndDate(routing_file)
                 end = time()
                 sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
-                
-                prefixes_csv = ''
-                originASes_csv = ''
-                middleASes_csv = ''
                 
                 try:
                     dates_ready, prefixes_csv = generateFilesForItem('prefixes',
