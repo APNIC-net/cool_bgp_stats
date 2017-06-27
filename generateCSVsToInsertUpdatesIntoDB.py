@@ -16,6 +16,8 @@ yearsForProcNums = {1:[2007, 2008, 2009], 2:[2010, 2011], 3:[2012, 2013],
                     4:[2014, 2015], 5:[2016, 2017]}
                         
 def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_file):
+    sys.stdout.write('Starting to work with file {}\n'.format(updates_file))
+    
     filename = updates_file.split('/')[-1]
     csv_file = '{}/{}.csv'.format(files_path, filename)
     
