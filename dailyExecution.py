@@ -108,7 +108,8 @@ subprocess.call(cmd)
 
 # Computation of stats about updates rate and probability of deaggregation
 
-readable_routing_file = '{}/{}-{}-{}.bgprib.readable'.format(date_to_work_with.year,
+readable_routing_file = '{}/{}-{}-{}.bgprib.readable'.format(files_path,
+                                                            date_to_work_with.year,
                                                             date_to_work_with.strftime('%m'),
                                                             date_to_work_with.strftime('%d'))
  
