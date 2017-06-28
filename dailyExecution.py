@@ -107,6 +107,7 @@ cmd = shlex.split('psql -U postgres -f {}'.format(sql_file))
 subprocess.call(cmd)
 
 # Computation of stats about updates rate and probability of deaggregation
+log.write('{}: Starting to compute stats about the updates rates and the probability of deaggregation.\n'.format(datetime.now()))
 
 readable_routing_file = '{}/{}-{}-{}.bgprib.readable'.format(files_path,
                                                             date_to_work_with.year,
@@ -184,3 +185,5 @@ log.write('{}: Removing updates CSV.\n'.format(datetime.now(), updates_csv))
 os.remove(updates_csv)
 log.write('{}: Removing SQL file.\n'.format(datetime.now(), sql_file))
 os.remove(sql_file)
+
+log.close()
