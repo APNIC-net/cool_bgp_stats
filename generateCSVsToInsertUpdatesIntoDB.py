@@ -67,12 +67,17 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
                 p.communicate()
                 
 #       2015/08/01 00:01:31 debugging: BGP: 202.12.28.1 rcvd UPDATE about 199.60.233.0/24 — withdrawn
-        withdrawals_df = pd.read_csv(withdrawals_file, header=None, sep=' ',\
-                                index_col=False, usecols=[0,1,4,8],\
-                                names=['update_date',
-                                        'update_time',
-                                        'bgp_neighbor',
-                                        'prefix'])
+        # We first get a TextFileReader to read the file in chunks (in case it is too big)
+        withdrawals_reader = pd.read_csv(withdrawals_file, iterator=True,
+                                         chunksize=1000, header=None, sep=' ',
+                                         index_col=False, usecols=[0,1,4,8],
+                                         names=['update_date',
+                                                'update_time',
+                                                'bgp_neighbor',
+                                                'prefix'])
+        
+        # We then put the chunks into a single DataFrame
+        withdrawals_df = pd.concat(withdrawals_reader, ignore_index = True)
                                         
         withdrawals_df['upd_type'] = 'W'
         withdrawals_df['peerAS'] = -1
@@ -174,12 +179,16 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
     return csv_file
     
 def getDF(filtered_file, upd_type, updates_file):
-    df_from_file = pd.read_csv(filtered_file, header=None, sep='|',
-                               index_col=False, usecols=[1,3,4,5],
-                               names=['timestamp',
-                                        'bgp_neighbor',
-                                        'peerAS',
-                                        'prefix'])
+    # We first get a TextFileReader to read the file in chunks (in case it is too big)
+    file_reader = pd.read_csv(filtered_file, iterator=True, chunksize=1000,
+                              header=None, sep='|', index_col=False,
+                              usecols=[1,3,4,5], names=['timestamp',
+                                                        'bgp_neighbor',
+                                                        'peerAS',
+                                                        'prefix'])
+
+    # We then put the chunks into a single DataFrame                                    
+    df_from_file = pd.concat(file_reader, ignore_index=True)
         
     if df_from_file.shape[0] > 0:
         df_from_file['upd_type'] = upd_type
