@@ -58,11 +58,6 @@ class StabilityAndDeagg:
         
     def computeUpdatesStats(self, updates_df, stats_file):
         if updates_df.shape[0] > 0:
-            updates_df['update_date'] = updates_df.apply(lambda row:\
-                                                    datetime.utcfromtimestamp(\
-                                                    row['timestamp']).date(),\
-                                                    axis=1)
-                                                     
             for prefix, prefix_subset in updates_df.groupby('prefix'):
                 del_date = self.getDelegationDate(prefix)
                 network = IPNetwork(prefix)
@@ -274,10 +269,7 @@ def main(argv):
     StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, routing_date,
                                                routing_file, es_host)
 
-    StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats()
-    
-    # TODO Agregar la posibilidad de que el usuario pase un routing file para usar un readable disponible
-    
+    StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats()    
         
 if __name__ == "__main__":
     main(sys.argv[1:])

@@ -412,7 +412,7 @@ class DBHandler:
                                 routing files\n")
             return dict()
             
-    def getUpdatesFD(self, updates_date):
+    def getUpdatesDF(self, updates_date):
         try:
             engine = sq.create_engine("postgresql+psycopg2://{}@{}/{}"\
                                     .format(self.user, self.host, self.dbname))

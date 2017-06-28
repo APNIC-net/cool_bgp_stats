@@ -203,13 +203,12 @@ class BGPDataHandler:
         
         aux_date = datetime.strptime('1970', '%Y').date()
 
-        if files_date != aux_date and files_date is not None:                    
+        if files_date != aux_date and files_date is not None:
+            routing_loaded = True
+            
             self.routingDate = files_date
             
-            updates_df = self.getUpdatesDataFromDB(files_date)
-            
-            if updates_df.shape[0] != 0:
-                self.updates_df = updates_df
+            updates_loaded = self.loadUpdatesDF(files_date)
 
         if bgp_df.shape[0] != 0:
             self.bgp_df = bgp_df
@@ -229,16 +228,18 @@ class BGPDataHandler:
             self.ipv6_longest_pref = ipv6_longest_pref
         else:
             self.ipv6_longest_pref = 64
-            
-        sys.stdout.write("Class data structures were loaded successfully!\n")
-            
-        return True
+
+        if routing_loaded and updates_loaded:            
+            sys.stdout.write("Class data structures were loaded successfully!\n")            
+            return True
+        else:
+            return False
         
     # This function gets all the updates for the specified date from the DB
     # and loads the updates_df class variable with them.
     def loadUpdatesDF(self, updates_date):
         db_handler = DBHandler('')
-        self.updates_df = db_handler.getUpdatesFD(updates_date)
+        self.updates_df = db_handler.getUpdatesDF(updates_date)
         db_handler.close()
         return True        
 
