@@ -204,7 +204,7 @@ def generateFilesForItem(item_name, suffix, item_list, files_path,\
             writeCSVfiles(file_path, tuples)
         
             end = time()
-            sys.stdout.write('It took {} seconds to generate the CSV and CTL files for the insertion of {} ({}) for {}.\n'.format(end-start, item_name, suffix, routing_date))
+            sys.stdout.write('It took {} seconds to generate the CSV files for the insertion of {} ({}) for {}.\n'.format(end-start, item_name, suffix, routing_date))
         
             if routing_date not in dates_ready:
                 dates_ready[routing_date] = dict()
@@ -467,6 +467,10 @@ def getCompleteDatesSet(proc_num):
                         4:[2014, 2015], 5:[2016, 2017]}
     initial_date = date(yearsForProcNums[proc_num][0], 1, 1)
     final_date = date(yearsForProcNums[proc_num][-1], 12, 31)
+    
+    if final_date > date.today():
+        final_date = date.today()
+        
     numOfDays = (final_date - initial_date).days
     return set([final_date - timedelta(days=x) for x in range(0, numOfDays)])
     
