@@ -58,7 +58,7 @@ class DelegatedHandler:
         AP_regions = ['Eastern Asia', 'Oceania', 'Southern Asia', 'South-Eastern Asia']
         res_types = ['asn', 'ipv4', 'ipv6']
         
-        if not DEBUG:
+        if not os.path.exists(del_file):
             get_file(download_url, del_file)
             
         delegated_df = pd.read_csv(
