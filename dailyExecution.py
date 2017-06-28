@@ -5,6 +5,7 @@ Created on Fri Jun 23 15:43:32 2017
 @author: sofiasilva
 
 This script inserts visibility, routing and updates data into the DB.
+Then computes daily statistics about the update rate and the probability of deaggregation .
 Then instantiates the BulkWHOISParser class in order to download the bulk WHOIS
 files and load all the needed structures for the OrgHeuristics.
 Finally, it computes the statistics about routing for yesterday.
@@ -16,6 +17,7 @@ import shlex, subprocess
 from BulkWHOISParser import BulkWHOISParser
 from BGPDataHandler import BGPDataHandler
 from RoutingStats import RoutingStats
+from StabilityAndDeaggDailyStats import StabilityAndDeagg
 from computeRoutingStats import completeStatsComputation
 from generateCSVsToInsertIntoDB import generateFilesFromRoutingFile
 from generateCSVsToInsertUpdatesIntoDB import generateCSVFromUpdatesFile
@@ -104,6 +106,19 @@ log.write('{}: SQL file generated. Inserting into the DB.\n'.format(datetime.now
 cmd = shlex.split('psql -U postgres -f {}'.format(sql_file))
 subprocess.call(cmd)
 
+# Computation of stats about updates rate and probability of deaggregation
+
+readable_routing_file = '{}/{}-{}-{}.bgprib.readable'.format(date_to_work_with.year,
+                                                            date_to_work_with.strftime('%m'),
+                                                            date_to_work_with.strftime('%d'))
+ 
+es_host = 'twerp.rand.apnic.net'
+                  
+StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, date_to_work_with,
+                                           readable_routing_file, es_host)
+
+StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats() 
+
 # Instantiation of the BulkWHOISParser class
 log.write('{}: Executing BulkWHOISParser.\n'.format(datetime.now()))
 BulkWHOISParser(files_path, DEBUG)
@@ -128,11 +143,7 @@ routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
                                     ases_stats_file, TEMPORAL_DATA)
 
 log.write('{}: Loading structures.\n'.format(datetime.now()))
-                            
-readable_routing_file = '{}/{}-{}-{}.bgprib.readable'.format(date_to_work_with.year,
-                                                            date_to_work_with.strftime('%m'),
-                                                            date_to_work_with.strftime('%d'))
-                                                            
+                                                                     
 loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(readable_routing_file)
 
 if loaded:
@@ -146,7 +157,6 @@ dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
 dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
 
 file_name = '%s/routing_stats_%s' % (files_path, dateStr)
-es_host = 'twerp.rand.apnic.net'
 
 log.write('{}: Starting actual computation of routing stats.\n'.format(datetime.now()))
 completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
