@@ -74,15 +74,15 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
         routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
         
         if routing_date is not None and (routing_date not in dates_ready or\
-        data_type == 'visibility' and (routing_date in dates_ready and\
+        (data_type == 'visibility' and (routing_date in dates_ready and\
         ('prefixes' not in dates_ready[routing_date] or\
         not dates_ready[routing_date]['prefixes']['v6'] or\
         'originASes' not in dates_ready[routing_date] or\
         not dates_ready[routing_date]['originASes']['v6'] or\
         'middleASes' not in dates_ready[routing_date] or\
-        not dates_ready[routing_date]['middleASes']['v6'])) or\
-        data_type == 'routing' and routing_date in dates_ready and\
-        not dates_ready[routing_date]['routing_v6']):
+        not dates_ready[routing_date]['middleASes']['v6']))) or\
+        (data_type == 'routing' and routing_date in dates_ready and\
+        not dates_ready[routing_date]['routing_v6'])):
             dates_ready, csv_files = generateFilesFromRoutingFile(files_path,
                                                                    readable_file,
                                                                    bgp_handler,
@@ -98,15 +98,15 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
             routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
 
             if routing_date is not None and (routing_date not in dates_ready or\
-            data_type == 'visibility' and (routing_date in dates_ready and\
+            (data_type == 'visibility' and (routing_date in dates_ready and\
             ('prefixes' not in dates_ready[routing_date] or\
             not dates_ready[routing_date]['prefixes']['v4'] or\
             'originASes' not in dates_ready[routing_date] or\
             not dates_ready[routing_date]['originASes']['v4'] or\
             'middleASes' not in dates_ready[routing_date] or\
-            not dates_ready[routing_date]['middleASes']['v4'])) or\
-            data_type == 'routing' and routing_date in dates_ready and\
-            not dates_ready[routing_date]['routing_v4']):
+            not dates_ready[routing_date]['middleASes']['v4']))) or\
+            (data_type == 'routing' and routing_date in dates_ready and\
+            not dates_ready[routing_date]['routing_v4'])):
                 dates_ready, csv_files = generateFilesFromRoutingFile(files_path,
                                                                        readable_file,
                                                                        bgp_handler,
