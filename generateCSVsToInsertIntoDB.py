@@ -91,9 +91,9 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
                                                                    output_file,
                                                                    archive_folder)
 
+    # We look for the format used for readable files that come from dmp.gz files
+    pattern = re.compile('.*20[0,1][0-9]-[0,1][0-9]-[0-3][0-9].dmp.readable$')
     for readable_file in glob('{}/*.dmp.readable'.format(readables_path)):
-        # We look for the format used for readable files that come from dmp.gz files
-        pattern = re.compile('.*20[0,1][0-9]-[0,1][0-9]-[0-3][0-9].dmp.readable$')
         if pattern.match(readable_file) is not None:
             routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
 
@@ -126,10 +126,6 @@ def generateFilesFromOtherRoutingFiles(archive_folder, data_type, dates_ready,
                         
     if extension == 'bgprib.mrt':
         suffix = 'v4andv6'
-    elif extension == 'v6.dmp.gz':
-        suffix = 'v6'
-    elif extension == 'dmp.gz':
-        suffix = 'v4'
 
     # Routing files in the archive folder for dates that haven't been
     # inserted into the DB yet
@@ -138,6 +134,11 @@ def generateFilesFromOtherRoutingFiles(archive_folder, data_type, dates_ready,
             if filename.endswith(extension):
                 file_date = getDateFromFileName(filename)
                 
+                if extension == 'dmp.gz':
+                    if 'v6' in filename:
+                        suffix = 'v6'
+                    else:
+                        suffix = 'v4'
     
                 # For paralelization we check for the year of the file, so that
                 # different files are processed by different scripts
@@ -412,6 +413,7 @@ def getDateFromReadableFile(file_path, output_file):
         
         try:
             timestamp = float(first_line.split('|')[1])
+            return datetime.utcfromtimestamp(timestamp).date()
         except IndexError:
             timestamp = ''
             for i in range(5):
@@ -481,7 +483,6 @@ def main(argv):
     proc_num = -1
     data_type = 'visibility'
     DEBUG = False
-    
 
     try:
         opts, args = getopt.getopt(argv,"ht:A:f:n:D", ['data_type=', 'archive_folder=', 'procNumber=', 'routingFile=',])
@@ -634,8 +635,7 @@ def main(argv):
             for ex_date in existing_dates_v4andv6:
                 if ex_date not in dates_ready:
                     dates_ready[ex_date] = defaultdict(bool)
-                dates_ready[ex_date]['routing_v4'] = True
-                dates_ready[ex_date]['routing_v6'] = True
+                dates_ready[ex_date]['routing_v4andv6'] = True
                 
         db_handler.close()
                          
@@ -644,13 +644,10 @@ def main(argv):
         dates_ready = getDatesOfExistingCSVs(files_path, data_type, dates_ready)
 
         sys.stdout.write('Starting to generate CSV files from readable files\n')
-        dates_ready = generateFilesFromReadables(readables_path,
-                                                                  data_type,
-                                                                  dates_ready,
-                                                                  files_path,
-                                                                  bgp_handler,
-                                                                  output_file,
-                                                                  archive_folder)
+        dates_ready = generateFilesFromReadables(readables_path, data_type,
+                                                 dates_ready, files_path,
+                                                 bgp_handler, output_file,
+                                                 archive_folder)
 
         sys.stdout.write('Starting to generate CSV files from bgprib.mrt files\n')
         dates_ready = generateFilesFromOtherRoutingFiles(\
