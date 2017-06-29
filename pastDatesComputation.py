@@ -34,11 +34,13 @@ def getReadableForRoutingFile(routing_file, readables_folder):
     else:
         return ''
 
-def computationForDate(routing_date, DEBUG, files_path, readables_folder, log):    
-    # Computation of routing stats
-    log.write('{}: Starting computation of routing stats.\n'.format(datetime.now()))
-    log.write('{}: Initializing variables and classes.\n'.format(datetime.now()))
+def computationForDate(routing_date, DEBUG, files_path, readables_folder,
+                       ROUTING, STABILITY):    
+
+    sys.stdout.write('{}: Initializing variables and classes.\n'.format(datetime.now()))
     
+    es_host = 'twerp.rand.apnic.net'
+
     KEEP = False
     EXTENDED = True
     del_file = '{}/extended_apnic_{}.txt'.format(files_path, date.today())
@@ -94,7 +96,7 @@ def computationForDate(routing_date, DEBUG, files_path, readables_folder, log):
     elif 'dmp.gz' in available_routing_files:
         # If there is only one of the dmp files available, I will work with it
         # but I'll print a message to the log
-        log.write('Only the dmp.gz file is available for date {}. Computing stats only for IPv4.\n'.format(routing_date))
+        sys.stdout.write('Only the dmp.gz file is available for date {}. Computing stats only for IPv4.\n'.format(routing_date))
         
         dmp_file = available_routing_files['dmp.gz']
         # If I already have a readable file, I use it
@@ -108,7 +110,7 @@ def computationForDate(routing_date, DEBUG, files_path, readables_folder, log):
     elif 'v6.dmp.gz' in available_routing_files:
         # If there is only one of the dmp files available, I will work with it
         # but I'll print a message to the log
-        log.write('Only the v6.dmp.gz file is available for date {}. Computing stats only for IPv6.\n'.format(routing_date))
+        sys.stdout.write('Only the v6.dmp.gz file is available for date {}. Computing stats only for IPv6.\n'.format(routing_date))
         
         v6dmp_file = available_routing_files['v6.dmp.gz']
         # If I already have a readable file, I use it
@@ -121,38 +123,42 @@ def computationForDate(routing_date, DEBUG, files_path, readables_folder, log):
     
     else:
         # This should never happen. At least one routing file for a date must be available
-        log.write('No routing file is available for date {}\n'.format(routing_date))
+        sys.stdout.write('No routing file is available for date {}\n'.format(routing_date))
         return False
         
-    log.write('{}: Loading structures.\n'.format(datetime.now()))
-                                                                         
-    loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(routing_file)
+    sys.stdout.write('{}: Working with routing file {}\n'.format(datetime.now(), routing_file))
     
-    if loaded:
-        loaded = routingStatsObj.bgp_handler.loadUpdatesDF(routing_date)
-    
-    if not loaded:
-        log.write('{}: Data structures not loaded! Aborting.\n'.format(datetime.now()))
-        sys.exit()
-    
-    dateStr = 'Delegated_BEFORE{}'.format(routing_date)
-    dateStr = '{}_AsOf{}'.format(dateStr, routing_date)
-    
-    file_name = '%s/routing_stats_%s' % (files_path, dateStr)
-    
-    log.write('{}: Starting actual computation of routing stats.\n'.format(datetime.now()))
-    es_host = 'twerp.rand.apnic.net'
-    completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
-                                 TEMPORAL_DATA, es_host, prefixes_stats_file,
-                                 ases_stats_file)
-                                 
-    # Computation of stats about updates rate and probability of deaggregation
-    log.write('{}: Starting to compute stats about the updates rates and the probability of deaggregation.\n'.format(datetime.now()))
-                   
-    StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, routing_date,
-                                               routing_file, es_host)
-    
-    StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats()
+    if ROUTING:    
+        # Computation of routing stats
+        sys.stdout.write('{}: Loading structures.\n'.format(datetime.now()))
+                                                                             
+        loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(routing_file)
+        
+        if loaded:
+            loaded = routingStatsObj.bgp_handler.loadUpdatesDF(routing_date)
+        
+        if not loaded:
+            sys.stdout.write('{}: Data structures not loaded! Aborting.\n'.format(datetime.now()))
+            sys.exit()
+        
+        dateStr = 'Delegated_BEFORE{}'.format(routing_date)
+        dateStr = '{}_AsOf{}'.format(dateStr, routing_date)
+        
+        file_name = '%s/routing_stats_%s' % (files_path, dateStr)
+        
+        sys.stdout.write('{}: Starting actual computation of routing stats.\n'.format(datetime.now()))
+        completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
+                                     TEMPORAL_DATA, es_host, prefixes_stats_file,
+                                     ases_stats_file)
+        
+    if STABILITY:                    
+        # Computation of stats about updates rate and probability of deaggregation
+        sys.stdout.write('{}: Starting to compute stats about the updates rates and the probability of deaggregation.\n'.format(datetime.now()))
+                       
+        StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, routing_date,
+                                                   routing_file, es_host)
+        
+        StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats()
     
     return True
 
@@ -172,13 +178,17 @@ def getCompleteDatesSet(proc_num):
 def main(argv):
     DEBUG = False
     files_path = '/home/sofia/past_dates_computation'
+    ROUTING = False
+    STABILITY = False
 
     try:
-        opts, args = getopt.getopt(argv,"hp:n:D", ['files_path=', 'procNumber=',])
+        opts, args = getopt.getopt(argv,"hp:n:RSD", ['files_path=', 'procNumber=',])
     except getopt.GetoptError:
         print 'Usage: {} -h | -p <files_path> -n <process number> [-D]'.format(sys.argv[0])
         print "p: Files path. Path to a folder in which generated files will be saved."
         print "n: Provide a process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
+        print "R: Routing stats. Use this option if you want the routing stats to be computed."
+        print "S: Stability and Deaggregation stats. Use this options if you want the stats about update rates and probability of deaggregation to be computed."
         print "D: DEBUG mode"
         sys.exit()
 
@@ -187,6 +197,8 @@ def main(argv):
             print 'Usage: {} -h | -p <files_path> -n <process number> [-D]'.format(sys.argv[0])
             print "p: Files path. Path to a folder in which generated files will be saved."
             print "n: Provide a process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
+            print "R: Routing stats. Use this option if you want the routing stats to be computed."
+            print "S: Stability and Deaggregation stats. Use this options if you want the stats about update rates and probability of deaggregation to be computed."
             print "D: DEBUG mode"
             sys.exit()
         elif opt == '-p':
@@ -203,19 +215,23 @@ def main(argv):
             except ValueError:
                 print "The process number MUST be a number."
                 sys.exit(-1)
+        elif opt == '-R':
+            ROUTING = True
+        elif opt == '-S':
+            STABILITY = True
         elif opt == '-D':
             DEBUG = True
         else:
             assert False, 'Unhandled option'
-    
-    log_file = '{}/pastDatesComputation_{}_{}.log'.format(files_path, proc_num, date.today())
-    log = open(log_file, 'w')
+            
+    if not ROUTING and not STABILITY:
+        print "None of the options -R or -S were provided. Exiting without computing any stats."
+        sys.exit(0)
     
     readables_folder = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
 
     dates_set = getCompleteDatesSet(proc_num)
     
     for past_date in dates_set:
-        computationForDate(past_date, DEBUG, files_path, readables_folder, log)
-        
-    log.close()
+        computationForDate(past_date, DEBUG, files_path, readables_folder,
+                           ROUTING, STABILITY)
