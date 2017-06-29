@@ -29,11 +29,10 @@ archive_folder = '/data/wattle/bgplog'
 
 today = date.today()
 date_to_work_with = today - timedelta(1)
-log_file = '{}/dailyInsertionsFor{}.log'.format(files_path, date_to_work_with)
-log = open(log_file, 'w')
+log_file = '{}/dailyExecution_{}.log'.format(files_path, date_to_work_with)
 
 # Insertion of visibility, routing and updates data into the DB
-log.write('{}: Starting generating CSV files for insertion of visibility, routing and updates data into the DB.\n'.format(datetime.now()))
+sys.stdout.write('{}: Starting generating CSV files for insertion of visibility, routing and updates data into the DB.\n'.format(datetime.now()))
 
 bgp_handler = BGPDataHandler(DEBUG, files_path)
 
@@ -85,7 +84,7 @@ updates_file = '{}.bgpupd.mrt'.format(file_name)
 updates_csv = generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler,
                                          log_file)
                                          
-log.write('{}: Finished generating CSV files. Starting generating SQL file for insertion of visibility, routing and updates data into the DB.\n'.format(datetime.now()))
+sys.stdout.write('{}: Finished generating CSV files. Starting generating SQL file for insertion of visibility, routing and updates data into the DB.\n'.format(datetime.now()))
 
 sql_file = '{}/dailyInsertion_{}.sql'.format(files_path, date_to_work_with)
 
@@ -101,13 +100,13 @@ with open(sql_file, 'w') as sql_f:
                             bgp_neighbor, peeras, prefix, source_file) from
                             '{}' WITH (FORMAT csv);\n'''.format(updates_csv))
 
-log.write('{}: SQL file generated. Inserting into the DB.\n'.format(datetime.now()))
+sys.stdout.write('{}: SQL file generated. Inserting into the DB.\n'.format(datetime.now()))
 
 cmd = shlex.split('psql -U postgres -f {}'.format(sql_file))
 subprocess.call(cmd)
 
 # Computation of stats about updates rate and probability of deaggregation
-log.write('{}: Starting to compute stats about the updates rates and the probability of deaggregation.\n'.format(datetime.now()))
+sys.stdout.write('{}: Starting to compute stats about the updates rates and the probability of deaggregation.\n'.format(datetime.now()))
 
 readable_routing_file = '{}/{}-{}-{}.bgprib.readable'.format(files_path,
                                                             date_to_work_with.year,
@@ -122,12 +121,12 @@ StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, date_to_work_with,
 StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats() 
 
 # Instantiation of the BulkWHOISParser class
-log.write('{}: Executing BulkWHOISParser.\n'.format(datetime.now()))
+sys.stdout.write('{}: Executing BulkWHOISParser.\n'.format(datetime.now()))
 BulkWHOISParser(files_path, DEBUG)
 
 # Computation of routing stats
-log.write('{}: Starting computation of routing stats.\n'.format(datetime.now()))
-log.write('{}: Initializing variables and classes.\n'.format(datetime.now()))
+sys.stdout.write('{}: Starting computation of routing stats.\n'.format(datetime.now()))
+sys.stdout.write('{}: Initializing variables and classes.\n'.format(datetime.now()))
 
 KEEP = False
 EXTENDED = True
@@ -144,7 +143,7 @@ routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
                                     final_existing_date, prefixes_stats_file,
                                     ases_stats_file, TEMPORAL_DATA)
 
-log.write('{}: Loading structures.\n'.format(datetime.now()))
+sys.stdout.write('{}: Loading structures.\n'.format(datetime.now()))
                                                                      
 loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(readable_routing_file)
 
@@ -152,7 +151,7 @@ if loaded:
     loaded = routingStatsObj.bgp_handler.loadUpdatesDF(routingStatsObj.bgp_handler.routingDate)
 
 if not loaded:
-    log.write('{}: Data structures not loaded! Aborting.\n'.format(datetime.now()))
+    sys.stdout.write('{}: Data structures not loaded! Aborting.\n'.format(datetime.now()))
     sys.exit()
 
 dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
@@ -160,30 +159,28 @@ dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
 
 file_name = '%s/routing_stats_%s' % (files_path, dateStr)
 
-log.write('{}: Starting actual computation of routing stats.\n'.format(datetime.now()))
+sys.stdout.write('{}: Starting actual computation of routing stats.\n'.format(datetime.now()))
 completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
                              TEMPORAL_DATA, es_host, prefixes_stats_file,
                              ases_stats_file)
 
 
-log.write('{}: Cleaning up.\n'.format(datetime.now()))
+sys.stdout.write('{}: Cleaning up.\n'.format(datetime.now()))
 
-log.write('{}: Removing readable file {}.\n'.format(datetime.now(), readable_routing_file))
+sys.stdout.write('{}: Removing readable file {}.\n'.format(datetime.now(), readable_routing_file))
 os.remove(readable_routing_file)
 
-log.write('{}: Removing visibility CSVs {}.\n'.format(datetime.now(), visibility_csvs))
+sys.stdout.write('{}: Removing visibility CSVs {}.\n'.format(datetime.now(), visibility_csvs))
 for csv in visibility_csvs:
     os.remove(csv)
 
-log.write('{}: Removing BGPRIB routing CSV.\n'.format(datetime.now(), routing_bgprib_csv))
+sys.stdout.write('{}: Removing BGPRIB routing CSV.\n'.format(datetime.now(), routing_bgprib_csv))
 os.remove(routing_bgprib_csv)
-log.write('{}: Removing DMP routing CSV.\n'.format(datetime.now(), routing_dmp_csv))
+sys.stdout.write('{}: Removing DMP routing CSV.\n'.format(datetime.now(), routing_dmp_csv))
 os.remove(routing_dmp_csv)
-log.write('{}: Removing v6 DMP routing CSV.\n'.format(datetime.now(), routing_v6dmp_csv))
+sys.stdout.write('{}: Removing v6 DMP routing CSV.\n'.format(datetime.now(), routing_v6dmp_csv))
 os.remove(routing_v6dmp_csv)
-log.write('{}: Removing updates CSV.\n'.format(datetime.now(), updates_csv))
+sys.stdout.write('{}: Removing updates CSV.\n'.format(datetime.now(), updates_csv))
 os.remove(updates_csv)
-log.write('{}: Removing SQL file.\n'.format(datetime.now(), sql_file))
+sys.stdout.write('{}: Removing SQL file.\n'.format(datetime.now(), sql_file))
 os.remove(sql_file)
-
-log.close()
