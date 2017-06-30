@@ -819,6 +819,7 @@ class BGPDataHandler:
             
             cmd2 = shlex.split('head -1')
             first_line = subprocess.check_output(cmd2, stdin=p1.stdout)
+            p1.kill()
         
         # If the file contains the output of the 'show ip bgp' command,
         # we convert it to the same format used by BGPdump for its outputs
