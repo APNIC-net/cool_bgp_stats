@@ -84,11 +84,11 @@ class BGPDataHandler:
     def loadStructuresFromURLSfile(self, urls_file):
         files_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ipv4_longest_pref, ipv6_longest_pref  =\
-                        BGPDataHandler.processMultipleRoutingFiles(files_list=urls_file,
-                                                         isList=False,
-                                                         containsURLs=True,
-                                                         self.files_path,
-                                                         self.DEBUG)
+                        BGPDataHandler.processMultipleRoutingFiles(urls_file,
+                                                                   False,
+                                                                   True,
+                                                                   self.files_path,
+                                                                   self.DEBUG)
         
         aux_date = datetime.strptime('1970', '%Y').date()
         
@@ -871,7 +871,7 @@ class BGPDataHandler:
     @staticmethod
     def getDateFromFile(file_path, output_file, files_path, DEBUG):
         if 'readable' in file_path:       
-            return getDateFromReadableFile(file_path, output_file)
+            return BGPDataHandler.getDateFromReadableFile(file_path, output_file)
     
         else:
             first_line = BGPDataHandler.getReadableFirstLine(file_path, False,
