@@ -20,24 +20,24 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 #Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 import sys, getopt
-from BGPDataHandler import BGPDataHandler
-from DBHandler import DBHandler
 from netaddr import IPNetwork
 import pandas as pd
 import subprocess, shlex
 from datetime import datetime, date, timedelta
+from BGPDataHandler import BGPDataHandler
 from ElasticSearchImporter import ElasticSearchImporter
 import updatesStats_ES_properties
 import deaggStats_ES_properties
 
 class StabilityAndDeagg:
-    def __init__(self, DEBUG, files_path, routing_date, routing_file, es_host):
+    def __init__(self, DEBUG, files_path, es_host, bgp_handler):
         self.DEBUG = DEBUG
         self.files_path = files_path
-        self.routing_date = routing_date
-        self.routing_file = routing_file
         self.es_host = es_host
-     
+        # bgp_handler MUST be an instance of the BGPDataHandler class and have
+        # all the structures loaded
+        self.bgp_handler = bgp_handler
+        
     @staticmethod
     def getDelegationDate(prefix):
         cmd = shlex.split("origindate -d ',' -f 1")
@@ -46,16 +46,6 @@ class StabilityAndDeagg:
         output = subprocess.check_output(cmd, stdin=p.stdout)
         p.kill()
         return datetime.strptime(output.split(',')[1], '%Y%m%d').date()
-    
-    @staticmethod
-    def concatenateFiles(routing_file, v4_routing_file, v6_routing_file):
-        with open(v4_routing_file, 'a') as v4_file:
-            with open(v6_routing_file, 'r') as v6_file:
-                for line in v6_file:
-                    v4_file.write(line)
-                    
-        os.rename(v4_routing_file, routing_file)
-        return routing_file
         
     def computeUpdatesStats(self, updates_df, stats_file):
         if updates_df.shape[0] > 0:
@@ -134,75 +124,37 @@ class StabilityAndDeagg:
         else:
             sys.stderr.write("Stats about {} could not be saved to ElasticSearch.\n".format(stats_name))
     
-    def computeAndSaveStabilityAndDeaggDailyStats(self):
-        bgp_handler = BGPDataHandler(self.DEBUG, self.files_path)
+    def computeAndSaveStabilityAndDeaggDailyStats(self):           
+        updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path,
+                                                             self.routing_date)
+        with open(updates_stats_file, 'w') as u_file:
+            u_file.write('prefix|del_date|updates_date|del_age|ip_version|prefLength|numOfAnnouncements|numOfWithdraws\n')
+            
+        self.computeUpdatesStats(self.bgp_handler.updates_df, updates_stats_file)
+        
+        updates_stats_df = self.generateJSONfile(updates_stats_file)
+        
+        if self.es_host != '':
+            self.importStatsIntoElasticSearch(updates_stats_df, 'BGP updates',
+                                              self.es_host, updatesStats_ES_properties)
 
-        if self.routing_file != '':
-            routing_file = self.routing_file
-        else:
-            db_handler = DBHandler('')
-            available_routing_files = db_handler.getPathsToRoutingFilesForDate(self.routing_date)
-            db_handler.close()
+        if self.bgp_handler.routingDate is not None:
+            deagg_stats_file = '{}/deaggStats_{}.csv'.format(self.files_path,
+                                                             self.routing_date)
+                                                             
+            with open(deagg_stats_file, 'w') as d_file:
+                d_file.write('prefix|del_date|routing_date|del_age|isRoot|isRootDeagg\n')
+                
+            self.computeDeaggregationStats(self.bgp_handler, deagg_stats_file)
             
-            if 'bgprib.mrt' in available_routing_files:
-                routing_file = available_routing_files['bgprib.mrt']
-                
-            elif 'dmp.gz' in available_routing_files and 'v6.dmp.gz' in available_routing_files:
-                readable_v4 = bgp_handler.getReadableFile(available_routing_files['dmp.gz'])
-                readable_v6 = bgp_handler.getReadableFile(available_routing_files['v6.dmp.gz'])
-                routing_file = '{}/{}_v4andv6.readable'.format(self.files_path,
-                                                                self.routing_date)
-                                                                
-                routing_file = self.concatenateFiles(routing_file,
-                                                     readable_v4,
-                                                     readable_v6)
-                
-            elif 'dmp.gz' in available_routing_files:
-                routing_file = available_routing_files['dmp.gz']
-                
-            elif 'v6.dmp.gz' in available_routing_files:
-                routing_file = available_routing_files['v6.dmp.gz']
-                
-            else:
-                # This should never happen
-                print 'No routing file for date {}\n'.format(self.routing_date)
-                routing_file = ''
-            
-        loaded = bgp_handler.loadStructuresFromRoutingFile(routing_file)
-
-        if loaded:
-            loaded = bgp_handler.loadUpdatesDF(bgp_handler.routingDate)
-            
-            updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path,
-                                                                 self.routing_date)
-            with open(updates_stats_file, 'w') as u_file:
-                u_file.write('prefix|del_date|updates_date|del_age|ip_version|prefLength|numOfAnnouncements|numOfWithdraws\n')
-                
-            self.computeUpdatesStats(bgp_handler.updates_df, updates_stats_file)
-            
-            updates_stats_df = self.generateJSONfile(updates_stats_file)
+            deagg_stats_df = self.generateJSONfile(deagg_stats_file)
             
             if self.es_host != '':
-                self.importStatsIntoElasticSearch(updates_stats_df, 'BGP updates',
-                                                  self.es_host, updatesStats_ES_properties)
-
-            if bgp_handler.routingDate is not None:
-                deagg_stats_file = '{}/deaggStats_{}.csv'.format(self.files_path,
-                                                                 self.routing_date)
-                                                                 
-                with open(deagg_stats_file, 'w') as d_file:
-                    d_file.write('prefix|del_date|routing_date|del_age|isRoot|isRootDeagg\n')
-                    
-                self.computeDeaggregationStats(bgp_handler, deagg_stats_file)
-                
-                deagg_stats_df = self.generateJSONfile(deagg_stats_file)
-                
-                if self.es_host != '':
-                    self.importStatsIntoElasticSearch(deagg_stats_df, 'deaggregation',
-                                                      self.es_host, deaggStats_ES_properties)
-        
-            else:
-                sys.stdout.write('Stats about deaggregation from routing file {} not computed due to file being empty.\n'.format(self.routing_file))
+                self.importStatsIntoElasticSearch(deagg_stats_df, 'deaggregation',
+                                                  self.es_host, deaggStats_ES_properties)
+    
+        else:
+            sys.stdout.write('Stats about deaggregation from routing file {} not computed due to file being empty.\n'.format(self.routing_file))
 
 def main(argv):
     DEBUG = False
@@ -210,11 +162,6 @@ def main(argv):
     routing_date = None
     routing_file = ''
     es_host = ''
-    
-    # For DEBUG
-    DEBUG = True
-    files_path = '/Users/sofiasilva/BGP_files'
-    routing_date = date.today()
     
     try:
         opts, args = getopt.getopt(argv, "hp:r:R:DE:", ["files_path=",
@@ -267,8 +214,22 @@ def main(argv):
     if routing_date is None and routing_file == '':
         routing_date = date.today() - timedelta(1)
     
-    StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, routing_date,
-                                               routing_file, es_host)
+    bgp_handler = BGPDataHandler(DEBUG, files_path)
+    
+    if routing_file != '':
+        loaded = bgp_handler.loadStructuresFromRoutingFile(routing_file)
+
+        if loaded:
+            loaded = bgp_handler.loadUpdatesDF(bgp_handler.routingDate)
+    else:
+        loaded = bgp_handler.loadStructuresFromArchive(routing_date)
+    
+    if not loaded:
+        sys.stdout.write('{}: Data structures not loaded! Aborting.\n'.format(datetime.now()))
+        sys.exit()
+        
+    StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, es_host,
+                                               bgp_handler)
 
     StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats()    
         
