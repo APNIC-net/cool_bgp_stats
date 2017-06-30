@@ -51,14 +51,16 @@ dates_ready, visibility_csvs = generateFilesFromRoutingFile(files_path,
                                                            bgp_handler,
                                                            'visibility',
                                                            dict(), log_file,
-                                                           archive_folder)
+                                                           archive_folder,
+                                                           DEBUG)
 
 dates_ready, routing_bgprib_csv = generateFilesFromRoutingFile(files_path,
                                                                bgprib_file,
                                                                bgp_handler,
                                                                'routing',
                                                                dict(), log_file,
-                                                               archive_folder)
+                                                               archive_folder,
+                                                               DEBUG)
 
 dmp_file = '{}.dmp.gz'.format(file_name)
 
@@ -67,7 +69,8 @@ dates_ready, routing_dmp_csv = generateFilesFromRoutingFile(files_path,
                                                             bgp_handler,
                                                             'routing',
                                                             dict(), log_file,
-                                                            archive_folder)
+                                                            archive_folder,
+                                                            DEBUG)
 
 v6dmp_file = '{}.v6.dmp.gz'.format(file_name)
 
