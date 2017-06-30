@@ -126,7 +126,7 @@ class StabilityAndDeagg:
     
     def computeAndSaveStabilityAndDeaggDailyStats(self):           
         updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path,
-                                                             self.routing_date)
+                                                             self.bgp_handler.routingDate)
         with open(updates_stats_file, 'w') as u_file:
             u_file.write('prefix|del_date|updates_date|del_age|ip_version|prefLength|numOfAnnouncements|numOfWithdraws\n')
             
