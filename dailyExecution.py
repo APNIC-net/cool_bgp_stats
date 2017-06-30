@@ -176,8 +176,11 @@ del_file = '{}/extended_apnic_{}.txt'.format(files_path, today)
 startDate_date = ''
 INCREMENTAL = False
 final_existing_date = ''
-prefixes_stats_file = ''
-ases_stats_file = ''
+dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
+dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
+file_name = '{}/RoutingStats_{}'.format(files_path, dateStr)
+prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
+ases_stats_file = '{}_asns.csv'.format(file_name)
 TEMPORAL_DATA = True
 routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
                                     del_file, startDate_date, date_to_work_with,
@@ -210,12 +213,6 @@ BulkWHOISParser(files_path, DEBUG)
 
 # Computation of routing stats
 sys.stdout.write('{}: Starting computation of routing stats.\n'.format(datetime.now()))
-dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
-dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
-
-file_name = '%s/routing_stats_%s' % (files_path, dateStr)
-
-sys.stdout.write('{}: Starting actual computation of routing stats.\n'.format(datetime.now()))
 completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
                              TEMPORAL_DATA, es_host, prefixes_stats_file,
                              ases_stats_file)
