@@ -49,6 +49,7 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
                 cmd2 = shlex.split('grep rcvd')
                 p2 = subprocess.Popen(cmd2, stdin=p.stdout, stdout=filtered)
                 p2.communicate()
+                p.kill()
         
         announcements_file = '{}.announcements'.format(unzipped_file)
         

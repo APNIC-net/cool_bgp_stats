@@ -44,6 +44,7 @@ class StabilityAndDeagg:
         cmd_echo = shlex.split("echo {}".format(prefix))
         p = subprocess.Popen(cmd_echo, stdout=subprocess.PIPE)
         output = subprocess.check_output(cmd, stdin=p.stdout)
+        p.kill()
         return datetime.strptime(output.split(',')[1], '%Y%m%d').date()
     
     @staticmethod
