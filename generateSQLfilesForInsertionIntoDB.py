@@ -62,9 +62,24 @@ def createSQLFileForUpdates(files_path):
 
         for extension in ['bgpupd.mrt', 'log.gz']:
             for existing_file in glob('{}/*{}.csv'.format(files_path, extension)):
-                f.write('''copy updates (update_date, update_time, upd_type,
-                            bgp_neighbor, peeras, prefix, source_file) from
-                            '{}' WITH (FORMAT csv);\n'''.format(existing_file))
+                file_date = getDateFromFileName(existing_file)
+                if file_date.month == 12 and file_date.day == 31 or\
+                    file_date.month == 1 and file_date.day == 1:
+                    
+                    # If the file corresponds to the first day of the year
+                    # or to the last day of the year, we insert into the updates
+                    # table and let the updates_insert_trigger function to redirect
+                    # the rows to the right partition because the CSV file may
+                    # contain rows for a different year
+                    f.write('''copy updates (update_date, update_time, upd_type,
+                                bgp_neighbor, peeras, prefix, source_file) from
+                                '{}' WITH (FORMAT csv);\n'''.format(existing_file))
+                else:
+                    # else, we insert into the right partition for better efficiency
+                    f.write('''copy updates_y (update_date, update_time, upd_type,
+                                bgp_neighbor, peeras, prefix, source_file) from
+                                '{}' WITH (FORMAT csv);\n'''\
+                                .format(file_date.year, existing_file))
 
     return sql_file
     
