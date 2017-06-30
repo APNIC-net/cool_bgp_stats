@@ -162,29 +162,14 @@ sys.stdout.write('{}: SQL file generated. Inserting into the DB.\n'.format(datet
 cmd = shlex.split('psql -U postgres -f {}'.format(sql_file))
 subprocess.call(cmd)
 
-# Computation of stats about updates rate and probability of deaggregation
-sys.stdout.write('{}: Starting to compute stats about the updates rates and the probability of deaggregation.\n'.format(datetime.now()))
-
 readable_routing_file = '{}/{}-{}-{}.bgprib.readable'.format(files_path,
                                                             date_to_work_with.year,
                                                             date_to_work_with.strftime('%m'),
                                                             date_to_work_with.strftime('%d'))
  
-es_host = 'twerp.rand.apnic.net'
-                  
-StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, date_to_work_with,
-                                           readable_routing_file, es_host)
-
-StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats() 
-
-# Instantiation of the BulkWHOISParser class
-sys.stdout.write('{}: Executing BulkWHOISParser.\n'.format(datetime.now()))
-BulkWHOISParser(files_path, DEBUG)
-
-# Computation of routing stats
-sys.stdout.write('{}: Starting computation of routing stats.\n'.format(datetime.now()))
 sys.stdout.write('{}: Initializing variables and classes.\n'.format(datetime.now()))
 
+es_host = 'twerp.rand.apnic.net'
 KEEP = False
 EXTENDED = True
 del_file = '{}/extended_apnic_{}.txt'.format(files_path, today)
@@ -211,6 +196,20 @@ if not loaded:
     sys.stdout.write('{}: Data structures not loaded! Aborting.\n'.format(datetime.now()))
     sys.exit()
 
+# Computation of stats about updates rate and probability of deaggregation
+sys.stdout.write('{}: Starting to compute stats about the updates rates and the probability of deaggregation.\n'.format(datetime.now()))
+
+StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, es_host,
+                                           routingStatsObj.bgp_handler)
+
+StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats() 
+
+# Instantiation of the BulkWHOISParser class
+sys.stdout.write('{}: Executing BulkWHOISParser.\n'.format(datetime.now()))
+BulkWHOISParser(files_path, DEBUG)
+
+# Computation of routing stats
+sys.stdout.write('{}: Starting computation of routing stats.\n'.format(datetime.now()))
 dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
 dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
 
