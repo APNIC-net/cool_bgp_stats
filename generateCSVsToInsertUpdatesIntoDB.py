@@ -8,14 +8,16 @@ import os, sys, getopt
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from BGPDataHandler import BGPDataHandler
 import gzip
-import re, shlex, subprocess
+import shlex, subprocess
 from datetime import datetime, date, timedelta
 import pandas as pd
 
 yearsForProcNums = {1:[2007, 2008, 2009], 2:[2010, 2011], 3:[2012, 2013],
                     4:[2014, 2015], 5:[2016, 2017]}
                         
-def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_file):
+def generateCSVFromUpdatesFile(updates_file, files_path, readables_path, DEBUG,
+                               output_file):
+                                   
     sys.stdout.write('Starting to work with file {}\n'.format(updates_file))
     
     filename = updates_file.split('/')[-1]
@@ -139,7 +141,8 @@ def generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler, output_fil
         os.remove(withdrawals_file)
 
     elif updates_file.endswith('bgpupd.mrt'):
-        readable_file = bgp_handler.getReadableFile(updates_file, False)
+        readable_file = BGPDataHandler.getReadableFile(updates_file, False,
+                                                       readables_path, DEBUG)
         
         readable_woSTATE = '{}.woSTATE'.format(readable_file)
         if not os.path.exists(readable_woSTATE):
@@ -213,17 +216,6 @@ def getCompleteDatesSet(proc_num):
         final_date = date.today()
     numOfDays = (final_date - initial_date).days
     return set([final_date - timedelta(days=x) for x in range(0, numOfDays)])
-
-        
-def getDateFromFileName(filename):        
-    dates = re.findall('(?P<year>[1-2][9,0][0,1,8,9][0-9])[-_]*(?P<month>[0-1][0-9])[-_]*(?P<day>[0-3][0-9])',\
-                filename)
-                
-    if len(dates) > 0:
-        file_date = '{}{}{}'.format(dates[0][0], dates[0][1], dates[0][2])
-        return datetime.strptime(file_date, '%Y%m%d').date()
-    else:
-        return None
                     
                         
 def main(argv):
@@ -279,7 +271,7 @@ def main(argv):
             print "If you don't provide the path to an updates file you MUST provide a process number."
             sys.exit(-1)
         else:
-            file_date = getDateFromFileName(updates_file)
+            file_date = BGPDataHandler.getDateFromFileName(updates_file)
             
             for i in range(1, 6):
                 if file_date.year in yearsForProcNums[i]:
@@ -293,12 +285,10 @@ def main(argv):
     readables_path = '/home/sofia/BGP_stats_files/readable_updates{}'.format(proc_num)
     
     output_file = '{}/CSVgeneration_updates_{}_{}.output'.format(files_path, proc_num, datetime.today().date())
-    
-    bgp_handler = BGPDataHandler(DEBUG, readables_path)
-    
+        
     if updates_file != '':
-        generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler,
-                                   output_file)
+        generateCSVFromUpdatesFile(updates_file, files_path, readables_path,
+                                   DEBUG, output_file)
     else:
         datesSet = getCompleteDatesSet(proc_num)
         
@@ -331,7 +321,8 @@ def main(argv):
                         output.write('Updates file not available for date {}\n'.format(date_to_process))
                         continue
             
-            csv_file = generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler,
+            csv_file = generateCSVFromUpdatesFile(updates_file, files_path,
+                                                  readables_path, DEBUG,
                                                   output_file)
 
             with open(output_file, 'a') as output:        

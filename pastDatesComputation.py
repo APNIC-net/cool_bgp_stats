@@ -9,6 +9,7 @@ This script computes statistics for all the past dates for which we have routing
 import sys, os, getopt
 from datetime import date, datetime, timedelta
 from RoutingStats import RoutingStats
+from BGPDataHandler import BGPDataHandler
 from DBHandler import DBHandler
 from StabilityAndDeaggDailyStats import StabilityAndDeagg
 from computeRoutingStats import completeStatsComputation
@@ -80,15 +81,15 @@ def computationForDate(routing_date, DEBUG, files_path, readables_folder,
         # If I already have a readable file, I use it
         readable_dmp = getReadableForRoutingFile(dmp_file, readables_folder)
         if readable_dmp == '':
-            readable_dmp = routingStatsObj.bgp_handler.getReadableFile(dmp_file,
-                                                                       False)
+            readable_dmp = BGPDataHandler.getReadableFile(dmp_file, False,
+                                                          files_path, DEBUG)
 
         v6dmp_file = available_routing_files['v6.dmp.gz']
         # If I already have a readable file, I use it
         readable_v6dmp = getReadableForRoutingFile(v6dmp_file, readables_folder)
         if readable_v6dmp == '':
-            readable_v6dmp = routingStatsObj.bgp_handler.getReadableFile(v6dmp_file,
-                                                                         False)
+            readable_v6dmp = BGPDataHandler.getReadableFile(v6dmp_file, False,
+                                                            files_path, DEBUG)
          
         routing_file = concatenateFiles('{}/{}_v4andv6.dmp.readable'\
                                             .format(files_path, routing_date),

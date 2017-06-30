@@ -84,8 +84,11 @@ class BGPDataHandler:
     def loadStructuresFromURLSfile(self, urls_file):
         files_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ipv4_longest_pref, ipv6_longest_pref  =\
-                        self.processMultipleRoutingFiles(files_list=urls_file,\
-                                                isList=False, containsURLs=True)
+                        BGPDataHandler.processMultipleRoutingFiles(files_list=urls_file,
+                                                         isList=False,
+                                                         containsURLs=True,
+                                                         self.files_path,
+                                                         self.DEBUG)
         
         aux_date = datetime.strptime('1970', '%Y').date()
         
@@ -119,7 +122,10 @@ class BGPDataHandler:
     # the results from this processing                                           
     def loadStructuresFromRoutingFile(self, routing_file):
         if not routing_file.endswith('readable'):
-            readable_file_name =  self.getReadableFile(routing_file, False)
+            readable_file_name =  BGPDataHandler.getReadableFile(routing_file,
+                                                                 False,
+                                                                 self.files_path,
+                                                                 self.DEBUG)
         else:
             readable_file_name = routing_file
         
@@ -130,10 +136,11 @@ class BGPDataHandler:
         if readable_file_name != '':
             routing_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
                 ipv4_longest_pref, ipv6_longest_pref =\
-                                    self.processReadableDF(readable_file_name,
-                                                           bgp_df,
-                                                           ipv4Prefixes_radix,
-                                                           ipv6Prefixes_radix)
+                                    BGPDataHandler.processReadableDF(readable_file_name,
+                                                                       bgp_df,
+                                                                       ipv4Prefixes_radix,
+                                                                       ipv6Prefixes_radix,
+                                                                       self.DEBUG)
         
             self.routingDate = routing_date 
             self.bgp_df = bgp_df             
@@ -198,8 +205,11 @@ class BGPDataHandler:
                     
         files_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
             ipv4_longest_pref, ipv6_longest_pref  =\
-                        self.processMultipleRoutingFiles(files_list=routing_files,
-                                                isList=True, containsURLs=False)
+                        BGPDataHandler.processMultipleRoutingFiles(routing_files,
+                                                                    True,
+                                                                    False,
+                                                                    self.files_path,
+                                                                    self.DEBUG)
         
         aux_date = datetime.strptime('1970', '%Y').date()
 
@@ -243,52 +253,7 @@ class BGPDataHandler:
         db_handler.close()
         return True        
 
-    def storeVisibilityDataForPeriod(self, startDate, endDate):
-        db_handler = DBHandler('')
-        routing_files = db_handler.getPathsToRoutingFilesForPeriod(startDate, endDate)
-        db_handler.close()
-        
-        if len(routing_files) == 0:
-            if startDate == '' or startDate is None:
-                startDate = 'Any'
-                
-            if endDate == '' or endDate is None:
-                endDate = 'Any'
-                
-            sys.stderr.write("There are no routing files in the archive for the period of time specified ({}-{})).".format(startDate, endDate))
-        else:
-            routing_files_list = []
-            
-            for day in routing_files:
-                # If a bgprib file is available, we use it
-                if 'bgprib.mrt' in routing_files[day]:
-                    routing_files_list.append(routing_files[day]['bgprib.mrt'])
-                # If not, we use the dmp files
-                else:
-                    if 'dmp.gz' in routing_files[day]:
-                        routing_files_list.append(routing_files[day]['dmp.gz'])
-                    if 'v6.dmp.gz' in routing_files[day]:
-                        routing_files_list.append(routing_files[day]['v6.dmp.gz'])
-                        
-            self.storeVisibilityData(routing_files_list)
-            sys.stdout.write("Visibility data inserted into database successfully!\n")
-
-    # This function stores the routing data from the files listed in the
-    # historical_files list
-    def storeVisibilityData(self, routing_files):
-        
-        i = 0
-        for r_file in routing_files:
-             # If we work with several routing files
-            sys.stdout.write("Starting to work with %s\n" % r_file)
-
-            self.storeVisibilityDataFromFile(r_file)
-                        
-            i += 1
-            if self.DEBUG and i > 1:
-                break
-        
-        
+    
     @staticmethod
     def getDateFromFileName(filename):
         
@@ -301,141 +266,24 @@ class BGPDataHandler:
         else:
             return None
 
-
-    # This function checks for existing prefixes, origin ASes or middle ASes
-    # in the corresponding table for the provided date. If the number of
-    # existing rows is not zero and is different from the number of rows
-    # to insert, all the rows for that date are removed from the table.
-    # The rows will be inserted using the COPY method from Postgres,
-    # which will stop if it finds any duplicated row. That's why if the
-    # number of rows in the DB is different from the number of rows we have
-    # to insert, we remove the existing rows and insert the full set of rows.
-    # The number of existing rows is returned.
-    @staticmethod
-    def prepareTableForInsert(table, routing_date, numOfRows, db_handler,
-                              DEBUG, output_file):
-        start = time()
-        if table == 'prefixes':
-            existingRows = db_handler.getPrefixCountForDate(routing_date)
-        
-            if existingRows != 0 and existingRows != numOfRows:
-                db_handler.dropPrefixesForDate(routing_date)
-                existingRows = 0
-        
-        elif table == 'originASes':
-            existingRows = db_handler.getOriginASCountForDate(routing_date)
-        
-            if existingRows != 0 and existingRows != numOfRows:
-                db_handler.dropOriginASesForDate(routing_date)
-                existingRows = 0
-        
-        elif table == 'middleASes':
-            existingRows = db_handler.getMiddleASCountForDate(routing_date)
-        
-            if existingRows != 0 and existingRows != numOfRows:
-                db_handler.dropMiddleASesForDate(routing_date)
-                existingRows = 0
-
-        end = time()
-        
-        if DEBUG:
-            with open(output_file, 'a') as output:
-                output.write('Check for existing {} for this date and delete records if necessary|{}|seconds.\n'.format(table, end-start))
-        
-        return existingRows
     
-
-
-    # This function stores the routing data from the routing_file provided
-    # into the database
-    def storeVisibilityDataFromFile(self, routing_file):
-        prefixes, originASes, middleASes, routing_date =\
-                        self.getPrefixesASesAndDate(routing_file)
-        
-        if self.DEBUG:
-            with open(self.output_file, 'a') as output:
-                output.write('Prefixes to be inserted|{}\n'.format(len(prefixes)))
-                output.write('Origin ASes to be inserted|{}\n'.format(len(originASes)))
-                output.write('Middle ASes to be inserted|{}\n'.format(len(middleASes)))
-
-        db_handler = DBHandler(routing_date)
-
-        existingRows = self.prepareTableForInsert('prefixes',
-                                                  routing_date,
-                                                  len(prefixes),
-                                                  db_handler,
-                                                  self.DEBUG,
-                                                  self.output_file)
-        if self.DEBUG:
-            self.printUsage(self.output_file)
-
-        start = time()
-        if existingRows == 0:
-            db_handler.storeListOfPrefixesSeen(prefixes, routing_date)
-        end = time()
-        
-        if self.DEBUG:
-            with open(self.output_file, 'a') as output:
-                output.write('Insert the list of prefixes for this date into the DB|{}|seconds\n'.format(end-start))
-
-            self.printUsage(self.output_file)
-
-        existingRows = self.prepareTableForInsert('originASes',
-                                                  routing_date,
-                                                  len(originASes),
-                                                  db_handler,
-                                                  self.DEBUG,
-                                                  self.output_file)
-
-        if self.DEBUG:        
-            self.printUsage(self.output_file)
-        
-        start = time()
-        if existingRows == 0:
-            db_handler.storeListOfASesSeen(originASes, True, routing_date)
-        end = time()
-        
-        if self.DEBUG:
-            with open(self.output_file, 'a') as output:
-                output.write('Insert the list of origin ASes for this date into the DB|{}|seconds\n'.format(end-start))
-        
-            self.printUsage(self.output_file)
-            
-        existingRows = self.prepareTableForInsert('middleASes',
-                                                  routing_date,
-                                                  len(middleASes),
-                                                  db_handler,
-                                                  self.DEBUG,
-                                                  self.output_file)
-
-        if self.DEBUG:        
-            self.printUsage(self.output_file)
-            
-        start = time()
-        if existingRows == 0:
-            db_handler.storeListOfASesSeen(middleASes, False, routing_date)
-        end = time()
-
-        if self.DEBUG:
-            with open(self.output_file, 'a') as output:
-                output.write('Insert the list of middle ASes for this date into the DB|{}|seconds\n'.format(end-start))
-
-            self.printUsage(self.output_file)
-            
-        db_handler.close()
-        
-    def cleanListOfASes(self, ases_list):
+    @staticmethod
+    def cleanListOfASes(ases_list, DEBUG, output_file):
         start = time()
         cleanListOfASes_list = []
         for asn in ases_list:
             if asn is None or asn == 'nan':
                 continue
             elif '{' in str(asn):
-                cleanListOfASes_list.extend(self.cleanListOfASes(asn.replace('{', '').\
-                                                    replace('}', '').split(',')))
+                cleanListOfASes_list.extend(BGPDataHandler.cleanListOfASes(\
+                                                    asn.replace('{', '').\
+                                                    replace('}', '').split(','),
+                                                    DEBUG, output_file))
             elif '(' in str(asn):
-                cleanListOfASes_list.extend(self.cleanListOfASes(asn.replace('(', '').\
-                                                    replace(')', '').split(',')))
+                cleanListOfASes_list.extend(BGPDataHandler.cleanListOfASes(\
+                                                    asn.replace('(', '').\
+                                                    replace(')', '').split(','),
+                                                    DEBUG, output_file))
             # If an ASN is in asdot format we convert it to asplain format
             elif '.' in asn:
                 left, right= asn.split('.')
@@ -449,8 +297,8 @@ class BGPDataHandler:
         cleanListOfASes_list = list(set(cleanListOfASes_list))
         end = time()
         
-        if self.DEBUG:
-            with open(self.output_file, 'a') as output:
+        if DEBUG:
+            with open(output_file, 'a') as output:
                 output.write('Clean the list of ASes|{}|seconds\n'.format(end-start))
 
         return cleanListOfASes_list
@@ -463,21 +311,25 @@ class BGPDataHandler:
     # The routing file is assumed to include routing data for a single day,
     # therefore the date is taken from the timestamp of the first row in the
     # bgp_df DataFrame.
-    def getPrefixesASesAndDate(self, routing_file):
+    @staticmethod
+    def getPrefixesASesAndDate(routing_file, files_path, DEBUG, output_file):
         sys.stdout.write("Getting lists of prefixes, origin ASes and middle ASes from {}\n".format(routing_file))
 
         start = time()
         if not routing_file.endswith('readable'):
-            readable_file_name = self.getReadableFile(routing_file, False)
+            readable_file_name = BGPDataHandler.getReadableFile(routing_file,
+                                                                False,
+                                                                files_path,
+                                                                DEBUG)
         else:
             readable_file_name = routing_file
         end = time()
         
-        if self.DEBUG:
-            with open(self.output_file, 'a') as output:
+        if DEBUG:
+            with open(output_file, 'a') as output:
                 output.write('Get a readable file|{}|seconds\n'.format(end-start))
         
-            self.printUsage(self.output_file)
+            BGPDataHandler.printUsage(output_file)
         
         if readable_file_name == '':
             return [], [], ''
@@ -492,13 +344,13 @@ class BGPDataHandler:
                                         'origin'])
         end = time()
 
-        if self.DEBUG:        
-            with open(self.output_file, 'a') as output:
+        if DEBUG:        
+            with open(output_file, 'a') as output:
                 output.write('Load the readable file into a DataFrame|{}|seconds\n'.format(end-start))
         
-            self.printUsage(self.output_file)
+            BGPDataHandler.printUsage(output_file)
         
-        if self.DEBUG:
+        if DEBUG:
             bgp_df = bgp_df[0:10]
 
         if bgp_df.shape[0] > 0:        
@@ -514,14 +366,15 @@ class BGPDataHandler:
                             str(sublist).split()])
             end = time()
             
-            if self.DEBUG:
-                with open(self.output_file, 'a') as output:
+            if DEBUG:
+                with open(output_file, 'a') as output:
                     output.write('Get the lists of prefixes, origin ASes and middle ASes from the DataFrame|{}|seconds\n'.format(end-start))
             
-                self.printUsage(self.output_file)
+                BGPDataHandler.printUsage(output_file)
             
             return prefixes,\
-                self.cleanListOfASes(originASes), self.cleanListOfASes(middleASes),\
+                BGPDataHandler.cleanListOfASes(originASes, DEBUG, output_file),\
+                BGPDataHandler.cleanListOfASes(middleASes, DEBUG, output_file),\
                 routing_date
         else:
             return {}, {}, {}, None
@@ -530,7 +383,9 @@ class BGPDataHandler:
     # This function downloads and processes all the routing files in the provided list.
     # The boolean variable containsURLs must be True if the files_list is a list
     # of URLs or False if it is a list of paths
-    def processMultipleRoutingFiles(self, files_list, isList, containsURLs):
+    @staticmethod
+    def processMultipleRoutingFiles(files_list, isList, containsURLs,
+                                    files_path, DEBUG):
         if not isList:
             files_list = open(files_list, 'r')
    
@@ -551,7 +406,11 @@ class BGPDataHandler:
                 # We obtain partial data structures
                 if containsURLs:
                     if not line.endswith('readable'):
-                        readable_file_name =  self.getReadableFile(line, True)          
+                        readable_file_name =  BGPDataHandler.getReadableFile(\
+                                                                        line,
+                                                                        True,
+                                                                        files_path,
+                                                                        DEBUG)          
                     
                         if readable_file_name == '':
                             continue
@@ -560,7 +419,11 @@ class BGPDataHandler:
                     
                 else:
                     if not line.endswith('readable'):
-                        readable_file_name =  self.getReadableFile(line, False)
+                        readable_file_name =  BGPDataHandler.getReadableFile(\
+                                                                        line,
+                                                                        False,
+                                                                        files_path,
+                                                                        DEBUG)
                     
                         if readable_file_name == '':
                             continue
@@ -569,10 +432,12 @@ class BGPDataHandler:
                 
                 file_date, bgp_df, ipv4Prefixes_radix, ipv6Prefixes_radix,\
                     ipv4_longest_pref_partial, ipv6_longest_pref_partial =\
-                            self.processReadableDF(readable_file_name,
-                                                   bgp_df,
-                                                   ipv4Prefixes_radix,
-                                                   ipv6Prefixes_radix)
+                            BGPDataHandler.processReadableDF(readable_file_name,
+                                                               bgp_df,
+                                                               ipv4Prefixes_radix,
+                                                               ipv6Prefixes_radix,
+                                                               DEBUG)
+                                                   
                 if file_date is not None and file_date > routingDate:
                     routingDate = file_date
                         
@@ -583,7 +448,7 @@ class BGPDataHandler:
                     ipv6_longest_pref = ipv6_longest_pref_partial
                         
             i += 1
-            if self.DEBUG and i > 1:
+            if DEBUG and i > 1:
                 break
 
         if not isList:        
@@ -595,7 +460,8 @@ class BGPDataHandler:
         
     # This function converts a file containing the output of the 'show ip bgp' command
     # to a file in the same format used for BGPDump outputs
-    def convertBGPoutput(self, routing_file, onlyFirstLine, output_file_name):
+    @staticmethod
+    def convertBGPoutput(routing_file, onlyFirstLine, output_file_name, DEBUG):
         if not onlyFirstLine:
             output_file = open(output_file_name, 'w')
             
@@ -638,7 +504,7 @@ class BGPDataHandler:
                 output_file.write(line)
     
             i += 1
-            if self.DEBUG and i > 10:
+            if DEBUG and i > 10:
                 break
         
         if not onlyFirstLine:  
@@ -650,9 +516,10 @@ class BGPDataHandler:
         return output_file_name
  
     # This function processes a readable file with routing info
-    # putting all the info into a Data Frame  
-    def processReadableDF(self, readable_file_name, existing_bgp_df,
-                          ipv4Prefixes_radix, ipv6Prefixes_radix):
+    # putting all the info into a Data Frame
+    @staticmethod
+    def processReadableDF(readable_file_name, existing_bgp_df,
+                          ipv4Prefixes_radix, ipv6Prefixes_radix, DEBUG):
         
         routing_date = None
         
@@ -669,7 +536,7 @@ class BGPDataHandler:
         
         if bgp_df.shape[0] > 0:
         
-            if self.DEBUG:
+            if DEBUG:
                 bgp_df = bgp_df[0:10]
 
             # We take the most recent date of the routing file as the routing date
@@ -719,25 +586,26 @@ class BGPDataHandler:
     # or using the functions provided by get_rib.py is the file contains the
     # output of the 'show ip bgp' command
     # The path to the resulting readable file is returned
-    def getReadableFile(self, source, isURL):
+    @staticmethod
+    def getReadableFile(source, isURL, files_path, DEBUG):
 
         compressed = False
         
         source_filename = source.split('/')[-1]
         
-        readable_file_name = '{}/{}.readable'.format(self.files_path, os.path.splitext(source_filename)[0])
+        readable_file_name = '{}/{}.readable'.format(files_path, os.path.splitext(source_filename)[0])
 
         if not os.path.exists(readable_file_name):
             # If a routing file is not provided, download it from the provided URL        
             if isURL:
-                routing_file = '%s/%s' % (self.files_path, source_filename)
+                routing_file = '%s/%s' % (files_path, source_filename)
                 get_file(source, routing_file)
                 source = routing_file
             
             # If the routing file is compressed we unzip it
             if source.endswith('.gz'):
                 compressed = True
-                output_file = '%s/%s' % (self.files_path,\
+                output_file = '%s/%s' % (files_path,\
                                     os.path.splitext(source)[0].split('/')[-1])
                 
                 if not os.path.exists(output_file):
@@ -765,8 +633,10 @@ class BGPDataHandler:
             # If the file contains the output of the 'show ip bgp' command,
             # we convert it to the same format used by BGPdump for its outputs
             else:
-                readable_file_name = self.convertBGPoutput(source, False,
-                                                           readable_file_name)
+                readable_file_name = BGPDataHandler.convertBGPoutput(source,
+                                                                     False,
+                                                                     readable_file_name,
+                                                                     DEBUG)
 
         if compressed:
             os.remove(output_file)
@@ -779,21 +649,22 @@ class BGPDataHandler:
     # or using the functions provided by get_rib.py if the file contains the
     # output of the 'show ip bgp' command
     # The first line of the file in readable format is returned
-    def getReadableFirstLine(self, source, isURL):
+    @staticmethod
+    def getReadableFirstLine(source, isURL, files_path, DEBUG):
     
         source_filename = source.split('/')[-1]
         compressed = False
         
         # If a routing file is not provided, download it from the provided URL        
         if isURL:
-            routing_file = '%s/%s' % (self.files_path, source_filename)
+            routing_file = '%s/%s' % (files_path, source_filename)
             get_file(source, routing_file)
             source = routing_file
         
         # If the routing file is compressed we unzip it
         if source.endswith('.gz'):
             compressed = True
-            output_file = '%s/%s' % (self.files_path,\
+            output_file = '%s/%s' % (files_path,\
                                 os.path.splitext(source)[0].split('/')[-1])
             
             with gzip.open(source, 'rb') as gzip_file,\
@@ -824,7 +695,7 @@ class BGPDataHandler:
         # If the file contains the output of the 'show ip bgp' command,
         # we convert it to the same format used by BGPdump for its outputs
         else:
-            first_line = self.convertBGPoutput(source, True, '')
+            first_line = BGPDataHandler.convertBGPoutput(source, True, '', DEBUG)
             
         if compressed:
             os.remove(output_file)
@@ -963,3 +834,56 @@ class BGPDataHandler:
                 ('ru_oublock', 'Block outputs'),
                 ]:
                 output.write('{} ({})|{}\n'.format(desc, name, getattr(usage, name)))
+
+    @staticmethod
+    def getDateFromReadableFile(file_path, output_file):
+        with open(file_path, 'rb') as readable_file:
+            first_line = readable_file.readline()
+            
+            try:
+                timestamp = float(first_line.split('|')[1])
+                return datetime.utcfromtimestamp(timestamp).date()
+            except IndexError:
+                timestamp = ''
+                for i in range(5):
+                    line = readable_file.readline()
+                    try:
+                        timestamp = float(line.split('|')[1])
+                        break
+                    except IndexError:
+                        continue
+                
+                if timestamp == '':
+                    with open(output_file, 'a') as output:
+                        output.write('Cannot get date from content of file {}\n'.format(file_path))
+                        
+                        file_size = os.path.getsize(file_path)
+                        if file_size == 0:
+                            output.write('File {} is empty. Deleting it.\n'.format(file_path))
+                            os.remove(file_path)
+                    return None
+                else:
+                    return datetime.utcfromtimestamp(timestamp).date()
+    
+                    
+    # We assume the routing files have routing info for a single date,
+    # therefore we get the routing date from the first line of the file.
+    @staticmethod
+    def getDateFromFile(file_path, output_file, files_path, DEBUG):
+        if 'readable' in file_path:       
+            return getDateFromReadableFile(file_path, output_file)
+    
+        else:
+            first_line = BGPDataHandler.getReadableFirstLine(file_path, False,
+                                                             files_path, DEBUG)
+            
+            try:
+                timestamp = float(first_line.split('|')[1])
+                return datetime.utcfromtimestamp(timestamp).date()
+                
+            except IndexError:
+                readable_file = BGPDataHandler.getReadableFile(file_path, False,
+                                                               files_path, DEBUG)
+                                                               
+                return BGPDataHandler.getDateFromReadableFile(readable_file,
+                                                              output_file)

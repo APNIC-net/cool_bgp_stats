@@ -8,9 +8,9 @@ import os
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 import sys, getopt
 from datetime import datetime, date, timedelta
-import re
 from collections import defaultdict
 from VisibilityDBHandler import VisibilityDBHandler
+from BGPDataHandler import BGPDataHandler
 from glob import glob
 
 today = datetime.today().date()
@@ -36,7 +36,7 @@ def createSQLFile(item, suffix, existing_dates, files_path, generated_dates):
         
         for suffix in suffixes:            
             for existing_file in glob('{}/{}_{}_*.csv'.format(files_path, item, suffix)):
-                file_date = getDateFromFileName(existing_file)
+                file_date = BGPDataHandler.getDateFromFileName(existing_file)
                 
                 if file_date not in existing_dates and\
                     (file_date not in generated_dates or\
@@ -62,7 +62,7 @@ def createSQLFileForUpdates(files_path):
 
         for extension in ['bgpupd.mrt', 'log.gz']:
             for existing_file in glob('{}/*{}.csv'.format(files_path, extension)):
-                file_date = getDateFromFileName(existing_file)
+                file_date = BGPDataHandler.getDateFromFileName(existing_file)
                 if file_date.month == 12 and file_date.day == 31 or\
                     file_date.month == 1 and file_date.day == 1:
                     
@@ -82,16 +82,7 @@ def createSQLFileForUpdates(files_path):
                                 .format(file_date.year, existing_file))
 
     return sql_file
-    
-def getDateFromFileName(filename):        
-    dates = re.findall('(?P<year>[1-2][9,0][0,1,8,9][0-9])[-_]*(?P<month>[0-1][0-9])[-_]*(?P<day>[0-3][0-9])',\
-                filename)
-                
-    if len(dates) > 0:
-        file_date = '{}{}{}'.format(dates[0][0], dates[0][1], dates[0][2])
-        return datetime.strptime(file_date, '%Y%m%d').date()
-    else:
-        return None
+
         
 def checkMissing(item, output_file, completeDatesSet, existingInDB,
                  generated_dates):

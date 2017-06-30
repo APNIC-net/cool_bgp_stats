@@ -18,7 +18,7 @@ def getDatesOfExistingCSVs(files_path, data_type, dates_ready):
     if data_type == 'visibility':
         for item in ['prefixes', 'originASes', 'middleASes']:
             for existing_file in glob('{}/{}*.csv'.format(files_path, item)):
-                routing_date = getDateFromFileName(existing_file)
+                routing_date = BGPDataHandler.getDateFromFileName(existing_file)
 
                 for v in ['v4andv6', '_v4_', '_v6_']:    
                     if v in existing_file:
@@ -32,7 +32,7 @@ def getDatesOfExistingCSVs(files_path, data_type, dates_ready):
 
     elif data_type == 'routing':
         for existing_file in glob('{}/routing_data*.csv'.format(files_path)):
-            routing_date = getDateFromFileName(existing_file)
+            routing_date = BGPDataHandler.getDateFromFileName(existing_file)
 
             for v in ['_v4andv6_', '_v4_', '_v6_']:
                 if v in existing_file:
@@ -45,11 +45,12 @@ def getDatesOfExistingCSVs(files_path, data_type, dates_ready):
             
 def generateFilesFromReadables(readables_path, data_type, dates_ready,\
                                 files_path, bgp_handler, output_file,
-                                archive_folder):
+                                archive_folder, DEBUG):
 
     # We look for readable files coming from bgprib.mrt files
     for readable_file in glob('{}/*.bgprib.readable'.format(readables_path)):
-        routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
+        routing_date = BGPDataHandler.getDateFromFile(readable_file, output_file,
+                                                      files_path, DEBUG)
         
         if routing_date is not None and (routing_date not in dates_ready or\
         ((data_type == 'visibility' and (routing_date in dates_ready and\
@@ -67,11 +68,14 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
                                                                    data_type,
                                                                    dates_ready,
                                                                    output_file,
-                                                                   archive_folder)
+                                                                   archive_folder,
+                                                                   DEBUG)
 
     # We look for readable files coming from v6.dmp.gz files
     for readable_file in glob('{}/*.v6.dmp.readable'.format(readables_path)):
-        routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
+        routing_date = BGPDataHandler.getDateFromFile(readable_file,
+                                                      output_file,
+                                                      files_path, DEBUG)
         
         if routing_date is not None and (routing_date not in dates_ready or\
         (data_type == 'visibility' and (routing_date in dates_ready and\
@@ -89,13 +93,16 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
                                                                    data_type,
                                                                    dates_ready,
                                                                    output_file,
-                                                                   archive_folder)
+                                                                   archive_folder,
+                                                                   DEBUG)
 
     # We look for the format used for readable files that come from dmp.gz files
     pattern = re.compile('.*20[0,1][0-9]-[0,1][0-9]-[0-3][0-9].dmp.readable$')
     for readable_file in glob('{}/*.dmp.readable'.format(readables_path)):
         if pattern.match(readable_file) is not None:
-            routing_date = getDateFromFile(readable_file, output_file, bgp_handler)
+            routing_date = BGPDataHandler.getDateFromFile(readable_file,
+                                                          output_file,
+                                                          files_path, DEBUG)
 
             if routing_date is not None and (routing_date not in dates_ready or\
             (data_type == 'visibility' and (routing_date in dates_ready and\
@@ -113,13 +120,14 @@ def generateFilesFromReadables(readables_path, data_type, dates_ready,\
                                                                        data_type,
                                                                        dates_ready,
                                                                        output_file,
-                                                                       archive_folder)
+                                                                       archive_folder,
+                                                                       DEBUG)
 
     return dates_ready
    
 def generateFilesFromOtherRoutingFiles(archive_folder, data_type, dates_ready,
                                        files_path, bgp_handler, proc_num,
-                                       extension, output_file):
+                                       extension, output_file, DEBUG):
     
     yearsForProcNums = {1:[2007, 2008, 2009], 2:[2010, 2011], 3:[2012, 2013],
                         4:[2014, 2015], 5:[2016, 2017]}
@@ -132,7 +140,7 @@ def generateFilesFromOtherRoutingFiles(archive_folder, data_type, dates_ready,
     for root, subdirs, files in os.walk(archive_folder):
         for filename in files:
             if filename.endswith(extension):
-                file_date = getDateFromFileName(filename)
+                file_date = BGPDataHandler.getDateFromFileName(filename)
                 
                 if extension == 'dmp.gz':
                     if 'v6' in filename:
@@ -146,8 +154,10 @@ def generateFilesFromOtherRoutingFiles(archive_folder, data_type, dates_ready,
     
                     full_filename = os.path.join(root, filename)
     
-                    routing_date = getDateFromFile(full_filename, output_file,
-                                                   bgp_handler)
+                    routing_date = BGPDataHandler.getDateFromFile(full_filename,
+                                                                  output_file,
+                                                                  files_path,
+                                                                  DEBUG)
                     
                     if routing_date is not None and\
                         (routing_date not in dates_ready or\
@@ -168,7 +178,8 @@ def generateFilesFromOtherRoutingFiles(archive_folder, data_type, dates_ready,
                                                                      data_type,
                                                                      dates_ready,
                                                                      output_file,
-                                                                     archive_folder)
+                                                                     archive_folder,
+                                                                     DEBUG)
 
     return dates_ready
 
@@ -223,7 +234,7 @@ def generateFilesForItem(item_name, suffix, item_list, files_path,\
     
 def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                                     data_type, dates_ready, output_file,
-                                    archive_folder):
+                                    archive_folder, DEBUG):
                                         
     csvs_list = []
     
@@ -240,7 +251,8 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
         extension = 'dmp.gz'
             
     if data_type == 'visibility':
-        routing_date = getDateFromFile(routing_file, output_file, bgp_handler)
+        routing_date = BGPDataHandler.getDateFromFile(routing_file, output_file,
+                                                      files_path, DEBUG)
 
         prefixes_csv = ''
         originASes_csv = ''
@@ -252,7 +264,7 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                 # If the year is 1970, the timestamp was wrongly converted when
                 # creating the readable file, that's why we remove the file.
                 
-                file_date = getDateFromFileName(routing_file)
+                file_date = BGPDataHandler.getDateFromFileName(routing_file)
                 
                 new_routing_file = '{}/{}/{}/{}/{}-{}-{}.{}'\
                                     .format(archive_folder, file_date.year,
@@ -266,7 +278,8 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                                                                      data_type,
                                                                      dates_ready,
                                                                      output_file,
-                                                                     archive_folder)
+                                                                     archive_folder,
+                                                                     DEBUG)
             
             if (routing_date not in dates_ready or\
                 'prefixes' not in dates_ready[routing_date] or\
@@ -278,7 +291,10 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
                     
                 start = time()
                 prefixes, originASes, middleASes, routing_date =\
-                                    bgp_handler.getPrefixesASesAndDate(routing_file)
+                                    BGPDataHandler.getPrefixesASesAndDate(routing_file,
+                                                                          files_path,
+                                                                          DEBUG,
+                                                                          output_file)
                 end = time()
                 sys.stdout.write('It took {} seconds to get the lists of prefixes, origin ASes and middle ASes for {}.\n'.format(end-start, routing_date))
                 
@@ -364,15 +380,15 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
             csvs_list = [prefixes_csv, originASes_csv, middleASes_csv]
                         
     else: # data_type == 'routing'        
-        routing_date = getDateFromFile(routing_file, output_file,
-                                       bgp_handler)
+        routing_date = BGPDataHandler.getDateFromFile(routing_file, output_file,
+                                                      files_path, DEBUG)
         
         if routing_date is not None and (routing_date not in dates_ready or\
             not dates_ready[routing_date]['routing_{}'.format(suffix)]):
             
             # If the routing file does not come from the archive
             if not routing_file.startswith(archive_folder):
-                file_date = getDateFromFileName(routing_file)
+                file_date = BGPDataHandler.getDateFromFileName(routing_file)
                 file_date_str = str(file_date)
                 year_str = file_date_str[0:4]
                 month_str = file_date_str[5:7]
@@ -406,63 +422,6 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
             csvs_list = [csv_file]
               
     return dates_ready, csvs_list
-
-def getDateFromReadableFile(file_path, output_file):
-    with open(file_path, 'rb') as readable_file:
-        first_line = readable_file.readline()
-        
-        try:
-            timestamp = float(first_line.split('|')[1])
-            return datetime.utcfromtimestamp(timestamp).date()
-        except IndexError:
-            timestamp = ''
-            for i in range(5):
-                line = readable_file.readline()
-                try:
-                    timestamp = float(line.split('|')[1])
-                    break
-                except IndexError:
-                    continue
-            
-            if timestamp == '':
-                with open(output_file, 'a') as output:
-                    output.write('Cannot get date from content of file {}\n'.format(file_path))
-                    
-                    file_size = os.path.getsize(file_path)
-                    if file_size == 0:
-                        output.write('File {} is empty. Deleting it.\n'.format(file_path))
-                        os.remove(file_path)
-                return None
-            else:
-                return datetime.utcfromtimestamp(timestamp).date()
-
-                
-# We assume the routing files have routing info for a single date,
-# therefore we get the routing date from the first line of the file.
-def getDateFromFile(file_path, output_file, bgp_handler):
-    if 'readable' in file_path:       
-        return getDateFromReadableFile(file_path, output_file)
-
-    else:
-        first_line = bgp_handler.getReadableFirstLine(file_path, False)
-        
-        try:
-            timestamp = float(first_line.split('|')[1])
-            return datetime.utcfromtimestamp(timestamp).date()
-            
-        except IndexError:
-            readable_file = bgp_handler.getReadableFile(file_path, False)
-            return getDateFromReadableFile(readable_file, output_file)
-        
-def getDateFromFileName(filename):        
-    dates = re.findall('(?P<year>[1-2][9,0][0,1,8,9][0-9])[-_]*(?P<month>[0-1][0-9])[-_]*(?P<day>[0-3][0-9])',\
-                filename)
-                
-    if len(dates) > 0:
-        file_date = '{}{}{}'.format(dates[0][0], dates[0][1], dates[0][2])
-        return datetime.strptime(file_date, '%Y%m%d').date()
-    else:
-        return None
         
 def getCompleteDatesSet(proc_num):
     yearsForProcNums = {1:[2007, 2008, 2009], 2:[2010, 2011], 3:[2012, 2013],
@@ -539,7 +498,7 @@ def main(argv):
             print "If you don't provide the path to a routing file you MUST provide a process number."
             sys.exit(-1)
         else:
-            file_date = getDateFromFileName(routing_file)
+            file_date = BGPDataHandler.getDateFromFileName(routing_file)
             
             if file_date.year in [2007, 2008, 2009]:
                 proc_num = 1
@@ -566,7 +525,8 @@ def main(argv):
     if routing_file != '':
         generateFilesFromRoutingFile(files_path, routing_file,
                                              bgp_handler, data_type, dict(),
-                                             output_file, archive_folder)
+                                             output_file, archive_folder,
+                                             DEBUG)
     else:
         db_handler = DBHandler()
 
@@ -647,19 +607,19 @@ def main(argv):
         dates_ready = generateFilesFromReadables(readables_path, data_type,
                                                  dates_ready, files_path,
                                                  bgp_handler, output_file,
-                                                 archive_folder)
+                                                 archive_folder, DEBUG)
 
         sys.stdout.write('Starting to generate CSV files from bgprib.mrt files\n')
         dates_ready = generateFilesFromOtherRoutingFiles(\
                                         archive_folder, data_type, dates_ready,
                                         files_path, bgp_handler, proc_num,
-                                        'bgprib.mrt', output_file)
+                                        'bgprib.mrt', output_file, DEBUG)
         
         sys.stdout.write('Starting to generate CSV files from dmp.gz files\n')
         dates_ready = generateFilesFromOtherRoutingFiles(\
                                         archive_folder, data_type, dates_ready,
                                         files_path, bgp_handler, proc_num,
-                                        'dmp.gz', output_file)
+                                        'dmp.gz', output_file, DEBUG)
                                                                     
         completeDatesSet = getCompleteDatesSet(proc_num)
 
