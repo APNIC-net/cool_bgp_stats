@@ -85,8 +85,8 @@ dates_ready, routing_v6dmp_csv = generateFilesFromRoutingFile(files_path,
 
 updates_file = '{}.bgpupd.mrt'.format(file_name)
 
-updates_csv = generateCSVFromUpdatesFile(updates_file, files_path, bgp_handler,
-                                         log_file)
+updates_csv = generateCSVFromUpdatesFile(updates_file, files_path, files_path,
+                                         DEBUG, log_file)
                                          
 sys.stdout.write('{}: Finished generating CSV files. Starting generating SQL file for insertion of visibility, routing and updates data into the DB.\n'.format(datetime.now()))
 
