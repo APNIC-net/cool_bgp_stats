@@ -80,7 +80,8 @@ dates_ready, routing_v6dmp_csv = generateFilesFromRoutingFile(files_path,
                                                               'routing',
                                                               dict(),
                                                               log_file,
-                                                              archive_folder)
+                                                              archive_folder,
+                                                              DEBUG)
 
 updates_file = '{}.bgpupd.mrt'.format(file_name)
 
