@@ -140,7 +140,7 @@ class StabilityAndDeagg:
 
         if self.bgp_handler.routingDate is not None:
             deagg_stats_file = '{}/deaggStats_{}.csv'.format(self.files_path,
-                                                             self.routing_date)
+                                                             self.bgp_handler.routingDate)
                                                              
             with open(deagg_stats_file, 'w') as d_file:
                 d_file.write('prefix|del_date|routing_date|del_age|isRoot|isRootDeagg\n')
