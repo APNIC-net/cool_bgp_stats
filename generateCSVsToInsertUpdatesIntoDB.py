@@ -69,7 +69,7 @@ def generateCSVFromUpdatesFile(updates_file, files_path, readables_path, DEBUG,
                 p = subprocess.Popen(cmd, stdout=withdrawals_f)
                 p.communicate()
                 
-#       2015/08/01 00:01:31 debugging: BGP: 202.12.28.1 rcvd UPDATE about 199.60.233.0/24 — withdrawn
+#       2015/08/01 00:01:31 debugging: BGP: 202.12.28.1 rcvd UPDATE about 199.60.233.0/24 -- withdrawn
         # We first get a TextFileReader to read the file in chunks (in case it is too big)
         withdrawals_reader = pd.read_csv(withdrawals_file, iterator=True,
                                          chunksize=1000, header=None, sep=' ',
@@ -210,11 +210,18 @@ def getDF(filtered_file, upd_type, updates_file):
     return df_from_file
   
 def getCompleteDatesSet(proc_num):
-    initial_date = date(yearsForProcNums[proc_num][0], 1, 1)
+    if yearsForProcNums[proc_num][0] == 2007:
+        initial_date = date(yearsForProcNums[proc_num][0], 6, 11)
+    else:
+        initial_date = date(yearsForProcNums[proc_num][0], 1, 1)
+
     final_date = date(yearsForProcNums[proc_num][-1], 12, 31)
+
     if final_date > date.today():
         final_date = date.today()
-    numOfDays = (final_date - initial_date).days
+
+    numOfDays = (final_date - initial_date).days + 1
+
     return set([final_date - timedelta(days=x) for x in range(0, numOfDays)])
                     
                         
@@ -291,10 +298,22 @@ def main(argv):
                                    DEBUG, output_file)
     else:
         datesSet = getCompleteDatesSet(proc_num)
-        
+
+	# We have to skip all the dates between Nov 19th 2016 and Jan 23rd 2017
+	# because all of them are contained in the bgpup fil for Nov 19th 2016
+	# This file is too big to be loaded in memory, therefore it was divided
+	# into smaller pieces and processed separately
+        initial_date = date(2016, 11, 19)
+        final_date = date(2017, 1, 23)
+        numOfDays = (final_date - initial_date).days + 1
+        skip_set =  set([final_date - timedelta(days=x) for x in range(0, numOfDays)])
+
         for date_to_process in datesSet:
             bgpupd_date = date_to_process + timedelta(days=1)
             
+            if bgpupd_date in skip_set:
+                continue
+ 
             updates_file = '{}/{}/{}/{}/{}-{}-{}.bgpupd.mrt'.format(archive_folder,
                                                                     bgpupd_date.year,
                                                                     bgpupd_date.strftime('%m'),

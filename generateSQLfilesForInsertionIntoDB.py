@@ -171,8 +171,8 @@ def main(argv):
     db_handler = VisibilityDBHandler()
 
     initial_date = date(2007, 6, 11)
-    final_date = date.today()
-    numOfDays = (final_date - initial_date).days
+    final_date = date.today() - timedelta(1)
+    numOfDays = (final_date - initial_date).days + 1
     completeDatesSet = set([final_date - timedelta(days=x) for x in range(0, numOfDays)])
         
     if data_type == 'visibility':
