@@ -107,11 +107,11 @@ def checkMissing(item, output_file, completeDatesSet, existingInDB,
             
             if not inDB:
                 if not generated_v4:
-                    sys.stdout.write('v4 {} not ready for date {}'.format(item, day))
+                    sys.stdout.write('v4 {} not ready for date {}\n'.format(item, day))
                 if not generated_v6:
-                    sys.stdout.write('v6 {} not ready for date {}'.format(item, day))
+                    sys.stdout.write('v6 {} not ready for date {}\n'.format(item, day))
                 if not generated_v4andv6:
-                    sys.stdout.write('v4andv6 {} not ready for date {}'.format(item, day))
+                    sys.stdout.write('v4andv6 {} not ready for date {}\n'.format(item, day))
 
 def checkMissingRoutingData(suffix, output_file, completeDatesSet, existingInDB,
                             generated_dates):
@@ -178,7 +178,7 @@ def main(argv):
     if data_type == 'visibility':
         
         with open(output_file, 'a') as output:
-            output.write('Date|Resource_type|inDB|v4_generated|v6_generated\n')
+            output.write('Date|Resource_type|inDB|v4_generated|v6_generated|v4andv6_generated\n')
         
         existing_dates_prefixes = set(db_handler.getListOfDatesForPrefixes())
         prefixesSQLfile, generated_dates_prefixes = createSQLFile('prefixes', '',
