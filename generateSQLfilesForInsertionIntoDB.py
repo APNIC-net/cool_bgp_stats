@@ -16,7 +16,10 @@ from glob import glob
 today = datetime.today().date()
 
 def createSQLFile(item, suffix, existing_dates, files_path, generated_dates):
-    sql_file = '{}/{}_{}.sql'.format(files_path, item, today)
+    if item == 'routing_data':
+        sql_file = '{}/{}_{}_{}.sql'.format(files_path, item, suffix, today)
+    else:
+        sql_file = '{}/{}_{}.sql'.format(files_path, item, today)
         
     suffixes = ['v4andv6', 'v4', 'v6']
     
