@@ -63,7 +63,7 @@ def createSQLFileForUpdates(files_path):
     with open(sql_file, 'wb') as f:
         f.write('\connect sofia\n')
 
-        for extension in ['bgpupd.mrt', 'log.gz']:
+        for extension in ['bgpupd.mrt', 'bgpupd.readable', 'log.gz']:
             for existing_file in glob('{}/*{}.csv'.format(files_path, extension)):
                 file_date = BGPDataHandler.getDateFromFileName(existing_file)
                 if file_date.month == 12 and file_date.day == 31 or\
