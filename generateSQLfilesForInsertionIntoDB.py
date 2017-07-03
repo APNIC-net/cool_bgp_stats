@@ -79,7 +79,7 @@ def createSQLFileForUpdates(files_path):
                                 '{}' WITH (FORMAT csv);\n'''.format(existing_file))
                 else:
                     # else, we insert into the right partition for better efficiency
-                    f.write('''copy updates_y (update_date, update_time, upd_type,
+                    f.write('''copy updates_y{} (update_date, update_time, upd_type,
                                 bgp_neighbor, peeras, prefix, source_file) from
                                 '{}' WITH (FORMAT csv);\n'''\
                                 .format(file_date.year, existing_file))
