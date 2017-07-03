@@ -9,7 +9,7 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 import sys, getopt
 from datetime import datetime, date, timedelta
 from collections import defaultdict
-from VisibilityDBHandler import VisibilityDBHandler
+from DBHandler import DBHandler
 from BGPDataHandler import BGPDataHandler
 from glob import glob
 
@@ -168,7 +168,7 @@ def main(argv):
                                                             data_type,
                                                             date.today())
 
-    db_handler = VisibilityDBHandler()
+    db_handler = DBHandler()
 
     initial_date = date(2007, 6, 11)
     final_date = date.today() - timedelta(1)
