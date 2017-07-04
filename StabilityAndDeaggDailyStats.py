@@ -124,7 +124,7 @@ class StabilityAndDeagg:
         else:
             sys.stderr.write("Stats about {} could not be saved to ElasticSearch.\n".format(stats_name))
     
-    def computeAndSaveStabilityAndDeaggDailyStats(self):           
+    def computeAndSaveStabilityDailyStats(self):           
         updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path,
                                                              self.bgp_handler.routingDate)
         with open(updates_stats_file, 'w') as u_file:
@@ -138,6 +138,8 @@ class StabilityAndDeagg:
             self.importStatsIntoElasticSearch(updates_stats_df, 'BGP updates',
                                               updatesStats_ES_properties)
 
+
+    def computeAndSaveDeaggDailyStats(self):
         if self.bgp_handler.routingDate is not None:
             deagg_stats_file = '{}/deaggStats_{}.csv'.format(self.files_path,
                                                              self.bgp_handler.routingDate)
@@ -152,9 +154,7 @@ class StabilityAndDeagg:
             if self.es_host != '':
                 self.importStatsIntoElasticSearch(deagg_stats_df, 'deaggregation',
                                                   deaggStats_ES_properties)
-    
-        else:
-            sys.stdout.write('Stats about deaggregation from routing file {} not computed due to file being empty.\n'.format(self.routing_file))
+
 
 def main(argv):
     DEBUG = False
@@ -231,7 +231,8 @@ def main(argv):
     StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, es_host,
                                                bgp_handler)
 
-    StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats()    
+    StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
+    StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()    
         
 if __name__ == "__main__":
     main(sys.argv[1:])
