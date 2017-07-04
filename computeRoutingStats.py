@@ -375,6 +375,8 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
     # organization that received the delegation of the prefix or is not
     # already marked as having fragments or less specifics in this situation
     if not statsForPrefix[diffOrg_var]:
+        # TODO Check if this can be done in a non-blocking way
+        # Let a child process do it and when it finished, we save the result
         # We check if the routed prefix
         # and all its origin ASes were delegated to the same organization
         statsForPrefix[diffOrg_var] = not checkIfSameOrg(routedPrefix,
@@ -824,9 +826,9 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
 
         writeStatsLineToFile(statsForAS, routingStatsObj.allAttr_ases, stats_filename)
 
-def completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
-                             TEMPORAL_DATA, es_host, prefixes_stats_file,
-                             ases_stats_file):
+def computeAndSavePerPrefixStats(files_path, file_name, dateStr, routingStatsObj,
+                                 prefixes_stats_file, TEMPORAL_DATA, es_host):
+                                     
     start_time = time()
     computePerPrefixStats(routingStatsObj, prefixes_stats_file, files_path,
                           TEMPORAL_DATA)
@@ -854,6 +856,7 @@ def completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
     
     if es_host != '':
         esImporter = ElasticSearchImporter(es_host)
+
         esImporter.createIndex(prefStats_ES_properties.mapping,
                                prefStats_ES_properties.index_name)
         numOfDocs = esImporter.ES.count(prefStats_ES_properties.index_name)['count']
@@ -873,8 +876,9 @@ def completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
             sys.stderr.write("Stats about usage of prefixes delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
         else:
             sys.stderr.write("Stats about usage of prefixes delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
-        
-    
+
+def computeAndSavePerASStats(files_path, file_name, dateStr, routingStatsObj,
+                             ases_stats_file, TEMPORAL_DATA, es_host):
     start_time = time()
     computeASesStats(routingStatsObj, ases_stats_file, TEMPORAL_DATA)
     end_time = time()
@@ -892,6 +896,8 @@ def completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
                                                                 ases_json_filename))
     
     if es_host != '':
+        esImporter = ElasticSearchImporter(es_host)
+
         esImporter.createIndex(ASesStats_ES_properties.mapping,
                                ASesStats_ES_properties.index_name)
         numOfDocs = esImporter.ES.count(ASesStats_ES_properties.index_name)['count']
@@ -911,7 +917,6 @@ def completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
             sys.stderr.write("Stats about usage of ASNs delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
         else:
             sys.stderr.write("Stats about usage of ASNs delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
-
           
     
 def main(argv):
@@ -1207,10 +1212,17 @@ def main(argv):
         print "Data structures not loaded!\n"
         sys.exit()
     
-    completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
-                             TEMPORAL_DATA, es_host, prefixes_stats_file,
-                             ases_stats_file)
-        
+    if es_host != '':
+        esImporter = ElasticSearchImporter(es_host)
+
+    computeAndSavePerPrefixStats(files_path, file_name, dateStr, routingStatsObj,
+                                 prefixes_stats_file, TEMPORAL_DATA, es_host,
+                                 esImporter)
+
+    computeAndSavePerASStats(files_path, file_name, dateStr, routingStatsObj,
+                             ases_stats_file, TEMPORAL_DATA, es_host, esImporter)
+                             
+
 if __name__ == "__main__":
     main(sys.argv[1:])
 
