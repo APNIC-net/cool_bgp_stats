@@ -111,7 +111,7 @@ def generateCSVFromUpdatesFile(updates_file, files_path, readables_path, DEBUG,
                     # to the csv file
                     if len(prefixes) > 0:
                         for prefix in prefixes:
-                            csv_f.write('"{}","{}","{}",{},"{}","{}","{}"\n'\
+                            csv_f.write('"{}","{}","{}","{}",{},"{}","{}"\n'\
                                         .format(update_date, update_time,
                                                 'A', bgp_neighbor, peerAS,
                                                 prefix, updates_file))
@@ -131,7 +131,7 @@ def generateCSVFromUpdatesFile(updates_file, files_path, readables_path, DEBUG,
             # We have to write to the csv file the last announcement            
             if len(prefixes) > 0:
                 for prefix in prefixes:
-                    csv_f.write('"{}","{}","{}",{},"{}","{}","{}"\n'\
+                    csv_f.write('"{}","{}","{}","{}",{},"{}","{}"\n'\
                                 .format(update_date, update_time,
                                         'A', bgp_neighbor, peerAS,
                                         prefix, updates_file))
@@ -232,6 +232,7 @@ def main(argv):
     updates_file = ''
     DEBUG = False
     
+    
     try:
         opts, args = getopt.getopt(argv,"hp:A:n:f:D", ['files_path=', 'archive_folder=', 'procNumber=', 'updatesFile=',])
     except getopt.GetoptError:
@@ -290,7 +291,7 @@ def main(argv):
                 sys.exit(-1)
             
     readables_path = '/home/sofia/BGP_stats_files/readable_updates{}'.format(proc_num)
-    
+
     output_file = '{}/CSVgeneration_updates_{}_{}.output'.format(files_path, proc_num, datetime.today().date())
         
     if updates_file != '':

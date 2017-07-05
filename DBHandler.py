@@ -417,7 +417,7 @@ class DBHandler:
             engine = sq.create_engine("postgresql+psycopg2://{}@{}/{}"\
                                     .format(self.user, self.host, self.dbname))
             
-            return pd.read_sql_query("SELECT update_date, upd_type, peerAS, prefix FROM updates;", engine)
+            return pd.read_sql_query("SELECT update_date, upd_type, peerAS, prefix FROM updates where update_date = {};".format(updates_date), engine)
 
         except:
             sys.stderr.write("Unable to get updates DataFrame for date {}.\n".format(updates_date))
