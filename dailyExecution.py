@@ -31,10 +31,22 @@ today = date.today()
 date_to_work_with = today - timedelta(1)
 log_file = '{}/dailyExecution_{}.log'.format(files_path, date_to_work_with)
 
+def concatenateFiles(routing_file, v4_routing_file, v6_routing_file):
+    with open(v4_routing_file, 'a') as v4_file:
+        with open(v6_routing_file, 'r') as v6_file:
+            for line in v6_file:
+                v4_file.write(line)
+                
+    os.rename(v4_routing_file, routing_file)
+    return routing_file
+    
+
 # Insertion of visibility, routing and updates data into the DB
 sys.stdout.write('{}: Starting generating CSV files for insertion of visibility, routing and updates data into the DB.\n'.format(datetime.now()))
 
 bgp_handler = BGPDataHandler(DEBUG, files_path)
+
+routing_files = dict()
 
 file_name = '{}/{}/{}/{}/{}-{}-{}'.format(archive_folder,
                                                 date_to_work_with.year,
@@ -46,47 +58,86 @@ file_name = '{}/{}/{}/{}/{}-{}-{}'.format(archive_folder,
 
 bgprib_file = '{}.bgprib.mrt'.format(file_name)
 
-dates_ready, visibility_csvs = generateFilesFromRoutingFile(files_path,
-                                                           bgprib_file,
-                                                           bgp_handler,
-                                                           'visibility',
-                                                           dict(), log_file,
-                                                           archive_folder,
-                                                           DEBUG)
-
-dates_ready, routing_bgprib_csv = generateFilesFromRoutingFile(files_path,
+if os.path.exists(bgprib_file):
+    routing_files['bgprib'] = bgprib_file
+    
+    dates_ready, visibility_csvs = generateFilesFromRoutingFile(files_path,
                                                                bgprib_file,
                                                                bgp_handler,
-                                                               'routing',
+                                                               'visibility',
                                                                dict(), log_file,
                                                                archive_folder,
                                                                DEBUG)
+    
+    dates_ready, routing_bgprib_csv = generateFilesFromRoutingFile(files_path,
+                                                                   bgprib_file,
+                                                                   bgp_handler,
+                                                                   'routing',
+                                                                   dict(), log_file,
+                                                                   archive_folder,
+                                                                   DEBUG)    
 
 dmp_file = '{}.dmp.gz'.format(file_name)
 
-dates_ready, routing_dmp_csv = generateFilesFromRoutingFile(files_path,
-                                                            dmp_file,
-                                                            bgp_handler,
-                                                            'routing',
-                                                            dict(), log_file,
-                                                            archive_folder,
-                                                            DEBUG)
+if os.path.exists(dmp_file):
+    routing_files['dmp'] = dmp_file
+    
+    dates_ready, routing_dmp_csv = generateFilesFromRoutingFile(files_path,
+                                                                dmp_file,
+                                                                bgp_handler,
+                                                                'routing',
+                                                                dict(), log_file,
+                                                                archive_folder,
+                                                                DEBUG)
 
 v6dmp_file = '{}.v6.dmp.gz'.format(file_name)
 
-dates_ready, routing_v6dmp_csv = generateFilesFromRoutingFile(files_path,
-                                                              v6dmp_file,
-                                                              bgp_handler,
-                                                              'routing',
-                                                              dict(),
-                                                              log_file,
-                                                              archive_folder,
-                                                              DEBUG)
+if os.path.exists(v6dmp_file):
+    routing_files['v6.dmp'] = v6dmp_file
+    dates_ready, routing_v6dmp_csv = generateFilesFromRoutingFile(files_path,
+                                                                  v6dmp_file,
+                                                                  bgp_handler,
+                                                                  'routing',
+                                                                  dict(),
+                                                                  log_file,
+                                                                  archive_folder,
+                                                                  DEBUG)
 
+if 'bgprib' not in routing_files:
+    readable_v4 = ''
+    if 'dmp' in routing_files:
+        readable_v4 = BGPDataHandler.getReadableFile(routing_files['dmp'],
+                                                     False, files_path, DEBUG)
+    
+    readable_v6 = ''
+    if 'v6.dmp' in routing_files:
+        readable_v6 = BGPDataHandler.getReadableFile(routing_files['v6.dmp'],
+                                                     False, files_path, DEBUG)
+    readable_complete = ''
+                     
+    if readable_v4 != '' and readable_v6 != '':
+        readable_complete = concatenateFiles('{}/routing_file_{}.readable'\
+                                                .format(date_to_work_with),
+                                             readable_v4, readable_v6)
+    elif readable_v4 != '':
+        readable_complete = readable_v4
+    elif readable_v6 != '':
+        readable_complete = readable_v6
+
+    if readable_complete != '':
+       dates_ready, visibility_csvs = generateFilesFromRoutingFile(files_path,
+                                                                   readable_complete,
+                                                                   bgp_handler,
+                                                                   'visibility',
+                                                                   dict(), log_file,
+                                                                   archive_folder,
+                                                                   DEBUG)
+                                                                   
 updates_file = '{}.bgpupd.mrt'.format(file_name)
 
-updates_csv = generateCSVFromUpdatesFile(updates_file, files_path, files_path,
-                                         DEBUG, log_file)
+if os.path.exists(updates_file):
+    updates_csv = generateCSVFromUpdatesFile(updates_file, files_path, files_path,
+                                             DEBUG, log_file)
                                          
 sys.stdout.write('{}: Finished generating CSV files. Starting generating SQL file for insertion of visibility, routing and updates data into the DB.\n'.format(datetime.now()))
 
