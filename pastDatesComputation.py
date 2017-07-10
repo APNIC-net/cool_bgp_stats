@@ -8,11 +8,9 @@ This script computes statistics for all the past dates for which we have routing
 """
 import sys, os, getopt
 from datetime import date, datetime, timedelta
-from RoutingStats import RoutingStats
+from dailyExecution import computeStatsForDate
 from BGPDataHandler import BGPDataHandler
 from DBHandler import DBHandler
-from StabilityAndDeaggDailyStats import StabilityAndDeagg
-from computeRoutingStats import completeStatsComputation
 
 
 def concatenateFiles(routing_file, v4_routing_file, v6_routing_file):
@@ -36,26 +34,9 @@ def getReadableForRoutingFile(routing_file, readables_folder):
         return ''
 
 def computationForDate(routing_date, DEBUG, files_path, readables_folder,
-                       ROUTING, STABILITY):    
+                       ROUTING, STABILITY, DEAGG_PROB):    
 
-    sys.stdout.write('{}: Initializing variables and classes.\n'.format(datetime.now()))
-    
-    es_host = 'twerp.rand.apnic.net'
-
-    KEEP = False
-    EXTENDED = True
-    del_file = '{}/extended_apnic_{}.txt'.format(files_path, date.today())
-    startDate_date = ''
-    INCREMENTAL = False
-    final_existing_date = ''
-    prefixes_stats_file = ''
-    ases_stats_file = ''
-    TEMPORAL_DATA = True
-    routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
-                                        del_file, startDate_date, routing_date,
-                                        routing_date, INCREMENTAL,
-                                        final_existing_date, prefixes_stats_file,
-                                        ases_stats_file, TEMPORAL_DATA)
+    sys.stdout.write('{}: Looking for routing file to be used.\n'.format(datetime.now()))
                                         
     db_handler = DBHandler('')
     available_routing_files = db_handler.getPathsToRoutingFilesForDate(routing_date)
@@ -128,38 +109,12 @@ def computationForDate(routing_date, DEBUG, files_path, readables_folder,
         return False
         
     sys.stdout.write('{}: Working with routing file {}\n'.format(datetime.now(), routing_file))
-    
-    if ROUTING:    
-        # Computation of routing stats
-        sys.stdout.write('{}: Loading structures.\n'.format(datetime.now()))
-                                                                             
-        loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(routing_file)
-        
-        if loaded:
-            loaded = routingStatsObj.bgp_handler.loadUpdatesDF(routing_date)
-        
-        if not loaded:
-            sys.stdout.write('{}: Data structures not loaded! Aborting.\n'.format(datetime.now()))
-            sys.exit()
-        
-        dateStr = 'Delegated_BEFORE{}'.format(routing_date)
-        dateStr = '{}_AsOf{}'.format(dateStr, routing_date)
-        
-        file_name = '%s/routing_stats_%s' % (files_path, dateStr)
-        
-        sys.stdout.write('{}: Starting actual computation of routing stats.\n'.format(datetime.now()))
-        completeStatsComputation(routingStatsObj, files_path, file_name, dateStr,
-                                     TEMPORAL_DATA, es_host, prefixes_stats_file,
-                                     ases_stats_file)
-        
-    if STABILITY:                    
-        # Computation of stats about updates rate and probability of deaggregation
-        sys.stdout.write('{}: Starting to compute stats about the updates rates and the probability of deaggregation.\n'.format(datetime.now()))
-                       
-        StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, routing_date,
-                                                   routing_file, es_host)
-        
-        StabilityAndDeagg_inst.computeAndSaveStabilityAndDeaggDailyStats()
+
+    computeStatsForDate(routing_date, routing_file, ROUTING, STABILITY,
+                        DEAGG_PROB, False)
+
+    # Lo llamamos con BulkWHOIS = False porque no es necesario que cada vez parsee el Bulk WHOIS
+    # Las estructuras disponibles van a estar actualizadas porque BulkWHOISParser se va a instanciar a diario
     
     return True
 
@@ -181,16 +136,18 @@ def main(argv):
     files_path = '/home/sofia/past_dates_computation'
     ROUTING = False
     STABILITY = False
+    DEAGG_PROB = False
 
     try:
-        opts, args = getopt.getopt(argv,"hp:n:RSD", ['files_path=', 'procNumber=',])
+        opts, args = getopt.getopt(argv,"hp:n:RSDd", ['files_path=', 'procNumber=',])
     except getopt.GetoptError:
         print 'Usage: {} -h | -p <files_path> -n <process number> [-D]'.format(sys.argv[0])
         print "p: Files path. Path to a folder in which generated files will be saved."
         print "n: Provide a process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
         print "R: Routing stats. Use this option if you want the routing stats to be computed."
-        print "S: Stability and Deaggregation stats. Use this options if you want the stats about update rates and probability of deaggregation to be computed."
-        print "D: DEBUG mode"
+        print "S: Stability stats. Use this option if you want the stats about update rates to be computed."
+        print "D: Deaggregation probability stats. Use this option if you want the stats about probability of deaggregation  to be computed."
+        print "d: DEBUG mode"
         sys.exit()
 
     for opt, arg in opts:
@@ -199,8 +156,9 @@ def main(argv):
             print "p: Files path. Path to a folder in which generated files will be saved."
             print "n: Provide a process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
             print "R: Routing stats. Use this option if you want the routing stats to be computed."
-            print "S: Stability and Deaggregation stats. Use this options if you want the stats about update rates and probability of deaggregation to be computed."
-            print "D: DEBUG mode"
+            print "S: Stability stats. Use this option if you want the stats about update rates to be computed."
+            print "D: Deaggregation probability stats. Use this option if you want the stats about probability of deaggregation  to be computed."
+            print "d: DEBUG mode"
             sys.exit()
         elif opt == '-p':
             if arg != '':
@@ -221,12 +179,14 @@ def main(argv):
         elif opt == '-S':
             STABILITY = True
         elif opt == '-D':
+            DEAGG_PROB = True
+        elif opt == '-d':
             DEBUG = True
         else:
             assert False, 'Unhandled option'
             
-    if not ROUTING and not STABILITY:
-        print "None of the options -R or -S were provided. Exiting without computing any stats."
+    if not ROUTING and not STABILITY and not DEAGG_PROB:
+        print "None of the options -R, -S or -D were provided. Exiting without computing any stats."
         sys.exit(0)
     
     readables_folder = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
@@ -235,4 +195,8 @@ def main(argv):
     
     for past_date in dates_set:
         computationForDate(past_date, DEBUG, files_path, readables_folder,
-                           ROUTING, STABILITY)
+                           ROUTING, STABILITY, DEAGG_PROB)
+
+        
+if __name__ == "__main__":
+    main(sys.argv[1:])
