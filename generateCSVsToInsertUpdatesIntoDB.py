@@ -98,6 +98,9 @@ def generateCSVFromUpdatesFile(updates_file, files_path, readables_path, DEBUG,
             prefixes = []
             
             for line in announcements_f:
+                if 'flapped' in line:
+                    continue
+                
                 line_parts = line.strip().split()
 
                 # If a new announcement starts
@@ -121,12 +124,18 @@ def generateCSVFromUpdatesFile(updates_file, files_path, readables_path, DEBUG,
                     bgp_neighbor = line_parts[4]
                     if 'path' in line:
                         peerAS = line.split('path')[1].split()[0]
+                        
+                        if '.' in peerAS:
+                            left, right= peerAS.split('.')
+                            peerAS = int(left) * 65536 + int(right)
+                        else:
+                            peerAS = int(peerAS)
                     else:
                         peerAS = -1
                     prefixes = []
                                              
                 else:
-                    prefixes.append(line_parts[6])
+                    prefixes.append(line_parts[6].replace('...duplicate', ''))
 
             # We have to write to the csv file the last announcement            
             if len(prefixes) > 0:
@@ -206,6 +215,8 @@ def getDF(filtered_file, upd_type, updates_file):
         datetime_parts = df_from_file.update_datetime.str.rsplit(' ', n=1, expand=True)
         df_from_file['update_date'] = datetime_parts[0]
         df_from_file['update_time'] = datetime_parts[1]
+
+        df_from_file.dropna(subset=['bgp_neighbor', 'peerAS', 'prefix'], how='all')
     
     return df_from_file
   
