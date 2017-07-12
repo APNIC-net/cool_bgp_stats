@@ -30,10 +30,15 @@ import updatesStats_ES_properties
 import deaggStats_ES_properties
 
 class StabilityAndDeagg:
-    def __init__(self, DEBUG, files_path, es_host, bgp_handler):
+    def __init__(self, DEBUG, files_path, ELASTIC, bgp_handler):
         self.DEBUG = DEBUG
         self.files_path = files_path
-        self.es_host = es_host
+        
+        if ELASTIC:
+            self.es_host = 'twerp.rand.apnic.net'
+        else:
+            self.es_host = ''
+            
         # bgp_handler MUST be an instance of the BGPDataHandler class and have
         # all the structures loaded
         self.bgp_handler = bgp_handler
@@ -179,21 +184,20 @@ def main(argv):
     routing_file = ''
     DEAGG = False
     STABILITY = False
-    es_host = ''
+    ELASTIC = False
     
     try:
-        opts, args = getopt.getopt(argv, "hp:r:R:SDdE:", ["files_path=",
+        opts, args = getopt.getopt(argv, "hp:r:R:SDdE", ["files_path=",
                                                         "routing_file=",
-                                                      "Routing_date=",
-                                                      "ElasticSearch_host=",])
+                                                      "Routing_date=",])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -p <files path> -r <routing file> -R <Routing date> [-S] [-D] [-d] [-E <ElasticSearch host>]'.format(sys.argv[0])
+        print 'Usage: {} -h | -p <files path> -r <routing file> -R <Routing date> [-S] [-D] [-d] [-E]'.format(sys.argv[0])
         sys.exit(-1)
         
     for opt, arg in opts:
         if opt == '-h':
             print "This script loads two tables with data about daily BGP updates and deaggregation in the BGP routing table."
-            print 'Usage: {} -h | -p <files path> -r <routing file> -R <Routing date> [-S] [-D] [-d] [-E <ElasticSearch host>]'.format(sys.argv[0])
+            print 'Usage: {} -h | -p <files path> -r <routing file> -R <Routing date> [-S] [-D] [-d] [-E]'.format(sys.argv[0])
             print "h: Help"
             print "p: Path to folder in which files will be saved. (MANDATORY)"
             print "r: Path to routing file from which stats will be computed."
@@ -201,7 +205,7 @@ def main(argv):
             print "S: Stability. Compute statistics about update rates."
             print "D: Deaggregation. Compute statistics about probability of deaggregation."
             print "d: Debug mode. Use this option if you want the script to run in debug mode."
-            print "E: Insert compute statistics into ElasticSearch. The hostname of the ElasticSearch host MUST be provided if this option is used."
+            print "E: Insert compute statistics into ElasticSearch."
         elif opt == '-p':
             if arg != '':
                 files_path = os.path.abspath(arg)
@@ -227,11 +231,7 @@ def main(argv):
         elif opt == '-d':
             DEBUG = True
         elif opt == '-E':
-            if arg != '':
-                es_host = arg
-            else:
-                print "If option -E is used, the name of a host running ElasticSearch must be provided."
-                sys.exit(-1)
+            ELASTIC = True
         else:
             assert False, 'Unhandled option'
     
@@ -253,7 +253,7 @@ def main(argv):
             sys.stdout.write('{}: Data structures not loaded! Aborting.\n'.format(datetime.now()))
             sys.exit()
             
-        StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, es_host,
+        StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, ELASTIC,
                                                    bgp_handler)
         
         if STABILITY:

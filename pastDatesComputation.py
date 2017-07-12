@@ -36,84 +36,87 @@ def getReadableForRoutingFile(routing_file, readables_folder):
         return ''
 
 def computationForDate(routing_date, DEBUG, files_path, readables_folder,
-                       ROUTING, STABILITY, DEAGG_PROB):    
+                       ROUTING, STABILITY, DEAGG_PROB, ELASTIC):    
 
-    sys.stdout.write('{}: Looking for routing file to be used.\n'.format(datetime.now()))
-                                        
-    db_handler = DBHandler('')
-    available_routing_files = db_handler.getPathsToRoutingFilesForDate(routing_date)
-    db_handler.close()
+    routing_file = ''
     
-    if 'bgprib.mrt' in available_routing_files:
-        # If there is a bgprib file available, I check whether I already have
-        # the readable file for it in the readables folder
-        routing_file = available_routing_files['bgprib.mrt']
-        readable_routing_file = getReadableForRoutingFile(routing_file,
-                                                          readables_folder)
+    if ROUTING or DEAGG_PROB:
+        sys.stdout.write('{}: Looking for routing file to be used.\n'.format(datetime.now()))
+                                            
+        db_handler = DBHandler('')
+        available_routing_files = db_handler.getPathsToRoutingFilesForDate(routing_date)
+        db_handler.close()
         
-        # If I do, I use it
-        if readable_routing_file != '':
-            routing_file = readable_routing_file
-        
-        # If I don't, I will use the bgprib.mrt file
-    
-    elif 'dmp.gz' in available_routing_files and 'v6.dmp.gz' in available_routing_files:
-        # If there is not bgprib.mrt file available, but the two dmp files
-        # (for v4 and v6) are available, I use them
-        dmp_file = available_routing_files['dmp.gz']
-        # If I already have a readable file, I use it
-        readable_dmp = getReadableForRoutingFile(dmp_file, readables_folder)
-        if readable_dmp == '':
-            readable_dmp = BGPDataHandler.getReadableFile(dmp_file, False,
-                                                          files_path, DEBUG)
-
-        v6dmp_file = available_routing_files['v6.dmp.gz']
-        # If I already have a readable file, I use it
-        readable_v6dmp = getReadableForRoutingFile(v6dmp_file, readables_folder)
-        if readable_v6dmp == '':
-            readable_v6dmp = BGPDataHandler.getReadableFile(v6dmp_file, False,
-                                                            files_path, DEBUG)
-         
-        routing_file = concatenateFiles('{}/{}_v4andv6.dmp.readable'\
-                                            .format(files_path, routing_date),
-                                            readable_dmp, readable_v6dmp)
-    elif 'dmp.gz' in available_routing_files:
-        # If there is only one of the dmp files available, I will work with it
-        # but I'll print a message to the log
-        sys.stdout.write('Only the dmp.gz file is available for date {}. Computing stats only for IPv4.\n'.format(routing_date))
-        
-        dmp_file = available_routing_files['dmp.gz']
-        # If I already have a readable file, I use it
-        readable_dmp = getReadableForRoutingFile(dmp_file, readables_folder)
-
-        if readable_dmp != '':
-            routing_file = readable_dmp
-        else:
-            routing_file = dmp_file
+        if 'bgprib.mrt' in available_routing_files:
+            # If there is a bgprib file available, I check whether I already have
+            # the readable file for it in the readables folder
+            routing_file = available_routing_files['bgprib.mrt']
+            readable_routing_file = getReadableForRoutingFile(routing_file,
+                                                              readables_folder)
             
-    elif 'v6.dmp.gz' in available_routing_files:
-        # If there is only one of the dmp files available, I will work with it
-        # but I'll print a message to the log
-        sys.stdout.write('Only the v6.dmp.gz file is available for date {}. Computing stats only for IPv6.\n'.format(routing_date))
+            # If I do, I use it
+            if readable_routing_file != '':
+                routing_file = readable_routing_file
+            
+            # If I don't, I will use the bgprib.mrt file
         
-        v6dmp_file = available_routing_files['v6.dmp.gz']
-        # If I already have a readable file, I use it
-        readable_v6dmp = getReadableForRoutingFile(v6dmp_file, readables_folder)
-        
-        if readable_v6dmp != '':
-            routing_file = readable_v6dmp
-        else:
-            routing_file = v6dmp_file
+        elif 'dmp.gz' in available_routing_files and 'v6.dmp.gz' in available_routing_files:
+            # If there is not bgprib.mrt file available, but the two dmp files
+            # (for v4 and v6) are available, I use them
+            dmp_file = available_routing_files['dmp.gz']
+            # If I already have a readable file, I use it
+            readable_dmp = getReadableForRoutingFile(dmp_file, readables_folder)
+            if readable_dmp == '':
+                readable_dmp = BGPDataHandler.getReadableFile(dmp_file, False,
+                                                              files_path, DEBUG)
     
-    else:
-        # This should never happen. At least one routing file for a date must be available
-        sys.stdout.write('No routing file is available for date {}\n'.format(routing_date))
-        return False
+            v6dmp_file = available_routing_files['v6.dmp.gz']
+            # If I already have a readable file, I use it
+            readable_v6dmp = getReadableForRoutingFile(v6dmp_file, readables_folder)
+            if readable_v6dmp == '':
+                readable_v6dmp = BGPDataHandler.getReadableFile(v6dmp_file, False,
+                                                                files_path, DEBUG)
+             
+            routing_file = concatenateFiles('{}/{}_v4andv6.dmp.readable'\
+                                                .format(files_path, routing_date),
+                                                readable_dmp, readable_v6dmp)
+        elif 'dmp.gz' in available_routing_files:
+            # If there is only one of the dmp files available, I will work with it
+            # but I'll print a message to the log
+            sys.stdout.write('Only the dmp.gz file is available for date {}. Computing stats only for IPv4.\n'.format(routing_date))
+            
+            dmp_file = available_routing_files['dmp.gz']
+            # If I already have a readable file, I use it
+            readable_dmp = getReadableForRoutingFile(dmp_file, readables_folder)
+    
+            if readable_dmp != '':
+                routing_file = readable_dmp
+            else:
+                routing_file = dmp_file
+                
+        elif 'v6.dmp.gz' in available_routing_files:
+            # If there is only one of the dmp files available, I will work with it
+            # but I'll print a message to the log
+            sys.stdout.write('Only the v6.dmp.gz file is available for date {}. Computing stats only for IPv6.\n'.format(routing_date))
+            
+            v6dmp_file = available_routing_files['v6.dmp.gz']
+            # If I already have a readable file, I use it
+            readable_v6dmp = getReadableForRoutingFile(v6dmp_file, readables_folder)
+            
+            if readable_v6dmp != '':
+                routing_file = readable_v6dmp
+            else:
+                routing_file = v6dmp_file
         
-    sys.stdout.write('{}: Working with routing file {}\n'.format(datetime.now(), routing_file))
-
+        else:
+            # This should never happen. At least one routing file for a date must be available
+            sys.stdout.write('No routing file is available for date {}\n'.format(routing_date))
+            return False
+            
+        sys.stdout.write('{}: Working with routing file {}\n'.format(datetime.now(), routing_file))
+    
     computeStatsForDate(routing_date, routing_file, ROUTING, STABILITY,
-                        DEAGG_PROB, False)
+                        DEAGG_PROB, False, ELASTIC)
 
     # Lo llamamos con BulkWHOIS = False porque no es necesario que cada vez parsee el Bulk WHOIS
     # Las estructuras disponibles van a estar actualizadas porque BulkWHOISParser se va a instanciar a diario
@@ -158,17 +161,19 @@ def main(argv):
     DEAGG_PROB = False
     year = 2017
     proc_num = -1
+    ELASTIC = False
 
     try:
-        opts, args = getopt.getopt(argv,"hp:n:y:RSDd", ['files_path=', 'procNumber=', 'year=',])
+        opts, args = getopt.getopt(argv,"hp:n:y:RSDEd", ['files_path=', 'procNumber=', 'year=',])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -p <files_path> (-n <process number> | -y <year>) [-R] [-S] [-D] [-d]'.format(sys.argv[0])
+        print 'Usage: {} -h | -p <files_path> (-n <process number> | -y <year>) [-R] [-S] [-D] [-E] [-d]'.format(sys.argv[0])
         print "p: Files path. Path to a folder in which generated files will be saved."
         print "n: Process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
         print "y: Year. Year for which you want the stats to be computed."
         print "R: Routing stats. Use this option if you want the routing stats to be computed."
         print "S: Stability stats. Use this option if you want the stats about update rates to be computed."
         print "D: Deaggregation probability stats. Use this option if you want the stats about probability of deaggregation  to be computed."
+        print "E: ElasticSearch. Save computed stats to ElasicSearch engine in twerp.rand.apnic.net"
         print "d: DEBUG mode"
         sys.exit()
 
@@ -209,6 +214,8 @@ def main(argv):
             STABILITY = True
         elif opt == '-D':
             DEAGG_PROB = True
+        elif opt == '-E':
+            ELASTIC = True
         elif opt == '-d':
             DEBUG = True
         else:
@@ -237,7 +244,7 @@ def main(argv):
     
     for past_date in dates_set:
         computationForDate(past_date, DEBUG, files_path, readables_folder,
-                           ROUTING, STABILITY, DEAGG_PROB)
+                           ROUTING, STABILITY, DEAGG_PROB, ELASTIC)
 
         
 if __name__ == "__main__":

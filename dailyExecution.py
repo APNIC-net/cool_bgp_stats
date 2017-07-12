@@ -20,13 +20,17 @@ from StabilityAndDeaggDailyStats import StabilityAndDeagg
 from computeRoutingStats import computeAndSavePerPrefixStats, computeAndSavePerASStats
 
 def computeStatsForDate(date_to_work_with, routing_file, ROUTING,
-                        STABILITY, DEAGG_PROB, BulkWHOIS):
+                        STABILITY, DEAGG_PROB, BulkWHOIS, ELASTIC):
     DEBUG = False
     files_path = '/home/sofia/daily_execution'
     
     sys.stdout.write('{}: Initializing variables and classes.\n'.format(datetime.now()))
     
-    es_host = 'twerp.rand.apnic.net'
+    if ELASTIC:
+        es_host = 'twerp.rand.apnic.net'
+    else:
+        es_host = ''
+        
     KEEP = False
     EXTENDED = True
     del_file = '{}/extended_apnic_{}.txt'.format(files_path, date.today())
@@ -127,28 +131,31 @@ def main(argv):
     ROUTING = False
     STABILITY = False
     DEAGG_PROB = False
+    ELASTIC = False
 
     try:
-        opts, args = getopt.getopt(argv,"hd:RSD", ['date_to_work_with=',])
+        opts, args = getopt.getopt(argv,"hd:RSDE", ['date_to_work_with=',])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -d <Date to work with> [-R] [-S] [-D]'.format(sys.argv[0])
+        print 'Usage: {} -h | -d <Date to work with> [-R] [-S] [-D] [-E]'.format(sys.argv[0])
         print "d: Date of the files whose data you want to be inserted into the DB. Format YYYYMMDD."
         print "The data from the files in /data/wattle/bgplog/YYYY/MM/DD will be inserted into the DB."
         print "If this option is not used, insertions of the data from the files in the folder corresponding to today will be inserted into the DB."
         print "R: Routing. Compute statistics about routing (for prefixes and ASes)."
         print "S: Stability. Compute statistics about stability (update rate)."
         print "D: Deaggregation probability. Compute statistics about the probability of deaggregation for each routed prefix."
+        print "E: elasticSearch. Save computed stats to ElasicSearch engine in twerp.rand.apnic.net"
         sys.exit()
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'Usage: {} -h | -d <Date to work with> [-R] [-S] [-D]'.format(sys.argv[0])
+            print 'Usage: {} -h | -d <Date to work with> [-R] [-S] [-D] [-E]'.format(sys.argv[0])
             print "d: Date of the files whose data you want to be inserted into the DB. Format YYYYMMDD."
             print "The data from the files in /data/wattle/bgplog/YYYY/MM/DD will be inserted into the DB."
             print "If this option is not used, insertions of the data from the files in the folder corresponding to today will be inserted into the DB."
             print "R: Routing. Compute statistics about routing (for prefixes and ASes)."
             print "S: Stability. Compute statistics about stability (update rate)."
             print "D: Deaggregation probability. Compute statistics about the probability of deaggregation for each routed prefix."
+            print "E: elasticSearch. Save computed stats to ElasicSearch engine in twerp.rand.apnic.net"
             sys.exit()
         elif opt == '-d':
             if arg != '':
@@ -168,6 +175,8 @@ def main(argv):
             STABILITY = True
         elif opt == '-D':
             DEAGG_PROB = True
+        elif opt == '-E':
+            ELASTIC = True
         else:
             assert False, 'Unhandled option'
     
@@ -181,7 +190,7 @@ def main(argv):
     # When this function is called by pastDatesComputation, it is called with
     # BulkWHOIS = False
     computeStatsForDate(date_to_work_with, readable_routing_file, ROUTING,
-                        STABILITY, DEAGG_PROB, True)
+                        STABILITY, DEAGG_PROB, True, ELASTIC)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
