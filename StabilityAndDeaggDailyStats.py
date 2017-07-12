@@ -216,7 +216,7 @@ def main(argv):
                 sys.exit(-1)
         elif opt == '-R':
             if arg != '':
-                routing_date = datetime.strptime(arg, '%Y%m%d')
+                routing_date = datetime.strptime(arg, '%Y%m%d').date()
             else:
                 print "If option -R is used, the routing date for which stats will be computed MUST be provided."
                 sys.exit(-1)
