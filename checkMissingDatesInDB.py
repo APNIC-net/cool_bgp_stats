@@ -5,7 +5,7 @@ Created on Wed Jul 12 17:24:35 2017
 @author: sofiasilva
 """
 import os
-os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
+os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from DBHandler import DBHandler
 from datetime import date, timedelta
 
