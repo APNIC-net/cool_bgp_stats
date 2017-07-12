@@ -177,26 +177,30 @@ def main(argv):
     files_path = '/home/sofia/BGP_stats_files'
     routing_date = None
     routing_file = ''
+    DEAGG = False
+    STABILITY = False
     es_host = ''
     
     try:
-        opts, args = getopt.getopt(argv, "hp:r:R:DE:", ["files_path=",
+        opts, args = getopt.getopt(argv, "hp:r:R:SDdE:", ["files_path=",
                                                         "routing_file=",
                                                       "Routing_date=",
                                                       "ElasticSearch_host=",])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -p <files path> -r <routing file> -R <Routing date> [-D] [-E <ElasticSearch host>]'.format(sys.argv[0])
+        print 'Usage: {} -h | -p <files path> -r <routing file> -R <Routing date> [-S] [-D] [-d] [-E <ElasticSearch host>]'.format(sys.argv[0])
         sys.exit(-1)
         
     for opt, arg in opts:
         if opt == '-h':
             print "This script loads two tables with data about daily BGP updates and deaggregation in the BGP routing table."
-            print 'Usage: {} -h | -p <files path> -r <routing file> -R <Routing date> [-D] [-E <ElasticSearch host>]'.format(sys.argv[0])
+            print 'Usage: {} -h | -p <files path> -r <routing file> -R <Routing date> [-S] [-D] [-d] [-E <ElasticSearch host>]'.format(sys.argv[0])
             print "h: Help"
             print "p: Path to folder in which files will be saved. (MANDATORY)"
             print "r: Path to routing file from which stats will be computed."
             print "R: Routing date for the stats to be computed in format YYYYMMDD. If not provided, stats will be computed for the day before today."
-            print "D: Debug mode. Use this option if you want the script to run in debug mode."
+            print "S: Stability. Compute statistics about update rates."
+            print "D: Deaggregation. Compute statistics about probability of deaggregation."
+            print "d: Debug mode. Use this option if you want the script to run in debug mode."
             print "E: Insert compute statistics into ElasticSearch. The hostname of the ElasticSearch host MUST be provided if this option is used."
         elif opt == '-p':
             if arg != '':
@@ -217,6 +221,10 @@ def main(argv):
                 print "If option -R is used, the routing date for which stats will be computed MUST be provided."
                 sys.exit(-1)
         elif opt == '-D':
+            DEAGG = True
+        elif opt == '-S':
+            STABILITY = True
+        elif opt == '-d':
             DEBUG = True
         elif opt == '-E':
             if arg != '':
@@ -226,29 +234,33 @@ def main(argv):
                 sys.exit(-1)
         else:
             assert False, 'Unhandled option'
-            
-    if routing_date is None and routing_file == '':
-        routing_date = date.today() - timedelta(1)
     
-    bgp_handler = BGPDataHandler(DEBUG, files_path)
-    
-    if routing_file != '':
-        loaded = bgp_handler.loadStructuresFromRoutingFile(routing_file)
-
-        if loaded:
-            loaded = bgp_handler.loadUpdatesDF(bgp_handler.routingDate)
-    else:
-        loaded = bgp_handler.loadStructuresFromArchive(routing_date)
-    
-    if not loaded:
-        sys.stdout.write('{}: Data structures not loaded! Aborting.\n'.format(datetime.now()))
-        sys.exit()
+    if DEAGG or STABILITY:
+        if routing_date is None and routing_file == '':
+            routing_date = date.today() - timedelta(1)
         
-    StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, es_host,
-                                               bgp_handler)
-
-    StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
-    StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()    
+        bgp_handler = BGPDataHandler(DEBUG, files_path)
+        
+        if routing_file != '':
+            loaded = bgp_handler.loadStructuresFromRoutingFile(routing_file)
+    
+            if loaded:
+                loaded = bgp_handler.loadUpdatesDF(bgp_handler.routingDate)
+        else:
+            loaded = bgp_handler.loadStructuresFromArchive(routing_date)
+        
+        if not loaded:
+            sys.stdout.write('{}: Data structures not loaded! Aborting.\n'.format(datetime.now()))
+            sys.exit()
+            
+        StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, es_host,
+                                                   bgp_handler)
+        
+        if STABILITY:
+            StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
+            
+        if DEAGG:
+            StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()    
         
 if __name__ == "__main__":
     main(sys.argv[1:])
