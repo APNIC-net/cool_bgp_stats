@@ -47,10 +47,21 @@ class StabilityAndDeagg:
         p.kill()
         return datetime.strptime(output.split(',')[1], '%Y%m%d').date()
         
+    @staticmethod
+    def getDelegationCC(prefix):
+        cmd = shlex.split("origincc -d ',' -f 1")
+        cmd_echo = shlex.split("echo {}".format(prefix))
+        p = subprocess.Popen(cmd_echo, stdout=subprocess.PIPE)
+        output = subprocess.check_output(cmd, stdin=p.stdout)
+        p.kill()
+        return output.split(',')[1]
+    
+        
     def computeUpdatesStats(self, updates_df, stats_file):
         if updates_df.shape[0] > 0:
             for prefix, prefix_subset in updates_df.groupby('prefix'):
                 del_date = self.getDelegationDate(prefix)
+                cc = self.getDelegationCC(prefix)
                 network = IPNetwork(prefix)
                 for update_date, date_subset in prefix_subset.groupby('update_date'):
                     del_age = (update_date - del_date).days
@@ -58,16 +69,21 @@ class StabilityAndDeagg:
                     numOfWith = len(date_subset[date_subset['upd_type'] == 'W']['prefix'].tolist())
                     
                     with open(stats_file, 'a') as s_file:
-                        s_file.write('{}|{}|{}|{}|{}|{}|{}|{}\n'.format(prefix, del_date,
-                                                                        update_date, del_age,
-                                                                        network.version,
-                                                                        network.prefixlen,
-                                                                        numOfAnn, numOfWith))
+                        s_file.write('{}|{}|{}|{}|{}|{}|{}|{}|{}\n'.format(prefix,
+                                                                         del_date,
+                                                                         cc,
+                                                                         update_date,
+                                                                         del_age,
+                                                                         network.version,
+                                                                         network.prefixlen,
+                                                                         numOfAnn,
+                                                                         numOfWith))
     
     def computeDeaggregationStats(self, bgp_handler, stats_file):    
         for prefix, prefix_subset in bgp_handler.bgp_df.groupby('prefix'):
             del_date = self.getDelegationDate(prefix)
-            
+            cc = self.getDelegationCC(prefix)
+
             network = IPNetwork(prefix)
             if network.version == 4:
                 prefixes_radix = bgp_handler.ipv4Prefixes_radix
@@ -88,7 +104,7 @@ class StabilityAndDeagg:
                     isRootDeagg = True
             
             with open(stats_file, 'a') as s_file:
-                s_file.write('{}|{}|{}|{}|{}|{}\n'.format(prefix, del_date,
+                s_file.write('{}|{}|{}|{}|{}|{}|{}\n'.format(prefix, del_date, cc,
                                                             bgp_handler.routingDate,
                                                             (bgp_handler.routingDate -\
                                                             del_date).days,
@@ -128,7 +144,7 @@ class StabilityAndDeagg:
         updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path,
                                                              self.bgp_handler.routingDate)
         with open(updates_stats_file, 'w') as u_file:
-            u_file.write('prefix|del_date|updates_date|del_age|ip_version|prefLength|numOfAnnouncements|numOfWithdraws\n')
+            u_file.write('prefix|del_date|CC|updates_date|del_age|ip_version|prefLength|numOfAnnouncements|numOfWithdraws\n')
             
         self.computeUpdatesStats(self.bgp_handler.updates_df, updates_stats_file)
         
@@ -145,7 +161,7 @@ class StabilityAndDeagg:
                                                              self.bgp_handler.routingDate)
                                                              
             with open(deagg_stats_file, 'w') as d_file:
-                d_file.write('prefix|del_date|routing_date|del_age|isRoot|isRootDeagg\n')
+                d_file.write('prefix|del_date|CC|routing_date|del_age|isRoot|isRootDeagg\n')
                 
             self.computeDeaggregationStats(self.bgp_handler, deagg_stats_file)
             
