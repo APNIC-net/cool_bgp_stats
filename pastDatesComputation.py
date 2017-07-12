@@ -12,6 +12,8 @@ from dailyExecution import computeStatsForDate
 from BGPDataHandler import BGPDataHandler
 from DBHandler import DBHandler
 
+yearsForProcNums = {1:[2007, 2008, 2009], 2:[2010, 2011], 3:[2012, 2013],
+                        4:[2014, 2015], 5:[2016, 2017]}
 
 def concatenateFiles(routing_file, v4_routing_file, v6_routing_file):
     with open(v4_routing_file, 'a') as v4_file:
@@ -119,10 +121,27 @@ def computationForDate(routing_date, DEBUG, files_path, readables_folder,
     return True
 
 def getCompleteDatesSet(proc_num):
-    yearsForProcNums = {1:[2007, 2008, 2009], 2:[2010, 2011], 3:[2012, 2013],
-                        4:[2014, 2015], 5:[2016, 2017]}
-    initial_date = date(yearsForProcNums[proc_num][0], 1, 1)
+    if proc_num == 1:
+        initial_date = date(2007, 6, 11)
+    else:
+        initial_date = date(yearsForProcNums[proc_num][0], 1, 1)
+        
     final_date = date(yearsForProcNums[proc_num][-1], 12, 31)
+
+    yesterday = date.today() - timedelta(1)
+    if final_date > yesterday:
+        final_date = yesterday
+        
+    numOfDays = (final_date - initial_date).days
+    return set([final_date - timedelta(days=x) for x in range(0, numOfDays)])
+
+def getCompleteDatesSetForYear(year):
+    if year == 2007:
+        initial_date = date(2007, 6, 11)
+    else:
+        initial_date = date(year, 1, 1)
+        
+    final_date = date(year, 12, 31)
 
     yesterday = date.today() - timedelta(1)
     if final_date > yesterday:
@@ -137,13 +156,16 @@ def main(argv):
     ROUTING = False
     STABILITY = False
     DEAGG_PROB = False
+    year = 2017
+    proc_num = -1
 
     try:
-        opts, args = getopt.getopt(argv,"hp:n:RSDd", ['files_path=', 'procNumber=',])
+        opts, args = getopt.getopt(argv,"hp:n:y:RSDd", ['files_path=', 'procNumber=', 'year=',])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -p <files_path> -n <process number> [-D]'.format(sys.argv[0])
+        print 'Usage: {} -h | -p <files_path> (-n <process number> | -y <year>) [-R] [-S] [-D] [-d]'.format(sys.argv[0])
         print "p: Files path. Path to a folder in which generated files will be saved."
-        print "n: Provide a process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
+        print "n: Process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
+        print "y: Year. Year for which you want the stats to be computed."
         print "R: Routing stats. Use this option if you want the routing stats to be computed."
         print "S: Stability stats. Use this option if you want the stats about update rates to be computed."
         print "D: Deaggregation probability stats. Use this option if you want the stats about probability of deaggregation  to be computed."
@@ -152,9 +174,10 @@ def main(argv):
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'Usage: {} -h | -p <files_path> -n <process number> [-D]'.format(sys.argv[0])
+            print 'Usage: {} -h | -p <files_path> (-n <process number> | -y <year>) [-R] [-S] [-D] [-d]'.format(sys.argv[0])
             print "p: Files path. Path to a folder in which generated files will be saved."
             print "n: Provide a process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
+            print "y: Year. Year for which you want the stats to be computed."
             print "R: Routing stats. Use this option if you want the routing stats to be computed."
             print "S: Stability stats. Use this option if you want the stats about update rates to be computed."
             print "D: Deaggregation probability stats. Use this option if you want the stats about probability of deaggregation  to be computed."
@@ -174,6 +197,12 @@ def main(argv):
             except ValueError:
                 print "The process number MUST be a number."
                 sys.exit(-1)
+        elif opt == '-y':
+            if arg != '':
+                year = int(arg)
+            else:
+                print "If the -y option is used you MUST provide the year for which you want stats to be computed."
+                sys.exit(-1)
         elif opt == '-R':
             ROUTING = True
         elif opt == '-S':
@@ -185,13 +214,26 @@ def main(argv):
         else:
             assert False, 'Unhandled option'
             
+    if proc_num == -1:
+        for i in yearsForProcNums:
+            if year in yearsForProcNums[i]:
+                proc_num = i
+        
+        if proc_num == -1:
+            print "The year provided MUST be between 2007 and the 2017."
+            sys.exiT(-1)
+            
+        dates_set = getCompleteDatesSetForYear(year)
+    else:
+        dates_set = getCompleteDatesSet(proc_num)
+
+            
     if not ROUTING and not STABILITY and not DEAGG_PROB:
         print "None of the options -R, -S or -D were provided. Exiting without computing any stats."
         sys.exit(0)
     
     readables_folder = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
 
-    dates_set = getCompleteDatesSet(proc_num)
     
     for past_date in dates_set:
         computationForDate(past_date, DEBUG, files_path, readables_folder,
