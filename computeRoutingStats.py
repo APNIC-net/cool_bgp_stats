@@ -7,6 +7,7 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 #Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from RoutingStats import RoutingStats
+from BGPDataHandler import BGPDataHandler
 from netaddr import IPSet, IPNetwork
 import pandas as pd
 import numpy as np
@@ -326,14 +327,15 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
                                         variables, diffOrg_var, numsOfOriginASesList,
                                         numsOfASPathsList, ASPathLengthsList,
                                         numsOfAnnouncementsList, numsOfWithdrawsList,
-                                        levenshteinDists, routingStatsObj, files_path):
+                                        levenshteinDists, routingStatsObj,
+                                        bgp_handler, files_path):
     
     routedNetwork = IPNetwork(routedPrefix)
 
-    blockOriginASes = routingStatsObj.bgp_handler.getOriginASesForBlock(routedNetwork)
-    blockASpaths = routingStatsObj.bgp_handler.getASpathsForBlock(routedNetwork)
+    blockOriginASes = bgp_handler.getOriginASesForBlock(routedNetwork)
+    blockASpaths = bgp_handler.getASpathsForBlock(routedNetwork)
     
-    updates_subset = routingStatsObj.bgp_handler.updates_df[routingStatsObj.bgp_handler.updates_df['prefix'] == routedPrefix]
+    updates_subset = bgp_handler.updates_df[bgp_handler.updates_df['prefix'] == routedPrefix]
 
     if isDelegated:
         statsForPrefix['numOfOriginASesIntact'] = len(blockOriginASes)
@@ -386,8 +388,8 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
         
                     
     # Find routed blocks related to the prefix of interest 
-    net_less_specifics = routingStatsObj.bgp_handler.getRoutedParentAndGrandparents(routedNetwork)
-    net_more_specifics = routingStatsObj.bgp_handler.getRoutedChildren(routedNetwork)
+    net_less_specifics = bgp_handler.getRoutedParentAndGrandparents(routedNetwork)
+    net_more_specifics = bgp_handler.getRoutedChildren(routedNetwork)
    
     # If there is at least one less specific block being routed,
     # the block is a covered prefix
@@ -410,8 +412,8 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
         # list of less specifics
         coveringPref = net_less_specifics[-1]
         coveringNet = IPNetwork(coveringPref)
-        coveringPrefOriginASes = routingStatsObj.bgp_handler.getOriginASesForBlock(coveringNet)
-        coveringPrefASpaths = routingStatsObj.bgp_handler.getASpathsForBlock(coveringNet)       
+        coveringPrefOriginASes = bgp_handler.getOriginASesForBlock(coveringNet)
+        coveringPrefASpaths = bgp_handler.getASpathsForBlock(coveringNet)       
   
         # If all the origin ASes of the covered prefix are also origin ASes of
         # the covering prefix, then the covered prefix is a deaggregated prefix
@@ -474,7 +476,7 @@ def writeStatsLineToFile(stats_dict, allAttr, stats_filename):
         stats_file.write(line)
 
 # Decide which historical data has to be taken into account in this case
-def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_DATA):
+def computePerPrefixStats(routingStatsObj, bgp_handler, stats_filename, files_path, TEMPORAL_DATA):
     # Obtain a subset of all the delegated prefixes
     delegatedNetworks = routingStatsObj.del_handler.delegated_df[\
                             (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv4') |\
@@ -494,7 +496,7 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
         statsForPrefix['opaque_id'] = prefix_row['opaque_id']
         statsForPrefix['cc'] = prefix_row['cc']
         statsForPrefix['region'] = prefix_row['region']
-        statsForPrefix['routing_date'] = str(routingStatsObj.bgp_handler.routingDate)
+        statsForPrefix['routing_date'] = str(bgp_handler.routingDate)
 
         delNetwork = IPNetwork(prefix)
         
@@ -505,8 +507,8 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
         ips_delegated = delNetwork.size 
 
         # Find routed blocks related to the prefix of interest 
-        less_specifics = routingStatsObj.bgp_handler.getRoutedParentAndGrandparents(delNetwork)
-        more_specifics = routingStatsObj.bgp_handler.getRoutedChildren(delNetwork)
+        less_specifics = bgp_handler.getRoutedParentAndGrandparents(delNetwork)
+        more_specifics = bgp_handler.getRoutedChildren(delNetwork)
         
         statsForPrefix['numOfLessSpecificsRouted'] = len(less_specifics)
         statsForPrefix['numOfMoreSpecificsRouted'] = len(more_specifics)
@@ -537,7 +539,8 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                                                  numsOfAnnouncementsLessSpec,
                                                  numsOfWithdrawsLessSpec,
                                                  levenshteinDists,
-                                                 routingStatsObj, files_path)
+                                                 routingStatsObj, bgp_handler,
+                                                 files_path)
             
             if len(numsOfOriginASesLessSpec) > 0:
                 numsOfOriginASesLessSpec = np.array(numsOfOriginASesLessSpec)
@@ -602,7 +605,8 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                                                  'originatedByDiffOrg', None,
                                                  None, None, None, None,
                                                  levenshteinDists,
-                                                 routingStatsObj, files_path)
+                                                 routingStatsObj, bgp_handler,
+                                                 files_path)
                 
                 if len(levenshteinDists) > 0:
                     levenshteinDists = np.array(levenshteinDists)
@@ -677,6 +681,7 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
                                                  numsOfWithdrawsMoreSpec,
                                                  levenshteinDists,
                                                  routingStatsObj,
+                                                 bgp_handler,
                                                  files_path)
             
             if len(numsOfOriginASesMoreSpec) > 0:
@@ -729,7 +734,7 @@ def computePerPrefixStats(routingStatsObj, stats_filename, files_path, TEMPORAL_
 # * a numeric variable (numOfPrefixesPropagated) specifying the number of prefixes propagated by the AS
 # (BGP announcements for which the AS appears in the middle of the AS path)
 # * a numeric variable (numOfPrefixesOriginated) specifying the number of prefixes originated by the AS
-def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
+def computeASesStats(routingStatsObj, bgp_handler, stats_filename, TEMPORAL_DATA):
     today = date.today()
     expanded_del_asns_df = routingStatsObj.del_handler.getExpandedASNsDF() 
         
@@ -744,7 +749,7 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
         statsForAS['region'] = expanded_del_asns_df.ix[i]['region']
         del_date = expanded_del_asns_df.ix[i]['date'].to_pydatetime().date()
         statsForAS['del_date'] = del_date
-        statsForAS['routing_date'] = str(routingStatsObj.bgp_handler.routingDate)
+        statsForAS['routing_date'] = str(bgp_handler.routingDate)
         
         # We comment this line out as the URL to download CAIDA's AS relationships
         # dataset does not always work. It is not conceived to be automatically
@@ -753,19 +758,19 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
 #                                            & (routingStatsObj.ASrels['AS2'] == long(asn))])
 
         statsForAS['numOfPrefixesOriginated'] =\
-                            len(set(routingStatsObj.bgp_handler.bgp_df[\
-                            routingStatsObj.bgp_handler.bgp_df['originAS'] ==\
+                            len(set(bgp_handler.bgp_df[\
+                            bgp_handler.bgp_df['originAS'] ==\
                             str(asn)]['prefix']))
        
         statsForAS['numOfPrefixesPropagated'] =\
-                            len(set(routingStatsObj.bgp_handler.bgp_df[\
-                            (~routingStatsObj.bgp_handler.bgp_df['middleASes'].\
+                            len(set(bgp_handler.bgp_df[\
+                            (~bgp_handler.bgp_df['middleASes'].\
                             isnull()) &\
-                            (routingStatsObj.bgp_handler.bgp_df['middleASes'].\
+                            (bgp_handler.bgp_df['middleASes'].\
                             str.contains(str(asn)))]['prefix']))
         
-        asn_subset = routingStatsObj.bgp_handler.updates_df[\
-                        routingStatsObj.bgp_handler.updates_df['peeras'] == asn]
+        asn_subset = bgp_handler.updates_df[\
+                        bgp_handler.updates_df['peeras'] == asn]
                         
         if len(asn_subset['peeras'].tolist()) > 0:
             statsForAS['numOfAnnouncements'] = len(asn_subset[asn_subset['upd_type'] == 'A']['peeras'].tolist())
@@ -827,11 +832,12 @@ def computeASesStats(routingStatsObj, stats_filename, TEMPORAL_DATA):
         writeStatsLineToFile(statsForAS, routingStatsObj.allAttr_ases, stats_filename)
 
 def computeAndSavePerPrefixStats(files_path, file_name, dateStr, routingStatsObj,
-                                 prefixes_stats_file, TEMPORAL_DATA, es_host):
+                                 bgp_handler, prefixes_stats_file,
+                                 TEMPORAL_DATA, es_host):
                                      
     start_time = time()
-    computePerPrefixStats(routingStatsObj, prefixes_stats_file, files_path,
-                          TEMPORAL_DATA)
+    computePerPrefixStats(routingStatsObj, bgp_handler, prefixes_stats_file,
+                          files_path, TEMPORAL_DATA)
     end_time = time()
     sys.stderr.write("Stats for prefixes computed successfully!\n")
     sys.stderr.write("Prefixes statistics computation took {} seconds\n".format(end_time-start_time))
@@ -878,9 +884,9 @@ def computeAndSavePerPrefixStats(files_path, file_name, dateStr, routingStatsObj
             sys.stderr.write("Stats about usage of prefixes delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
 
 def computeAndSavePerASStats(files_path, file_name, dateStr, routingStatsObj,
-                             ases_stats_file, TEMPORAL_DATA, es_host):
+                             bgp_handler, ases_stats_file, TEMPORAL_DATA, es_host):
     start_time = time()
-    computeASesStats(routingStatsObj, ases_stats_file, TEMPORAL_DATA)
+    computeASesStats(routingStatsObj, bgp_handler, ases_stats_file, TEMPORAL_DATA)
     end_time = time()
     sys.stderr.write("Stats for ASes computed successfully!\n")
     sys.stderr.write("ASes statistics computation took {} seconds\n".format(end_time-start_time))   
@@ -1186,11 +1192,13 @@ def main(argv):
                                     routing_date, INCREMENTAL,
                                     final_existing_date, prefixes_stats_file,
                                     ases_stats_file, TEMPORAL_DATA)
+
+    bgp_handler = BGPDataHandler(DEBUG, files_path)
     
     loaded = False 
         
     if fromFiles:
-        loaded = routingStatsObj.bgp_handler.loadStructuresFromFiles(
+        loaded = bgp_handler.loadStructuresFromFiles(
                                                 routing_date,
                                                 bgp_df_file,
                                                 updates_df_file,
@@ -1199,15 +1207,15 @@ def main(argv):
                                                      
     else:
         if routing_file != '':
-            loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(\
+            loaded = bgp_handler.loadStructuresFromRoutingFile(\
                                                                     routing_file)
 
             if loaded:
-                loaded = routingStatsObj.bgp_handler.loadUpdatesDF(routingStatsObj.bgp_handler.routingDate)
+                loaded = bgp_handler.loadUpdatesDF(bgp_handler.routingDate)
 
         else:
-            loaded = routingStatsObj.bgp_handler.loadStructuresFromArchive(\
-                                                    routing_date=routing_date)
+            loaded = bgp_handler.loadStructuresFromArchive(routing_date=routing_date)
+            
     if not loaded:
         print "Data structures not loaded!\n"
         sys.exit()
@@ -1216,11 +1224,12 @@ def main(argv):
         esImporter = ElasticSearchImporter(es_host)
 
     computeAndSavePerPrefixStats(files_path, file_name, dateStr, routingStatsObj,
-                                 prefixes_stats_file, TEMPORAL_DATA, es_host,
-                                 esImporter)
+                                 bgp_handler, prefixes_stats_file,
+                                 TEMPORAL_DATA, es_host, esImporter)
 
     computeAndSavePerASStats(files_path, file_name, dateStr, routingStatsObj,
-                             ases_stats_file, TEMPORAL_DATA, es_host, esImporter)
+                             bgp_handler, ases_stats_file, TEMPORAL_DATA,
+                             es_host, esImporter)
                              
 
 if __name__ == "__main__":

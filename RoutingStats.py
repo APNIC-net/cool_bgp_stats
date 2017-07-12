@@ -8,7 +8,6 @@ import os, bz2
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 #Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
-from BGPDataHandler import BGPDataHandler
 from DelegatedHandler import DelegatedHandler
 from DBHandler import DBHandler
 from OrgHeuristics import OrgHeuristics
@@ -23,7 +22,6 @@ class RoutingStats:
                 prefixes_stats_file, ases_stats_file, TEMPORAL_DATA):
         
         self.files_path = files_path
-        self.bgp_handler = BGPDataHandler(DEBUG, files_path)
         
         self.del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file,
                                             startDate, endDate, INCREMENTAL,

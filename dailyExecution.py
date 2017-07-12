@@ -15,6 +15,7 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from datetime import date, datetime
 from dailyInsertion import insertionForDate
 from BulkWHOISParser import BulkWHOISParser
+from BGPDataHandler import BGPDataHandler
 from RoutingStats import RoutingStats
 from StabilityAndDeaggDailyStats import StabilityAndDeagg
 from computeRoutingStats import computeAndSavePerPrefixStats, computeAndSavePerASStats
@@ -31,35 +32,38 @@ def computeStatsForDate(date_to_work_with, routing_file, ROUTING,
     else:
         es_host = ''
         
-    KEEP = False
-    EXTENDED = True
-    del_file = '{}/extended_apnic_{}.txt'.format(files_path, date.today())
-    startDate_date = ''
-    INCREMENTAL = False
-    final_existing_date = ''
-    dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
-    dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
-    file_name = '{}/RoutingStats_{}'.format(files_path, dateStr)
-    prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
-    ases_stats_file = '{}_asns.csv'.format(file_name)
-    TEMPORAL_DATA = True
-    routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
-                                        del_file, startDate_date, date_to_work_with,
-                                        date_to_work_with, INCREMENTAL,
-                                        final_existing_date, prefixes_stats_file,
-                                        ases_stats_file, TEMPORAL_DATA)
+    bgp_handler = BGPDataHandler(DEBUG, files_path)
+
+    if ROUTING:        
+        KEEP = False
+        EXTENDED = True
+        del_file = '{}/extended_apnic_{}.txt'.format(files_path, date.today())
+        startDate_date = ''
+        INCREMENTAL = False
+        final_existing_date = ''
+        dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
+        dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
+        file_name = '{}/RoutingStats_{}'.format(files_path, dateStr)
+        prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
+        ases_stats_file = '{}_asns.csv'.format(file_name)
+        TEMPORAL_DATA = True
+        routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
+                                            del_file, startDate_date, date_to_work_with,
+                                            date_to_work_with, INCREMENTAL,
+                                            final_existing_date, prefixes_stats_file,
+                                            ases_stats_file, TEMPORAL_DATA)
     
     sys.stdout.write('{}: Loading structures.\n'.format(datetime.now()))
     
     loaded = True
     
     if ROUTING or DEAGG_PROB:
-        loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(routing_file)
+        loaded = bgp_handler.loadStructuresFromRoutingFile(routing_file)
     else:
-        routingStatsObj.bgp_handler.routingDate = date_to_work_with
+        bgp_handler.routingDate = date_to_work_with
     
     if loaded and (ROUTING or STABILITY):
-        loaded = routingStatsObj.bgp_handler.loadUpdatesDF(routingStatsObj.bgp_handler.routingDate)
+        loaded = bgp_handler.loadUpdatesDF(bgp_handler.routingDate)
     
     if not loaded:
         sys.stdout.write('{}: Data structures not loaded! Aborting.\n'.format(datetime.now()))
@@ -69,8 +73,8 @@ def computeStatsForDate(date_to_work_with, routing_file, ROUTING,
         # Computation of stats about updates rate and probability of deaggregation
         sys.stdout.write('{}: Starting to compute stats about the updates rates and the probability of deaggregation.\n'.format(datetime.now()))
         
-        StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, es_host,
-                                                   routingStatsObj.bgp_handler)
+        StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, ELASTIC,
+                                                   bgp_handler)
     
     fork1_pid = os.fork()
     
@@ -106,14 +110,16 @@ def computeStatsForDate(date_to_work_with, routing_file, ROUTING,
                 # If we are in the child process of the third fork,
                 # we compute stats for prefixes
                 computeAndSavePerPrefixStats(files_path, file_name, dateStr,
-                                             routingStatsObj, prefixes_stats_file,
+                                             routingStatsObj, bgp_handler,
+                                             prefixes_stats_file,
                                              TEMPORAL_DATA, es_host)
                 sys.exit(0)
         
             else:
                 # If we are in the parent process of the third fork,
                 # we compute stats for ASes
-                computeAndSavePerASStats(files_path, file_name, dateStr, routingStatsObj,
+                computeAndSavePerASStats(files_path, file_name, dateStr,
+                                         routingStatsObj, bgp_handler,
                                          ases_stats_file, TEMPORAL_DATA, es_host)
                 os.waitpid(fork3_pid)
         
