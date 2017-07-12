@@ -425,8 +425,8 @@ class DBHandler:
             
             return routing_files
         except:
-            sys.stderr.write("Unable to get the list of paths to routing files \
-                                for the period {}-{}.\n".format(startDate, endDate))
+            sys.stderr.write('''Unable to get the list of paths to routing files
+                                for the period {}-{}.\n'''.format(startDate, endDate))
             return dict()
         
     # This function returns a list of paths to the routing files
@@ -434,7 +434,7 @@ class DBHandler:
     def getPathsToRoutingFilesForDate(self, routing_date):
         try:
             self.cur.execute("""SELECT extension, file_path from routing_data 
-                                where routing_date = %s""", (routing_date))
+                                where routing_date = '%s'""", (routing_date))
                                 
             result_list = self.cur.fetchall()
             
@@ -447,8 +447,8 @@ class DBHandler:
             return routing_files
 
         except:
-            sys.stderr.write("Unable to get the list of paths to routing files \
-                                for date {}.\n".format(routing_date))
+            sys.stderr.write('''Unable to get the list of paths to routing files
+                                for date {}.\n'''.format(routing_date))
             return dict()
             
     def getPathsToMostRecentRoutingFiles(self):
