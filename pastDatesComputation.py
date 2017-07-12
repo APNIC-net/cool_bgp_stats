@@ -115,8 +115,8 @@ def computationForDate(routing_date, DEBUG, files_path, readables_folder,
             
         sys.stdout.write('{}: Working with routing file {}\n'.format(datetime.now(), routing_file))
     
-    computeStatsForDate(routing_date, routing_file, ROUTING, STABILITY,
-                        DEAGG_PROB, False, ELASTIC)
+    computeStatsForDate(routing_date, files_path, routing_file, ROUTING,
+                        STABILITY, DEAGG_PROB, False, ELASTIC)
 
     # Lo llamamos con BulkWHOIS = False porque no es necesario que cada vez parsee el Bulk WHOIS
     # Las estructuras disponibles van a estar actualizadas porque BulkWHOISParser se va a instanciar a diario

@@ -20,10 +20,9 @@ from RoutingStats import RoutingStats
 from StabilityAndDeaggDailyStats import StabilityAndDeagg
 from computeRoutingStats import computeAndSavePerPrefixStats, computeAndSavePerASStats
 
-def computeStatsForDate(date_to_work_with, routing_file, ROUTING,
+def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
                         STABILITY, DEAGG_PROB, BulkWHOIS, ELASTIC):
     DEBUG = False
-    files_path = '/home/sofia/daily_execution'
     
     sys.stdout.write('{}: Initializing variables and classes.\n'.format(datetime.now()))
     
@@ -190,13 +189,15 @@ def main(argv):
         date_to_work_with = date.today()
         
     readable_routing_file = readable_routing_file = insertionForDate(date_to_work_with)
-    
+
+    files_path = '/home/sofia/daily_execution'
+
     # We call this function with BulkWHOIS = True because we want the Bulk WHOIS
     # data to be updated daily.
     # When this function is called by pastDatesComputation, it is called with
     # BulkWHOIS = False
-    computeStatsForDate(date_to_work_with, readable_routing_file, ROUTING,
-                        STABILITY, DEAGG_PROB, True, ELASTIC)
+    computeStatsForDate(date_to_work_with, files_path, readable_routing_file,
+                        ROUTING, STABILITY, DEAGG_PROB, True, ELASTIC)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
