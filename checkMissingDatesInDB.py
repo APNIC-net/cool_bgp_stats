@@ -20,19 +20,17 @@ db_pref_dates = set(db_handler.getListOfDatesForPrefixes())
 missing_pref = complete_dates_set - db_pref_dates
 
 db_originASes_dates = set(db_handler.getListOfDatesForOriginASes())
-missing_originASes = complete_dates_set - db_originASes_dates
-
 db_middleASes_dates = set(db_handler.getListOfDatesForMiddleASes())
-missing_middleASes = complete_dates_set - db_middleASes_dates
+missing_ASes = complete_dates_set - db_middleASes_dates.union(db_originASes_dates)
 
 db_routing_data_v4_dates = set(db_handler.getListOfDatesForRoutingData_v4Only())
-missing_routing_v4 = complete_dates_set - db_routing_data_v4_dates
-
 db_routing_data_v6_dates = set(db_handler.getListOfDatesForRoutingData_v6Only())
-missing_routing_v6 = complete_dates_set - db_routing_data_v6_dates
-
 db_routing_data_v4andv6_dates = set(db_handler.getListOfDatesForRoutingData_v4andv6())
-missing_routing_v4andv6 = complete_dates_set - db_routing_data_v4andv6_dates
+
+missing_routing = complete_dates_set - db_routing_data_v4andv6_dates.union(db_routing_data_v4_dates.intersection(db_routing_data_v6_dates))
+
+missing_routing_v4 = missing_routing - db_routing_data_v6_dates
+missing_routing_v6 = missing_routing - db_routing_data_v4_dates
 
 db_updates_dates = set(db_handler.getListOfDatesForUpdates())
 missing_updates = complete_dates_set - db_updates_dates
@@ -42,15 +40,13 @@ db_handler.close()
 print "Dates missing in the DB"
 print "{} dates missing for prefixes.".format(len(missing_pref))
 print missing_pref
-print "{} dates missing for origin ASes.".format(len(missing_originASes))
-print missing_originASes
-print "{} dates missing for middle ASes.".format(len(missing_middleASes))
-print missing_middleASes
+print "{} dates missing for ASes.".format(len(missing_ASes))
+print missing_ASes
+print "{} dates missing for routing data.".format(len(missing_routing))
+print missing_routing
 print "{} dates missing for v4 routing data.".format(len(missing_routing_v4))
 print missing_routing_v4
 print "{} dates missing for v6 routing data.".format(len(missing_routing_v6))
 print missing_routing_v6
-print "{} dates missing for v4andv6 routing data.".format(len(missing_routing_v4andv6))
-print missing_routing_v4andv6
 print "{} dates missing for updates.".format(len(missing_updates))
 print missing_updates

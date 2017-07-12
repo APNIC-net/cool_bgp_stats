@@ -44,6 +44,8 @@ class DBHandler:
                                     .format(self.dbname, self.user, self.host))
             self.cur = self.conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             psycopg2.extras.register_inet()
+            sys.stdout.write("Successful connection to DB.\n")
+            
         except:
             sys.stderr.write("Unable to connect to the database.\n")
     
