@@ -89,7 +89,7 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
             if DEAGG_PROB:
                 # If we are in the parent process of the second fork, we compute some other stats
                 StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()
-            os.waitpid(fork2_pid)
+            os.waitpid(fork2_pid, 0)
             sys.exit(0)
     else:
         if ROUTING:
@@ -120,9 +120,9 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
                 computeAndSavePerASStats(files_path, file_name, dateStr,
                                          routingStatsObj, bgp_handler,
                                          ases_stats_file, TEMPORAL_DATA, es_host)
-                os.waitpid(fork3_pid)
+                os.waitpid(fork3_pid, 0)
         
-        os.waitpid(fork1_pid)
+        os.waitpid(fork1_pid, 0)
     
     
     sys.stdout.write('{}: Cleaning up.\n'.format(datetime.now()))
