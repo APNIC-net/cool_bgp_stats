@@ -426,13 +426,18 @@ def generateFilesFromRoutingFile(files_path, routing_file, bgp_handler,\
 def getCompleteDatesSet(proc_num):
     yearsForProcNums = {1:[2007, 2008, 2009], 2:[2010, 2011], 3:[2012, 2013],
                         4:[2014, 2015], 5:[2016, 2017]}
-    initial_date = date(yearsForProcNums[proc_num][0], 1, 1)
+    if proc_num == 1:
+        initial_date = date(2007, 6, 11)
+    else:
+        initial_date = date(yearsForProcNums[proc_num][0], 1, 1)
+
     final_date = date(yearsForProcNums[proc_num][-1], 12, 31)
-    
+
     if final_date > date.today():
         final_date = date.today()
-        
-    numOfDays = (final_date - initial_date).days
+
+    numOfDays = (final_date - initial_date).days + 1
+
     return set([final_date - timedelta(days=x) for x in range(0, numOfDays)])
     
 def main(argv):

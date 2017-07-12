@@ -221,8 +221,8 @@ def getDF(filtered_file, upd_type, updates_file):
     return df_from_file
   
 def getCompleteDatesSet(proc_num):
-    if yearsForProcNums[proc_num][0] == 2007:
-        initial_date = date(yearsForProcNums[proc_num][0], 6, 11)
+    if proc_num == 1:
+        initial_date = date(2007, 6, 11)
     else:
         initial_date = date(yearsForProcNums[proc_num][0], 1, 1)
 
