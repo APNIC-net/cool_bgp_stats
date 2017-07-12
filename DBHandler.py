@@ -54,7 +54,7 @@ class DBHandler:
     def storePrefixSeen(self, prefix, date):
         try:
             self.cur.execute("""INSERT INTO prefixes VALUES (%s, %s)""",
-                             (prefix, date))
+                             (prefix, date,))
             self.conn.commit()
             return True
         except psycopg2.IntegrityError:
@@ -72,7 +72,7 @@ class DBHandler:
     def storeASSeen(self, asn, isOriginAS, date):
         try:
             self.cur.execute("""INSERT INTO asns VALUES (%s, %s, %s)""",
-                             (asn, isOriginAS, date))
+                             (asn, isOriginAS, date,))
             self.conn.commit()
             return True
         except psycopg2.IntegrityError:
@@ -90,10 +90,10 @@ class DBHandler:
         try:
             if self.routing_date != '':
                 self.cur.execute("""select dateSeen from prefixes where prefix <<= %s and dateSeen < %s;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date))
+                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
             else:
                 self.cur.execute("""select dateSeen from prefixes where prefix <<= %s;""",
-                                 (psycopg2.extras.Inet(prefix)))
+                                 (psycopg2.extras.Inet(prefix),))
             rows = self.cur.fetchall()
             return min(rows)['dateseen']
         except:
@@ -104,10 +104,10 @@ class DBHandler:
         try:
             if self.routing_date != '':
                 self.cur.execute("""select dateSeen from prefixes where prefix = %s and dateSeen < %s;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date))
+                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
             else:
                 self.cur.execute("""select dateSeen from prefixes where prefix = %s;""",
-                                 (psycopg2.extras.Inet(prefix)))
+                                 (psycopg2.extras.Inet(prefix),))
                                  
             rows = self.cur.fetchall()
             return min(rows)['dateseen']
@@ -120,10 +120,10 @@ class DBHandler:
         try:
             if self.routing_date != '':
                 self.cur.execute("""select dateSeen from prefixes where prefix = %s and dateSeen < %s;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date))
+                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
             else:
                 self.cur.execute("""select dateSeen from prefixes where prefix = %s;""",
-                                 (psycopg2.extras.Inet(prefix)))
+                                 (psycopg2.extras.Inet(prefix),))
                                  
             rows = self.cur.fetchall()
             return self.getListOfDateTuples(rows, True)
@@ -135,10 +135,10 @@ class DBHandler:
         try:
             if self.routing_date != '':
                 self.cur.execute("""select prefix, dateSeen from prefixes where prefix <<= %s and dateSeen < %s;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date))
+                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
             else:
                 self.cur.execute("""select prefix, dateSeen from prefixes where prefix <<= %s;""",
-                                 (psycopg2.extras.Inet(prefix)))
+                                 (psycopg2.extras.Inet(prefix),))
                                  
             rows = self.cur.fetchall()
             return self.getDictOfPrefixDateTuples(rows)
@@ -150,10 +150,10 @@ class DBHandler:
         try:
             if self.routing_date != '':
                 self.cur.execute("""select count(dateSeen) from prefixes where prefix <<= %s and dateSeen < %s;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date))
+                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
             else:
                 self.cur.execute("""select count(dateSeen) from prefixes where prefix <<= %s;""",
-                                 (psycopg2.extras.Inet(prefix)))
+                                 (psycopg2.extras.Inet(prefix),))
                                  
             return self.cur.fetchone()[0]
         except:
@@ -164,10 +164,10 @@ class DBHandler:
         try:
             if self.routing_date != '':
                 self.cur.execute("""select count(dateSeen) from prefixes where prefix = %s and dateSeen < %s;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date))
+                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
             else:
                 self.cur.execute("""select count(dateSeen) from prefixes where prefix = %s;""",
-                                 (psycopg2.extras.Inet(prefix)))
+                                 (psycopg2.extras.Inet(prefix),))
                                  
             return self.cur.fetchone()[0]
         except:
@@ -178,10 +178,10 @@ class DBHandler:
         try:
             if self.routing_date != '':
                 self.cur.execute("""select dateSeen from prefixes where prefix = %s and dateSeen < %s;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date))
+                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
             else:
                 self.cur.execute("""select dateSeen from prefixes where prefix = %s;""",
-                                 (psycopg2.extras.Inet(prefix)))
+                                 (psycopg2.extras.Inet(prefix),))
                                  
             rows = self.cur.fetchall()
             return max(rows)['dateseen']
@@ -194,10 +194,10 @@ class DBHandler:
         try:
             if self.routing_date != '':
                 self.cur.execute("""select dateSeen from prefixes where prefix <<= %s and dateSeen < %s;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date))
+                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
             else:
                 self.cur.execute("""select dateSeen from prefixes where prefix <<= %s;""",
-                                 (psycopg2.extras.Inet(prefix)))
+                                 (psycopg2.extras.Inet(prefix),))
                                  
             rows = self.cur.fetchall()
             return max(rows)['dateseen']
@@ -208,9 +208,9 @@ class DBHandler:
     def getDateASNFirstSeen(self, asn):
         try:
             if self.routing_date != '':
-                self.cur.execute("""select dateSeen from asns where asn = %s and dateSeen < %s;""", (asn, self.routing_date))
+                self.cur.execute("""select dateSeen from asns where asn = %s and dateSeen < %s;""", (asn, self.routing_date,))
             else:
-                self.cur.execute("""select dateSeen from asns where asn = %s;""", (asn))
+                self.cur.execute("""select dateSeen from asns where asn = %s;""", (asn,))
                 
             rows = self.cur.fetchall()
             return min(rows)['dateseen']
@@ -222,9 +222,9 @@ class DBHandler:
     def getPeriodsASNSeen(self, asn):
         try:
             if self.routing_date != '':
-                self.cur.execute("""select dateSeen from asns where asn = %s and dateSeen < %s;""", (asn, self.routing_date))
+                self.cur.execute("""select dateSeen from asns where asn = %s and dateSeen < %s;""", (asn, self.routing_date,))
             else:
-                self.cur.execute("""select dateSeen from asns where asn = %s;""", (asn))
+                self.cur.execute("""select dateSeen from asns where asn = %s;""", (asn,))
                 
             rows = self.cur.fetchall()
             return self.getListOfDateTuples(rows, True)
@@ -235,9 +235,9 @@ class DBHandler:
     def getTotalDaysASNSeen(self, asn):
         try:
             if self.routing_date != '':
-                self.cur.execute("""select count(*) from (select distinct dateseen from asns where asn = %s and dateSeen < %s) as temp;""", (asn, self.routing_date))
+                self.cur.execute("""select count(*) from (select distinct dateseen from asns where asn = %s and dateSeen < %s) as temp;""", (asn, self.routing_date,))
             else:
-                self.cur.execute("""select count(*) from (select distinct dateseen from asns where asn = %s) as temp;""", (asn))
+                self.cur.execute("""select count(*) from (select distinct dateseen from asns where asn = %s) as temp;""", (asn,))
                 
             return self.cur.fetchone()[0]
         except:
@@ -247,9 +247,9 @@ class DBHandler:
     def getDateASNLastSeen(self, asn):
         try:
             if self.routing_date != '':
-                self.cur.execute("""select dateSeen from asns where asn = %s and dateSeen < %s;""", (asn, self.routing_date))
+                self.cur.execute("""select dateSeen from asns where asn = %s and dateSeen < %s;""", (asn, self.routing_date,))
             else:
-                self.cur.execute("""select dateSeen from asns where asn = %s;""", (asn))
+                self.cur.execute("""select dateSeen from asns where asn = %s;""", (asn,))
                 
             rows = self.cur.fetchall()
             return max(rows)['dateseen']
@@ -267,7 +267,7 @@ class DBHandler:
             
     def getOriginASCountForDate(self, date):
         try:
-            self.cur.execute("""select count(*) from asns where isorigin = %s and dateSeen = %s;""", (True, date))
+            self.cur.execute("""select count(*) from asns where isorigin = %s and dateSeen = %s;""", (True, date,))
             return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the number of origin ASes seen on {}\n".format(date))
@@ -275,7 +275,7 @@ class DBHandler:
     
     def getMiddleASCountForDate(self, date):
         try:
-            self.cur.execute("""select count(*) from asns where isorigin = %s and dateSeen = %s;""", (False, date))
+            self.cur.execute("""select count(*) from asns where isorigin = %s and dateSeen = %s;""", (False, date,))
             return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the number of middle ASes seen on {}\n".format(date))
@@ -294,7 +294,7 @@ class DBHandler:
     def dropOriginASesForDate(self, date):
         try:
             self.cur.execute("""DELETE FROM asns WHERE isorigin = %s and  dateseen = %s""",
-                             (True, date))
+                             (True, date,))
             self.conn.commit()
             return True
         except (Exception, psycopg2.DatabaseError) as error:
@@ -304,7 +304,7 @@ class DBHandler:
     def dropMiddleASesForDate(self, date):
         try:
             self.cur.execute("""DELETE FROM asns WHERE isorigin = %s and  dateseen = %s""",
-                             (False, date))
+                             (False, date,))
             self.conn.commit()
             return True
         except (Exception, psycopg2.DatabaseError) as error:
@@ -412,7 +412,7 @@ class DBHandler:
         try:
             self.cur.execute("""SELECT routing_date, extension, file_path from routing_data 
                                 where routing_date between %s and %s""",
-                                (startDate, endDate))
+                                (startDate, endDate,))
                                 
             result_list = self.cur.fetchall()
 
@@ -425,8 +425,7 @@ class DBHandler:
             
             return routing_files
         except:
-            sys.stderr.write('''Unable to get the list of paths to routing files
-                                for the period {}-{}.\n'''.format(startDate, endDate))
+            sys.stderr.write("Unable to get the list of paths to routing files for the period {}-{}.\n".format(startDate, endDate))
             return dict()
         
     # This function returns a list of paths to the routing files
@@ -434,7 +433,7 @@ class DBHandler:
     def getPathsToRoutingFilesForDate(self, routing_date):
         try:
             self.cur.execute("""SELECT extension, file_path from routing_data 
-                                where routing_date = '%s'""", (routing_date))
+                                where routing_date = %s""", (routing_date,))
                                 
             result_list = self.cur.fetchall()
             
@@ -447,8 +446,7 @@ class DBHandler:
             return routing_files
 
         except:
-            sys.stderr.write('''Unable to get the list of paths to routing files
-                                for date {}.\n'''.format(routing_date))
+            sys.stderr.write("Unable to get the list of paths to routing files for date {}.\n".format(routing_date))
             return dict()
             
     def getPathsToMostRecentRoutingFiles(self):
