@@ -46,10 +46,15 @@ def computeStatsForDate(date_to_work_with, routing_file, ROUTING,
                                         ases_stats_file, TEMPORAL_DATA)
     
     sys.stdout.write('{}: Loading structures.\n'.format(datetime.now()))
-                                                                         
-    loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(routing_file)
     
-    if loaded:
+    loaded = True
+    
+    if ROUTING or DEAGG_PROB:
+        loaded = routingStatsObj.bgp_handler.loadStructuresFromRoutingFile(routing_file)
+    else:
+        routingStatsObj.bgp_handler.routingDate = date_to_work_with
+    
+    if loaded and (ROUTING or STABILITY):
         loaded = routingStatsObj.bgp_handler.loadUpdatesDF(routingStatsObj.bgp_handler.routingDate)
     
     if not loaded:
