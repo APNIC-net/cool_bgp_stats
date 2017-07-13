@@ -28,6 +28,8 @@ from BGPDataHandler import BGPDataHandler
 from ElasticSearchImporter import ElasticSearchImporter
 import updatesStats_ES_properties
 import deaggStats_ES_properties
+import pickle
+import radix
 
 class StabilityAndDeagg:
     def __init__(self, DEBUG, files_path, ELASTIC, bgp_handler):
@@ -43,6 +45,12 @@ class StabilityAndDeagg:
         # all the structures loaded
         self.bgp_handler = bgp_handler
         
+        self.prefixes_data_pkl = './prefixes_datta.pkl'
+        if os.path.exists(self.prefixes_data_pkl):
+            self.prefixes_data = pickle.load(open(self.prefixes_data_pkl, "rb"))
+        else:
+            self.prefixes_data = radix.Radix()
+        
     @staticmethod
     def getDelegationDate(prefix):
         cmd = shlex.split("origindate -d ',' -f 1")
@@ -50,7 +58,7 @@ class StabilityAndDeagg:
         p = subprocess.Popen(cmd_echo, stdout=subprocess.PIPE)
         output = subprocess.check_output(cmd, stdin=p.stdout)
         p.kill()
-        return datetime.strptime(output.split(',')[1], '%Y%m%d').date()
+        return datetime.strptime(output.split(',')[1].strip(), '%Y%m%d').date()
         
     @staticmethod
     def getDelegationCC(prefix):
@@ -59,36 +67,59 @@ class StabilityAndDeagg:
         p = subprocess.Popen(cmd_echo, stdout=subprocess.PIPE)
         output = subprocess.check_output(cmd, stdin=p.stdout)
         p.kill()
-        return output.split(',')[1]
+        return output.split(',')[1].strip()
     
-        
+
     def computeUpdatesStats(self, updates_df, stats_file):
         if updates_df.shape[0] > 0:
-            for prefix, prefix_subset in updates_df.groupby('prefix'):
-                del_date = self.getDelegationDate(prefix)
-                cc = self.getDelegationCC(prefix)
-                network = IPNetwork(prefix)
-                for update_date, date_subset in prefix_subset.groupby('update_date'):
-                    del_age = (update_date - del_date).days
-                    numOfAnn = len(date_subset[date_subset['upd_type'] == 'A']['prefix'].tolist())
-                    numOfWith = len(date_subset[date_subset['upd_type'] == 'W']['prefix'].tolist())
+            for (prefix, update_date), subset in updates_df.groupby(['prefix',
+                                                                'update_date']):
+                pref_node = self.prefixes_data.search_exact(prefix)
+                if pref_node is not None:
+                    del_date = pref_node.data['del_date']
+                    cc = pref_node.data['cc']
+                else:
+                    del_date = self.getDelegationDate(prefix)
+                    cc = self.getDelegationCC(prefix)
+                    pref_node = self.prefixes_data.add(prefix)
+                    pref_node.data['del_date'] = del_date
+                    pref_node.data['cc'] = cc
                     
-                    with open(stats_file, 'a') as s_file:
-                        s_file.write('{}|{}|{}|{}|{}|{}|{}|{}|{}\n'.format(prefix,
-                                                                         del_date,
-                                                                         cc,
-                                                                         update_date,
-                                                                         del_age,
-                                                                         network.version,
-                                                                         network.prefixlen,
-                                                                         numOfAnn,
-                                                                         numOfWith))
+                network = IPNetwork(prefix)
+
+                del_age = (update_date - del_date).days
+                numOfAnn = len(subset[subset['upd_type'] == 'A']['prefix'].tolist())
+                numOfWith = len(subset[subset['upd_type'] == 'W']['prefix'].tolist())
+                
+                with open(stats_file, 'a') as s_file:
+                    s_file.write('{}|{}|{}|{}|{}|{}|{}|{}|{}\n'.format(prefix,
+                                                                     del_date,
+                                                                     cc,
+                                                                     update_date,
+                                                                     del_age,
+                                                                     network.version,
+                                                                     network.prefixlen,
+                                                                     numOfAnn,
+                                                                     numOfWith))
+                                                                         
+            with open(self.prefixes_data_pkl, 'wb') as f:
+                pickle.dump(self.prefixes_data, f, pickle.HIGHEST_PROTOCOL)
+
     
     def computeDeaggregationStats(self, bgp_handler, stats_file):    
         for prefix, prefix_subset in bgp_handler.bgp_df.groupby('prefix'):
-            del_date = self.getDelegationDate(prefix)
-            cc = self.getDelegationCC(prefix)
+            pref_node = self.prefixes_data.search_exact(prefix)
 
+            if pref_node is not None:
+                del_date = pref_node.data['del_date']
+                cc = pref_node.data['cc']
+            else:
+                del_date = self.getDelegationDate(prefix)
+                cc = self.getDelegationCC(prefix)
+                pref_node = self.prefixes_data.add(prefix)
+                pref_node.data['del_date'] = del_date
+                pref_node.data['cc'] = cc
+                    
             network = IPNetwork(prefix)
             if network.version == 4:
                 prefixes_radix = bgp_handler.ipv4Prefixes_radix
@@ -114,6 +145,10 @@ class StabilityAndDeagg:
                                                             (bgp_handler.routingDate -\
                                                             del_date).days,
                                                             isRoot, isRootDeagg))
+        
+        with open(self.prefixes_data_pkl, 'wb') as f:
+            pickle.dump(self.prefixes_data, f, pickle.HIGHEST_PROTOCOL)
+    
     
     @staticmethod
     def generateJSONfile(stats_file):
