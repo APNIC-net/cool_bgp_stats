@@ -465,12 +465,23 @@ class DBHandler:
                                 routing files\n")
             return dict()
             
-    def getUpdatesDF(self, updates_date):
+    def getUpdatesDF_prefix(self, updates_date):
         try:
             engine = sq.create_engine("postgresql+psycopg2://{}@{}/{}"\
                                     .format(self.user, self.host, self.dbname))
             
-            return pd.read_sql_query("SELECT update_date, upd_type, peerAS, prefix FROM updates where update_date = '{}';".format(updates_date), engine)
+            return pd.read_sql_query("select update_date, upd_type, prefix, count(*) from updates where update_date = '{}' group by (update_date, upd_type, prefix);".format(updates_date), engine)
+
+        except:
+            sys.stderr.write("Unable to get updates DataFrame for date {}.\n".format(updates_date))
+            return pd.DataFrame()
+            
+    def getUpdatesDF_peerAS(self, updates_date):
+        try:
+            engine = sq.create_engine("postgresql+psycopg2://{}@{}/{}"\
+                                    .format(self.user, self.host, self.dbname))
+            
+            return pd.read_sql_query("select update_date, upd_type, peeras, count(*) from updates where update_date = '{}' group by (update_date, upd_type, peeras);".format(updates_date), engine)
 
         except:
             sys.stderr.write("Unable to get updates DataFrame for date {}.\n".format(updates_date))

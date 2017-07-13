@@ -89,15 +89,13 @@ class StabilityAndDeagg:
 
     def computeUpdatesStats(self, updates_df, stats_file):
         if updates_df.shape[0] > 0:
-            counts_df = updates_df.groupby(['prefix', 'update_date', 'upd_type']).size().reset_index()
-            counts_df['count'] = counts_df[0]
-            counts_df['del_date'] = counts_df.apply(lambda row: self.getDelegationDate(row['prefix']), axis=1)
-            counts_df['cc'] = counts_df.apply(lambda row: self.getDelegationCC(row['prefix']), axis=1)
-            counts_df['del_age'] = counts_df.apply(lambda row:(row['update_date'] - row['del_date']).days, axis=1)
-            counts_df['ip_version'] = counts_df.apply(lambda row:(IPNetwork(row['prefix']).version), axis=1)
-            counts_df['prefLen'] = counts_df.apply(lambda row:(IPNetwork(row['prefix']).prefixlen), axis=1)
+            updates_df['del_date'] = updates_df.apply(lambda row: self.getDelegationDate(row['prefix']), axis=1)
+            updates_df['cc'] = updates_df.apply(lambda row: self.getDelegationCC(row['prefix']), axis=1)
+            updates_df['del_age'] = updates_df.apply(lambda row:(row['update_date'] - row['del_date']).days, axis=1)
+            updates_df['ip_version'] = updates_df.apply(lambda row:(IPNetwork(row['prefix']).version), axis=1)
+            updates_df['prefLen'] = updates_df.apply(lambda row:(IPNetwork(row['prefix']).prefixlen), axis=1)
             
-            counts_df.to_csv(stats_file, header=True, index=False, columns=[
+            updates_df.to_csv(stats_file, header=True, index=False, columns=[
                                                                        'prefix',
                                                                        'del_date',
                                                                        'cc',
@@ -192,7 +190,7 @@ class StabilityAndDeagg:
 #        with open(updates_stats_file, 'w') as u_file:
 #            u_file.write('prefix|del_date|CC|updates_date|del_age|ip_version|prefLength|upd_type|count\n')
    
-        self.computeUpdatesStats(self.bgp_handler.updates_df, updates_stats_file)
+        self.computeUpdatesStats(self.bgp_handler.updates_prefixes, updates_stats_file)
         
         updates_stats_df = self.generateJSONfile(updates_stats_file)
         

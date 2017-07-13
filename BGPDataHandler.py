@@ -45,8 +45,11 @@ class BGPDataHandler:
     # Numeric variable with the longest IPv6 prefix length
     ipv6_longest_pref = -1  
     
-    # DataFrame with BGP updates from bgpupd file
-    updates_df = pd.DataFrame()
+    # DataFrame with summary for prefixes of BGP updates from bgpupd file
+    updates_prefixes = pd.DataFrame()
+
+    # DataFrame with summary for peerASes of BGP updates from bgpupd file
+    updates_peerASes = pd.DataFrame()
     
     routingDate = ''
          
@@ -62,21 +65,6 @@ class BGPDataHandler:
 
         sys.stdout.write("BGPDataHandler instantiated successfully! Remember to load the data structures.\n")
     
-   
-    # This function loads the data structures of the class from previously
-    # generated pickle files containing the result of already processed routing data
-    def loadStructuresFromFiles(self, r_date, bgp_df_file,\
-                                updates_df_file, ipv4_prefixes_file,\
-                                ipv6_prefixes_file):
-     
-        self.routingDate = r_date
-        self.bgp_df = pickle.load(open(bgp_df_file, "rb"))
-        self.updates_df = pickle.load(open(updates_df_file, "rb"))
-        self.ipv4Prefixes_radix = pickle.load(open(ipv4_prefixes_file, "rb"))
-        self.ipv6Prefixes_radix = pickle.load(open(ipv6_prefixes_file, "rb"))
-        self.setLongestPrefixLengths()
-        sys.stdout.write("Class data structures were loaded successfully!\n")
-        return True
     
     # This function processes the routing data contained in the files to which
     # the URLs in the urls_file point, and loads the data structures of the class
@@ -218,7 +206,7 @@ class BGPDataHandler:
             
             self.routingDate = files_date
             
-            updates_loaded = self.loadUpdatesDF(files_date)
+            updates_loaded = self.loadUpdatesDFs(files_date)
 
         if bgp_df.shape[0] != 0:
             self.bgp_df = bgp_df
@@ -245,11 +233,13 @@ class BGPDataHandler:
         else:
             return False
         
-    # This function gets all the updates for the specified date from the DB
-    # and loads the updates_df class variable with them.
-    def loadUpdatesDF(self, updates_date):
+    # This function gets the summaries of updates for the specified date
+    # for prefixes and for peer ASes from the DB
+    # and loads the updates_prefixes and updates_peerASes class variables
+    def loadUpdatesDFs(self, updates_date):
         db_handler = DBHandler('')
-        self.updates_df = db_handler.getUpdatesDF(updates_date)
+        self.updates_prefixes = db_handler.getUpdatesDF_prefix(updates_date)
+        self.updates_peerASes = db_handler.getUpdatesDF_peerAS(updates_date)
         db_handler.close()
         return True        
 
@@ -702,23 +692,6 @@ class BGPDataHandler:
 
         return first_line
         
-
-    # This function saves the data structures of the class to pickle files
-    def saveDataToFiles(self):
-        today = date.today().strftime('%Y%m%d')
-        
-        ipv4_radix_file_name = '%s/ipv4Prefixes_%s.pkl' % (self.files_path, today)
-        with open(ipv4_radix_file_name, 'wb') as f:
-            pickle.dump(self.ipv4Prefixes_radix, f, pickle.HIGHEST_PROTOCOL)
-            sys.stdout.write("Saved to disk %s pickle file containing Radix with routing data for each IPv4 prefix.\n" % ipv4_radix_file_name)
-
-        ipv6_radix_file_name = '%s/ipv6Prefixes_%s.pkl' % (self.files_path, today)
-        with open(ipv6_radix_file_name, 'wb') as f:
-            pickle.dump(self.ipv6Prefixes_radix, f, pickle.HIGHEST_PROTOCOL)
-            sys.stdout.write("Saved to disk %s pickle file containing Radix with routing data for each IPv6 prefix.\n" % ipv6_radix_file_name)
-
-        return ipv4_radix_file_name, ipv6_radix_file_name
-
     # This function sets the ipv4_longest_pref and ipv6_longest_pref class variables
     # with the corresponding maximum prefix lengths in the ipv4_prefixes_indexes
     # and ipv6_prefixes_indexes Radixes
