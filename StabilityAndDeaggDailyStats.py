@@ -51,56 +51,62 @@ class StabilityAndDeagg:
         else:
             self.prefixes_data = radix.Radix()
         
-    @staticmethod
-    def getDelegationDate(prefix):
-        cmd = shlex.split("origindate -d ',' -f 1")
-        cmd_echo = shlex.split("echo {}".format(prefix))
-        p = subprocess.Popen(cmd_echo, stdout=subprocess.PIPE)
-        output = subprocess.check_output(cmd, stdin=p.stdout)
-        p.kill()
-        return datetime.strptime(output.split(',')[1].strip(), '%Y%m%d').date()
+    def getDelegationDate(self, prefix):
+        pref_node = self.prefixes_data.search_exact(prefix)
+        if pref_node is not None:
+            del_date = pref_node.data['del_date']
+        else:
+            cmd = shlex.split("origindate -d ',' -f 1")
+            cmd_echo = shlex.split("echo {}".format(prefix))
+            p = subprocess.Popen(cmd_echo, stdout=subprocess.PIPE)
+            output = subprocess.check_output(cmd, stdin=p.stdout)
+            p.kill()
+            del_date = datetime.strptime(output.split(',')[1].strip(), '%Y%m%d').date()
+
+            pref_node = self.prefixes_data.add(prefix)
+            pref_node.data['del_date'] = del_date
         
-    @staticmethod
-    def getDelegationCC(prefix):
-        cmd = shlex.split("origincc -d ',' -f 1")
-        cmd_echo = shlex.split("echo {}".format(prefix))
-        p = subprocess.Popen(cmd_echo, stdout=subprocess.PIPE)
-        output = subprocess.check_output(cmd, stdin=p.stdout)
-        p.kill()
-        return output.split(',')[1].strip()
+        return del_date
+        
+    def getDelegationCC(self, prefix):
+        pref_node = self.prefixes_data.search_exact(prefix)
+        if pref_node is not None:
+            cc = pref_node.data['cc']
+        else:
+            cmd = shlex.split("origincc -d ',' -f 1")
+            cmd_echo = shlex.split("echo {}".format(prefix))
+            p = subprocess.Popen(cmd_echo, stdout=subprocess.PIPE)
+            output = subprocess.check_output(cmd, stdin=p.stdout)
+            p.kill()
+            cc = output.split(',')[1].strip()
+
+            pref_node = self.prefixes_data.add(prefix)
+            pref_node.data['cc'] = cc
+        
+        return cc
+        
     
 
     def computeUpdatesStats(self, updates_df, stats_file):
         if updates_df.shape[0] > 0:
-            for (prefix, update_date), subset in updates_df.groupby(['prefix',
-                                                                'update_date']):
-                pref_node = self.prefixes_data.search_exact(prefix)
-                if pref_node is not None:
-                    del_date = pref_node.data['del_date']
-                    cc = pref_node.data['cc']
-                else:
-                    del_date = self.getDelegationDate(prefix)
-                    cc = self.getDelegationCC(prefix)
-                    pref_node = self.prefixes_data.add(prefix)
-                    pref_node.data['del_date'] = del_date
-                    pref_node.data['cc'] = cc
-                    
-                network = IPNetwork(prefix)
-
-                del_age = (update_date - del_date).days
-                numOfAnn = len(subset[subset['upd_type'] == 'A']['prefix'].tolist())
-                numOfWith = len(subset[subset['upd_type'] == 'W']['prefix'].tolist())
-                
-                with open(stats_file, 'a') as s_file:
-                    s_file.write('{}|{}|{}|{}|{}|{}|{}|{}|{}\n'.format(prefix,
-                                                                     del_date,
-                                                                     cc,
-                                                                     update_date,
-                                                                     del_age,
-                                                                     network.version,
-                                                                     network.prefixlen,
-                                                                     numOfAnn,
-                                                                     numOfWith))
+            counts_df = updates_df.groupby(['prefix', 'update_date', 'upd_type']).size().reset_index()
+            counts_df['count'] = counts_df[0]
+            counts_df['del_date'] = counts_df.apply(lambda row: self.getDelegationDate(row['prefix']), axis=1)
+            counts_df['cc'] = counts_df.apply(lambda row: self.getDelegationCC(row['prefix']), axis=1)
+            counts_df['del_age'] = counts_df.apply(lambda row:(row['update_date'] - row['del_date']).days, axis=1)
+            counts_df['ip_version'] = counts_df.apply(lambda row:(IPNetwork(row['prefix']).version), axis=1)
+            counts_df['prefLen'] = counts_df.apply(lambda row:(IPNetwork(row['prefix']).prefixlen), axis=1)
+            
+            counts_df.to_csv(stats_file, header=True, index=False, columns=[
+                                                                       'prefix',
+                                                                       'del_date',
+                                                                       'cc',
+                                                                       'updates_date',
+                                                                       'del_age',
+                                                                       'ip_version',
+                                                                       'prefLen',
+                                                                       'upd_type',
+                                                                       'count'])
                                                                          
             with open(self.prefixes_data_pkl, 'wb') as f:
                 pickle.dump(self.prefixes_data, f, pickle.HIGHEST_PROTOCOL)
@@ -184,7 +190,7 @@ class StabilityAndDeagg:
         updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path,
                                                              self.bgp_handler.routingDate)
         with open(updates_stats_file, 'w') as u_file:
-            u_file.write('prefix|del_date|CC|updates_date|del_age|ip_version|prefLength|numOfAnnouncements|numOfWithdraws\n')
+            u_file.write('prefix|del_date|CC|updates_date|del_age|ip_version|prefLength|upd_type|count\n')
             
         self.computeUpdatesStats(self.bgp_handler.updates_df, updates_stats_file)
         
