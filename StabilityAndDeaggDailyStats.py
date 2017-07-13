@@ -284,7 +284,7 @@ def main(argv):
             loaded = bgp_handler.loadStructuresFromRoutingFile(routing_file)
     
             if loaded:
-                loaded = bgp_handler.loadUpdatesDF(bgp_handler.routingDate)
+                loaded = bgp_handler.loadUpdatesDFs(bgp_handler.routingDate)
         else:
             loaded = bgp_handler.loadStructuresFromArchive(routing_date)
         

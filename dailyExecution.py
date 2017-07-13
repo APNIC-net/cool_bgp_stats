@@ -62,7 +62,7 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
         bgp_handler.routingDate = date_to_work_with
     
     if loaded and (ROUTING or STABILITY):
-        loaded = bgp_handler.loadUpdatesDF(bgp_handler.routingDate)
+        loaded = bgp_handler.loadUpdatesDFs(bgp_handler.routingDate)
     
     if not loaded:
         sys.stdout.write('{}: Data structures not loaded! Aborting.\n'.format(datetime.now()))
