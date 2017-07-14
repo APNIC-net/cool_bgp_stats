@@ -53,7 +53,7 @@ class StabilityAndDeagg:
         
     def getDelegationDate(self, prefix):
         pref_node = self.prefixes_data.search_exact(prefix)
-        if pref_node is not None:
+        if pref_node is not None and 'del_date' in pref_node.data:
             del_date = pref_node.data['del_date']
         else:
             cmd = shlex.split("origindate -d ',' -f 1")
@@ -63,14 +63,16 @@ class StabilityAndDeagg:
             p.kill()
             del_date = datetime.strptime(output.split(',')[1].strip(), '%Y%m%d').date()
 
-            pref_node = self.prefixes_data.add(prefix)
+            if pref_node is None:
+                pref_node = self.prefixes_data.add(prefix)
+                
             pref_node.data['del_date'] = del_date
         
         return del_date
         
     def getDelegationCC(self, prefix):
         pref_node = self.prefixes_data.search_exact(prefix)
-        if pref_node is not None:
+        if pref_node is not None and 'cc' in pref_node.data:
             cc = pref_node.data['cc']
         else:
             cmd = shlex.split("origincc -d ',' -f 1")
@@ -80,7 +82,9 @@ class StabilityAndDeagg:
             p.kill()
             cc = output.split(',')[1].strip()
 
-            pref_node = self.prefixes_data.add(prefix)
+            if pref_node is None:
+                pref_node = self.prefixes_data.add(prefix)
+                
             pref_node.data['cc'] = cc
         
         return cc
