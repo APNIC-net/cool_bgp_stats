@@ -89,11 +89,11 @@ class StabilityAndDeagg:
 
     def computeUpdatesStats(self, updates_df, stats_file):
         if updates_df.shape[0] > 0:
+            # TODO Once the delegated data is inserted into the DB, get cc and del_date with LEFT JOIN
             updates_df['del_date'] = updates_df.apply(lambda row: self.getDelegationDate(row['prefix']), axis=1)
             updates_df['cc'] = updates_df.apply(lambda row: self.getDelegationCC(row['prefix']), axis=1)
+            # TODO Once I'm able to get the del_date with a LEFT JOIN, compute the del_age in the Postgres query
             updates_df['del_age'] = updates_df.apply(lambda row:(row['update_date'] - row['del_date']).days, axis=1)
-            updates_df['ip_version'] = updates_df.apply(lambda row:(IPNetwork(row['prefix']).version), axis=1)
-            updates_df['prefLen'] = updates_df.apply(lambda row:(IPNetwork(row['prefix']).prefixlen), axis=1)
             
             updates_df.to_csv(stats_file, header=True, index=False, columns=[
                                                                        'prefix',
