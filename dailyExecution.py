@@ -20,6 +20,56 @@ from RoutingStats import RoutingStats
 from StabilityAndDeaggDailyStats import StabilityAndDeagg
 from computeRoutingStats import computeAndSavePerPrefixStats, computeAndSavePerASStats
 
+def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
+                   bgp_handler, es_host):
+    KEEP = False
+    EXTENDED = True
+    del_file = '{}/extended_apnic_{}.txt'.format(files_path, date.today())
+    startDate_date = ''
+    INCREMENTAL = False
+    final_existing_date = ''
+    dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
+    dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
+    file_name = '{}/RoutingStats_{}'.format(files_path, dateStr)
+    prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
+    ases_stats_file = '{}_asns.csv'.format(file_name)
+    TEMPORAL_DATA = True
+    routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
+                                        del_file, startDate_date, date_to_work_with,
+                                        date_to_work_with, INCREMENTAL,
+                                        final_existing_date, prefixes_stats_file,
+                                        ases_stats_file, TEMPORAL_DATA)
+
+    if BulkWHOIS:
+        # If we are in the parent process of the first fork, we call BulkWHOISParser
+        # Instantiation of the BulkWHOISParser class
+        sys.stdout.write('{}: Executing BulkWHOISParser.\n'.format(datetime.now()))
+        BulkWHOISParser(files_path, DEBUG)
+
+    # Computation of routing stats
+    sys.stdout.write('{}: Starting computation of routing stats.\n'.format(datetime.now()))
+    
+    # and then we fork again
+    fork3_pid = os.fork()
+    
+    if fork3_pid == 0:
+        # If we are in the child process of the third fork,
+        # we compute stats for prefixes
+        computeAndSavePerPrefixStats(files_path, file_name, dateStr,
+                                     routingStatsObj, bgp_handler,
+                                     prefixes_stats_file,
+                                     TEMPORAL_DATA, es_host)
+        sys.exit(0)
+
+    else:
+        # If we are in the parent process of the third fork,
+        # we compute stats for ASes
+        computeAndSavePerASStats(files_path, file_name, dateStr,
+                                 routingStatsObj, bgp_handler,
+                                 ases_stats_file, TEMPORAL_DATA, es_host)
+        os.waitpid(fork3_pid, 0)
+        
+        
 def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
                         STABILITY, DEAGG_PROB, BulkWHOIS, ELASTIC):
     DEBUG = False
@@ -32,25 +82,6 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
         es_host = ''
         
     bgp_handler = BGPDataHandler(DEBUG, files_path)
-
-    if ROUTING:        
-        KEEP = False
-        EXTENDED = True
-        del_file = '{}/extended_apnic_{}.txt'.format(files_path, date.today())
-        startDate_date = ''
-        INCREMENTAL = False
-        final_existing_date = ''
-        dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
-        dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
-        file_name = '{}/RoutingStats_{}'.format(files_path, dateStr)
-        prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
-        ases_stats_file = '{}_asns.csv'.format(file_name)
-        TEMPORAL_DATA = True
-        routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
-                                            del_file, startDate_date, date_to_work_with,
-                                            date_to_work_with, INCREMENTAL,
-                                            final_existing_date, prefixes_stats_file,
-                                            ases_stats_file, TEMPORAL_DATA)
     
     sys.stdout.write('{}: Loading structures.\n'.format(datetime.now()))
     
@@ -75,55 +106,57 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
         StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, ELASTIC,
                                                    bgp_handler)
     
-    fork1_pid = os.fork()
+    if (STABILITY or DEAGG_PROB) and ROUTING:
+        fork1_pid = os.fork()
     
-    if fork1_pid == 0:
-        # If we are in the child process of the first fork, we fork again
-        fork2_pid = os.fork()
-        if fork2_pid == 0:
-            if STABILITY:
-                # If we are in the child process of the second fork, we compute some stats
+        if fork1_pid == 0:
+            if STABILITY and DEAGG_PROB:
+                # If we are in the child process of the first fork, we fork again
+                fork2_pid = os.fork()
+                if fork2_pid == 0:
+                    if STABILITY:
+                        # If we are in the child process of the second fork, we compute some stats
+                        StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
+                    sys.exit(0)
+                else:
+                    if DEAGG_PROB:
+                        # If we are in the parent process of the second fork, we compute some other stats
+                        StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()
+                    os.waitpid(fork2_pid, 0)
+                    sys.exit(0)
+            elif STABILITY:
                 StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
+                sys.exit(0)
+            elif DEAGG_PROB:
+                StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()
+                sys.exit(0)
+                
+        elif ROUTING:
+            computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
+                           bgp_handler, es_host)
+            
+            os.waitpid(fork1_pid, 0)
+
+    elif ROUTING:
+        computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
+                           bgp_handler, es_host)
+    
+    elif STABILITY and DEAGG_PROB:
+        fork2_pid = os.fork()
+
+        if fork2_pid == 0:
+            # If we are in the child process of the second fork, we compute some stats
+            StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
             sys.exit(0)
         else:
-            if DEAGG_PROB:
-                # If we are in the parent process of the second fork, we compute some other stats
-                StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()
+            # If we are in the parent process of the second fork, we compute some other stats
+            StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()
             os.waitpid(fork2_pid, 0)
-            sys.exit(0)
-    else:
-        if ROUTING:
-            if BulkWHOIS:
-                # If we are in the parent process of the first fork, we call BulkWHOISParser
-                # Instantiation of the BulkWHOISParser class
-                sys.stdout.write('{}: Executing BulkWHOISParser.\n'.format(datetime.now()))
-                BulkWHOISParser(files_path, DEBUG)
-        
-            # Computation of routing stats
-            sys.stdout.write('{}: Starting computation of routing stats.\n'.format(datetime.now()))
-            
-            # and then we fork again
-            fork3_pid = os.fork()
-            
-            if fork3_pid == 0:
-                # If we are in the child process of the third fork,
-                # we compute stats for prefixes
-                computeAndSavePerPrefixStats(files_path, file_name, dateStr,
-                                             routingStatsObj, bgp_handler,
-                                             prefixes_stats_file,
-                                             TEMPORAL_DATA, es_host)
-                sys.exit(0)
-        
-            else:
-                # If we are in the parent process of the third fork,
-                # we compute stats for ASes
-                computeAndSavePerASStats(files_path, file_name, dateStr,
-                                         routingStatsObj, bgp_handler,
-                                         ases_stats_file, TEMPORAL_DATA, es_host)
-                os.waitpid(fork3_pid, 0)
-        
-        os.waitpid(fork1_pid, 0)
-    
+
+    elif STABILITY:
+        StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
+    elif DEAGG_PROB:
+        StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()
     
     sys.stdout.write('{}: Cleaning up.\n'.format(datetime.now()))
     
