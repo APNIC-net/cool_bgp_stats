@@ -119,7 +119,7 @@ class StabilityAndDeagg:
             
             os.remove(prefixes_file)
             
-            updates_df['del_age'] = updates_df.apply(lambda row:(row['update_date'] - datetime.strptime(row['del_date'], '%Y%m%d')).days, axis=1)
+            updates_df['del_age'] = updates_df.apply(lambda row:(row['update_date'] - datetime.strptime(row['del_date'], '%Y%m%d').date()).days, axis=1)
             
             updates_df.to_csv(stats_file, header=True, index=False, columns=[
                                                                        'prefix',
