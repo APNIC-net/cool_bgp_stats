@@ -125,7 +125,7 @@ class StabilityAndDeagg:
                                                                        'prefix',
                                                                        'del_date',
                                                                        'cc',
-                                                                       'updates_date',
+                                                                       'update_date',
                                                                        'del_age',
                                                                        'ip_version',
                                                                        'prefLen',
