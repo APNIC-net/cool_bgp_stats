@@ -88,7 +88,8 @@ class StabilityAndDeagg:
             pref_node.data['cc'] = cc
         
         return cc
-        
+
+    @staticmethod        
     def getDelegationDates_fromFile(prefixes_file):
         cmd = shlex.split("origindate -d ',' -f 1")
         output = subprocess.check_output(cmd, stdin=open(prefixes_file, 'r'))
@@ -96,6 +97,7 @@ class StabilityAndDeagg:
         del_dates_df.columns = ['prefix', 'del_date', 'first_ip', 'count']
         return del_dates_df
 
+    @staticmethod
     def getDelegationCCs_fromFile(prefixes_file):
         cmd = shlex.split("origincc -d ',' -f 1")
         output = subprocess.check_output(cmd, stdin=open(prefixes_file, 'r'))
