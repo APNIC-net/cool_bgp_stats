@@ -89,15 +89,35 @@ class StabilityAndDeagg:
         
         return cc
         
-    
+    def getDelegationDates_fromFile(prefixes_file):
+        cmd = shlex.split("origindate -d ',' -f 1")
+        output = subprocess.check_output(cmd, stdin=open(prefixes_file, 'r'))
+        del_dates_df = pd.Series(output.split('\n')).str.rsplit(',', expand=True) 
+        del_dates_df.columns = ['prefix', 'del_date', 'first_ip', 'count']
+        return del_dates_df
+
+    def getDelegationCCs_fromFile(prefixes_file):
+        cmd = shlex.split("origincc -d ',' -f 1")
+        output = subprocess.check_output(cmd, stdin=open(prefixes_file, 'r'))
+        del_cc_df = pd.Series(output.split('\n')).str.rsplit(',', expand=True)
+        del_cc_df.columns = ['prefix', 'cc']
+        return del_cc_df
+        
 
     def computeUpdatesStats(self, updates_df, stats_file):
         if updates_df.shape[0] > 0:
-            # TODO Once the delegated data is inserted into the DB, get cc and del_date with LEFT JOIN
-            updates_df['del_date'] = updates_df.apply(lambda row: self.getDelegationDate(row['prefix']), axis=1)
-            updates_df['cc'] = updates_df.apply(lambda row: self.getDelegationCC(row['prefix']), axis=1)
-            # TODO Once I'm able to get the del_date with a LEFT JOIN, compute the del_age in the Postgres query
-            updates_df['del_age'] = updates_df.apply(lambda row:(row['update_date'] - row['del_date']).days, axis=1)
+            prefixes_file = '/tmp/prefixes.txt'
+            with open(prefixes_file, 'w') as output_file:
+                output_file.write('\n'.join(updates_df['prefix'].tolist()))
+
+            del_dates_df = self.getDelegationDates_fromFile(prefixes_file)
+            updates_df = pd.merge(updates_df, del_dates_df, how='left', on='prefix')
+            del_cc_df = self.getDelegationCCs_fromFile(prefixes_file)
+            updates_df = pd.merge(updates_df, del_cc_df, how='left', on='prefix')
+            
+            os.remove(prefixes_file)
+            
+            updates_df['del_age'] = updates_df.apply(lambda row:(row['update_date'] - datetime.strptime(row['del_date'], '%Y%m%d')).days, axis=1)
             
             updates_df.to_csv(stats_file, header=True, index=False, columns=[
                                                                        'prefix',
@@ -110,8 +130,8 @@ class StabilityAndDeagg:
                                                                        'upd_type',
                                                                        'count'])
                                                                          
-            with open(self.prefixes_data_pkl, 'wb') as f:
-                pickle.dump(self.prefixes_data, f, pickle.HIGHEST_PROTOCOL)
+#            with open(self.prefixes_data_pkl, 'wb') as f:
+#                pickle.dump(self.prefixes_data, f, pickle.HIGHEST_PROTOCOL)
 
     
     def computeDeaggregationStats(self, bgp_handler, stats_file):    
