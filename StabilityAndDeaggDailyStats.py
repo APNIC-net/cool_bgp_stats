@@ -128,9 +128,9 @@ class StabilityAndDeagg:
                                                                        'update_date',
                                                                        'del_age',
                                                                        'ip_version',
-                                                                       'prefLen',
+                                                                       'preflen',
                                                                        'upd_type',
-                                                                       'count'])
+                                                                       'updates_count'])
                                                                          
 #            with open(self.prefixes_data_pkl, 'wb') as f:
 #                pickle.dump(self.prefixes_data, f, pickle.HIGHEST_PROTOCOL)
