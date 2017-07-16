@@ -198,8 +198,9 @@ class StabilityAndDeagg:
                                                                     json_filename))
         return stats_df
     
-    def importStatsIntoElasticSearch(self, stats_df, stats_name, es_properties):
-        esImporter = ElasticSearchImporter(self.es_host)
+    @staticmethod
+    def importStatsIntoElasticSearch(es_host, stats_df, stats_name, es_properties):
+        esImporter = ElasticSearchImporter(es_host)
         esImporter.createIndex(es_properties.mapping, es_properties.index_name)
         numOfDocs = esImporter.ES.count(es_properties.index_name)['count']
     
@@ -229,7 +230,9 @@ class StabilityAndDeagg:
                 updates_stats_df = self.generateJSONfile(updates_stats_file)
             
                 if self.es_host != '':
-                    self.importStatsIntoElasticSearch(updates_stats_df, 'BGP updates',
+                    self.importStatsIntoElasticSearch(self.es_host,
+                                                      updates_stats_df,
+                                                      'BGP updates',
                                                       updatesStats_ES_properties)
 
 
@@ -249,7 +252,9 @@ class StabilityAndDeagg:
                     deagg_stats_df = self.generateJSONfile(deagg_stats_file)
                     
                     if self.es_host != '':
-                        self.importStatsIntoElasticSearch(deagg_stats_df, 'deaggregation',
+                        self.importStatsIntoElasticSearch(self.es_host,
+                                                          deagg_stats_df,
+                                                          'deaggregation',
                                                           deaggStats_ES_properties)
 
 
