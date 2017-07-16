@@ -42,29 +42,19 @@ class ElasticSearchImporter:
     def prepareData(self, data_for_es, index_name, doc_type, numOfDocs, unique_index):
         bulk_data = []
                                                 
-        for index, row in data_for_es.iterrows(): 
-            data_dict = {}
-            must_list = []
-            for i in range(len(row)):
-                data_dict[data_for_es.columns[i]] = row[i]
-                field = data_for_es.columns[i]
-                if field in unique_index:
-                    must_list.append({'match':{field:data_dict[field]}})
+        for index, row in data_for_es.iterrows():
+            data_dict = row.to_dict()
+            op_dict = {
+                    "_op_type": "create",
+                    "_index": index_name,
+                    "_type": doc_type,
+                    "_id": numOfDocs,
+                    "_source": data_dict
+                        }  
     
-            if self.ES.count(index=index_name, doc_type=doc_type,
-                             body={'query':{'bool':{'must':must_list}}})['count'] == 0:
-    
-                op_dict = {
-                        "_op_type": "index",
-                        "_index": index_name,
-                        "_type": doc_type,
-                        "_id": numOfDocs,
-                        "_source": data_dict
-                            }  
-        
-                numOfDocs += 1
-    
-                bulk_data.append(op_dict)
+            numOfDocs += 1
+
+            bulk_data.append(op_dict)
     
         return bulk_data, numOfDocs
          
