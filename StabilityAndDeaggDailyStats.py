@@ -139,50 +139,55 @@ class StabilityAndDeagg:
         else:
             return False
     
-    def computeDeaggregationStats(self, bgp_handler, stats_file):    
-        for prefix, prefix_subset in bgp_handler.bgp_df.groupby('prefix'):
-            pref_node = self.prefixes_data.search_exact(prefix)
-
-            if pref_node is not None:
-                del_date = pref_node.data['del_date']
-                cc = pref_node.data['cc']
-            else:
-                del_date = self.getDelegationDate(prefix)
-                cc = self.getDelegationCC(prefix)
-                pref_node = self.prefixes_data.add(prefix)
-                pref_node.data['del_date'] = del_date
-                pref_node.data['cc'] = cc
+    def computeDeaggregationStats(self, bgp_handler, stats_file): 
+        if bgp_handler.bgp_df.shape[0] > 0:        
+            for prefix, prefix_subset in bgp_handler.bgp_df.groupby('prefix'):
+                pref_node = self.prefixes_data.search_exact(prefix)
+    
+                if pref_node is not None:
+                    del_date = pref_node.data['del_date']
+                    cc = pref_node.data['cc']
+                else:
+                    del_date = self.getDelegationDate(prefix)
+                    cc = self.getDelegationCC(prefix)
+                    pref_node = self.prefixes_data.add(prefix)
+                    pref_node.data['del_date'] = del_date
+                    pref_node.data['cc'] = cc
+                        
+                network = IPNetwork(prefix)
+                if network.version == 4:
+                    prefixes_radix = bgp_handler.ipv4Prefixes_radix
+                else:
+                    prefixes_radix = bgp_handler.ipv6Prefixes_radix
                     
-            network = IPNetwork(prefix)
-            if network.version == 4:
-                prefixes_radix = bgp_handler.ipv4Prefixes_radix
-            else:
-                prefixes_radix = bgp_handler.ipv6Prefixes_radix
+                isRoot = False
+                isRootDeagg = False
                 
-            isRoot = False
-            isRootDeagg = False
+                # If the list of covering prefixes in the Radix tree has only 1 prefix,
+                # it is the prefix itself, therefore the prefix is a root prefix
+                if len(prefixes_radix.search_covering(prefix)) == 1:
+                    isRoot = True
             
-            # If the list of covering prefixes in the Radix tree has only 1 prefix,
-            # it is the prefix itself, therefore the prefix is a root prefix
-            if len(prefixes_radix.search_covering(prefix)) == 1:
-                isRoot = True
-        
-                # If the list of covered prefix includes more prefixes than the prefix
-                # itself, then the root prefix is being deaggregated.
-                if len(bgp_handler.ipv4Prefixes_radix.search_covered(prefix)) > 1:
-                    isRootDeagg = True
+                    # If the list of covered prefix includes more prefixes than the prefix
+                    # itself, then the root prefix is being deaggregated.
+                    if len(bgp_handler.ipv4Prefixes_radix.search_covered(prefix)) > 1:
+                        isRootDeagg = True
+                
+                with open(stats_file, 'a') as s_file:
+                    s_file.write('{}|{}|{}|{}|{}|{}|{}\n'.format(prefix, del_date, cc,
+                                                                bgp_handler.routingDate,
+                                                                (bgp_handler.routingDate -\
+                                                                del_date).days,
+                                                                isRoot, isRootDeagg))
             
-            with open(stats_file, 'a') as s_file:
-                s_file.write('{}|{}|{}|{}|{}|{}|{}\n'.format(prefix, del_date, cc,
-                                                            bgp_handler.routingDate,
-                                                            (bgp_handler.routingDate -\
-                                                            del_date).days,
-                                                            isRoot, isRootDeagg))
+            with open(self.prefixes_data_pkl, 'wb') as f:
+                pickle.dump(self.prefixes_data, f, pickle.HIGHEST_PROTOCOL)
         
-        with open(self.prefixes_data_pkl, 'wb') as f:
-            pickle.dump(self.prefixes_data, f, pickle.HIGHEST_PROTOCOL)
-    
-    
+            return True
+        else:
+            return False
+            
+            
     @staticmethod
     def generateJSONfile(stats_file):
         stats_df = pd.read_csv(stats_file, sep = ',')
@@ -216,33 +221,36 @@ class StabilityAndDeagg:
     def computeAndSaveStabilityDailyStats(self):           
         updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path,
                                                              self.bgp_handler.routingDate)
-
-   
-        computed = self.computeUpdatesStats(self.bgp_handler.updates_prefixes, updates_stats_file)
-        
-        if computed:
-            updates_stats_df = self.generateJSONfile(updates_stats_file)
-        
-            if self.es_host != '':
-                self.importStatsIntoElasticSearch(updates_stats_df, 'BGP updates',
-                                                  updatesStats_ES_properties)
+        if not os.path.exists(updates_stats_file):
+            computed = self.computeUpdatesStats(self.bgp_handler.updates_prefixes,
+                                                updates_stats_file)
+            
+            if computed:
+                updates_stats_df = self.generateJSONfile(updates_stats_file)
+            
+                if self.es_host != '':
+                    self.importStatsIntoElasticSearch(updates_stats_df, 'BGP updates',
+                                                      updatesStats_ES_properties)
 
 
     def computeAndSaveDeaggDailyStats(self):
         if self.bgp_handler.routingDate is not None:
             deagg_stats_file = '{}/deaggStats_{}.csv'.format(self.files_path,
                                                              self.bgp_handler.routingDate)
-                                                             
-            with open(deagg_stats_file, 'w') as d_file:
-                d_file.write('prefix|del_date|CC|routing_date|del_age|isRoot|isRootDeagg\n')
-                
-            self.computeDeaggregationStats(self.bgp_handler, deagg_stats_file)
             
-            deagg_stats_df = self.generateJSONfile(deagg_stats_file)
-            
-            if self.es_host != '':
-                self.importStatsIntoElasticSearch(deagg_stats_df, 'deaggregation',
-                                                  deaggStats_ES_properties)
+            if not os.path.exists(deagg_stats_file):
+                with open(deagg_stats_file, 'w') as d_file:
+                    d_file.write('prefix|del_date|CC|routing_date|del_age|isRoot|isRootDeagg\n')
+                    
+                computed = self.computeDeaggregationStats(self.bgp_handler,
+                                                          deagg_stats_file)
+
+                if computed:                
+                    deagg_stats_df = self.generateJSONfile(deagg_stats_file)
+                    
+                    if self.es_host != '':
+                        self.importStatsIntoElasticSearch(deagg_stats_df, 'deaggregation',
+                                                          deaggStats_ES_properties)
 
 
 def main(argv):
