@@ -27,17 +27,18 @@ class ElasticSearchImporter:
         self.ES = Elasticsearch([config,], timeout=300)
     	    
     def createIndex(self, mapping_dict, index_name):
-        request_body = {
-                	    "settings" : {
-                             "number_of_shards": 5,
-                             "number_of_replicas": 1
-                             },                
-                        "mappings": mapping_dict
-                        }
-                        
-        print("creating {} index...".format(index_name))
-        self.ES.indices.create(index = index_name, body = request_body, ignore=400)
-        self.ES.indices.refresh(index = index_name)
+        if not self.ES.indices.exists(index = index_name):        
+            request_body = {
+                    	    "settings" : {
+                                 "number_of_shards": 5,
+                                 "number_of_replicas": 1
+                                 },                
+                            "mappings": mapping_dict
+                            }
+                            
+            print("creating {} index...".format(index_name))
+            self.ES.indices.create(index = index_name, body = request_body, ignore=400)
+            self.ES.indices.refresh(index = index_name)
     
     def prepareData(self, data_for_es, index_name, doc_type, numOfDocs, unique_index):
         bulk_data = []
