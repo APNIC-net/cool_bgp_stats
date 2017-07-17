@@ -167,7 +167,7 @@ def main(argv):
     try:
         opts, args = getopt.getopt(argv,"hp:n:y:d:RSDE", ['files_path=', 'procNumber=', 'year=', 'date=',])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -p <files_path> (-n <process number> | -y <year> | -d <date>) [-R] [-S] [-D] [-E] [-d]'.format(sys.argv[0])
+        print 'Usage: {} -h | -p <files_path> (-n <process number> | -y <year> | -d <date>) [-R] [-S] [-D] [-E]'.format(sys.argv[0])
         print "p: Files path. Path to a folder in which generated files will be saved."
         print "n: Process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
         print "y: Year. Year for which you want the stats to be computed."
@@ -180,7 +180,7 @@ def main(argv):
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'Usage: {} -h | -p <files_path> (-n <process number> | -y <year> | -d <date>) [-R] [-S] [-D] [-d]'.format(sys.argv[0])
+            print 'Usage: {} -h | -p <files_path> (-n <process number> | -y <year> | -d <date>) [-R] [-S] [-D] [-E]'.format(sys.argv[0])
             print "p: Files path. Path to a folder in which generated files will be saved."
             print "n: Provide a process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
             print "y: Year. Year for which you want the stats to be computed."
