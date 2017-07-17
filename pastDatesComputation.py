@@ -162,31 +162,33 @@ def main(argv):
     year = 2017
     proc_num = -1
     ELASTIC = False
+    stats_date = None
 
     try:
-        opts, args = getopt.getopt(argv,"hp:n:y:RSDEd", ['files_path=', 'procNumber=', 'year=',])
+        opts, args = getopt.getopt(argv,"hp:n:y:d:RSDE", ['files_path=', 'procNumber=', 'year=', 'date=',])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -p <files_path> (-n <process number> | -y <year>) [-R] [-S] [-D] [-E] [-d]'.format(sys.argv[0])
+        print 'Usage: {} -h | -p <files_path> (-n <process number> | -y <year> | -d <date>) [-R] [-S] [-D] [-E] [-d]'.format(sys.argv[0])
         print "p: Files path. Path to a folder in which generated files will be saved."
         print "n: Process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
         print "y: Year. Year for which you want the stats to be computed."
+        print "d: date: Date for which you want the stats to be computed. Format: YYYYMMDD"
         print "R: Routing stats. Use this option if you want the routing stats to be computed."
         print "S: Stability stats. Use this option if you want the stats about update rates to be computed."
         print "D: Deaggregation probability stats. Use this option if you want the stats about probability of deaggregation  to be computed."
         print "E: ElasticSearch. Save computed stats to ElasicSearch engine in twerp.rand.apnic.net"
-        print "d: DEBUG mode"
         sys.exit()
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'Usage: {} -h | -p <files_path> (-n <process number> | -y <year>) [-R] [-S] [-D] [-d]'.format(sys.argv[0])
+            print 'Usage: {} -h | -p <files_path> (-n <process number> | -y <year> | -d <date>) [-R] [-S] [-D] [-d]'.format(sys.argv[0])
             print "p: Files path. Path to a folder in which generated files will be saved."
             print "n: Provide a process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
             print "y: Year. Year for which you want the stats to be computed."
+            print "d: date: Date for which you want the stats to be computed. Format: YYYYMMDD"
             print "R: Routing stats. Use this option if you want the routing stats to be computed."
             print "S: Stability stats. Use this option if you want the stats about update rates to be computed."
             print "D: Deaggregation probability stats. Use this option if you want the stats about probability of deaggregation  to be computed."
-            print "d: DEBUG mode"
+            print "E: ElasticSearch. Save computed stats to ElasicSearch engine in twerp.rand.apnic.net"
             sys.exit()
         elif opt == '-p':
             if arg != '':
@@ -208,6 +210,16 @@ def main(argv):
             else:
                 print "If the -y option is used you MUST provide the year for which you want stats to be computed."
                 sys.exit(-1)
+        elif opt == '-d':
+            if arg != '':
+                try:
+                    stats_date = datetime.strptime(arg, '%Y%m%d').date()
+                except ValueError:
+                    print "You MUST use format YYYYMMDD for the date"
+                    sys.exit(-1)
+            else:
+                print "If the -d option is used you MUST provide the date for which you want the stats to be computed."
+                sys.exit(-1)
         elif opt == '-R':
             ROUTING = True
         elif opt == '-S':
@@ -216,11 +228,12 @@ def main(argv):
             DEAGG_PROB = True
         elif opt == '-E':
             ELASTIC = True
-        elif opt == '-d':
-            DEBUG = True
         else:
             assert False, 'Unhandled option'
-            
+    
+    if stats_date is not None:
+        year = stats_date.year
+        
     if proc_num == -1:
         for i in yearsForProcNums:
             if year in yearsForProcNums[i]:
@@ -229,8 +242,10 @@ def main(argv):
         if proc_num == -1:
             print "The year provided MUST be between 2007 and the 2017."
             sys.exiT(-1)
-            
-        dates_set = getCompleteDatesSetForYear(year)
+        if stats_date is None:   
+            dates_set = getCompleteDatesSetForYear(year)
+        else:
+            dates_set = set([stats_date])
     else:
         dates_set = getCompleteDatesSet(proc_num)
 
