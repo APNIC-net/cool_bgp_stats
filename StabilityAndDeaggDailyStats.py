@@ -110,7 +110,7 @@ class StabilityAndDeagg:
         if updates_df.shape[0] > 0:
             prefixes_file = '/tmp/prefixes.txt'
             with open(prefixes_file, 'w') as output_file:
-                output_file.write('\n'.join(updates_df['prefix'].tolist()))
+                output_file.write('\n'.join(set(updates_df['prefix'].tolist())))
 
             del_dates_df = self.getDelegationDates_fromFile(prefixes_file)
             updates_df = pd.merge(updates_df, del_dates_df, how='left', on='prefix')
