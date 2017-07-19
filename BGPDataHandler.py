@@ -7,7 +7,6 @@ import os, subprocess, shlex, re, gzip
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from get_file import get_file
 import bgp_rib
-import pickle
 import radix
 from calendar import timegm
 from datetime import datetime, date
@@ -860,3 +859,49 @@ class BGPDataHandler:
                                                                
                 return BGPDataHandler.getDateFromReadableFile(readable_file,
                                                               output_file)
+                                                              
+    @staticmethod
+    def getRoutingFileForDate(routing_date, files_path, DEBUG):
+        db_handler = DBHandler('')
+        available_routing_files = db_handler.getPathsToRoutingFilesForDate(routing_date)
+        db_handler.close()
+        
+        routing_file = ''
+        
+        if 'bgprib.mrt' in available_routing_files:
+            routing_file = available_routing_files['bgprib.mrt']
+        
+        elif 'dmp.gz' in available_routing_files and 'v6.dmp.gz' in available_routing_files:
+            # If there is not bgprib.mrt file available, but the two dmp files
+            # (for v4 and v6) are available, I use them
+            dmp_file = available_routing_files['dmp.gz']
+            readable_dmp = BGPDataHandler.getReadableFile(dmp_file, False,
+                                                          files_path, DEBUG)
+    
+            v6dmp_file = available_routing_files['v6.dmp.gz']
+            readable_v6dmp = BGPDataHandler.getReadableFile(v6dmp_file, False,
+                                                            files_path, DEBUG)
+             
+            routing_file = BGPDataHandler.concatenateFiles('{}/{}_v4andv6.dmp.readable'\
+                                                .format(files_path, routing_date),
+                                                readable_dmp, readable_v6dmp)
+        elif 'dmp.gz' in available_routing_files:
+            # If there is only one of the dmp files available, I will work with it
+            routing_file = available_routing_files['dmp.gz']
+                
+        elif 'v6.dmp.gz' in available_routing_files:
+            # If there is only one of the dmp files available, I will work with it            
+            routing_file = available_routing_files['v6.dmp.gz']
+            
+        return routing_file
+        
+    @staticmethod
+    def concatenateFiles(routing_file, v4_routing_file, v6_routing_file):
+        with open(v4_routing_file, 'a') as v4_file:
+            with open(v6_routing_file, 'r') as v6_file:
+                for line in v6_file:
+                    v4_file.write(line)
+                    
+        os.rename(v4_routing_file, routing_file)
+        return routing_file
+        
