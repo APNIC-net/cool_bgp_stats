@@ -12,7 +12,7 @@ Finally, it computes the statistics about routing for yesterday.
 """
 import os, sys, getopt
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from dailyInsertion import insertionForDate
 from BulkWHOISParser import BulkWHOISParser
 from BGPDataHandler import BGPDataHandler
@@ -88,7 +88,14 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
     loaded = True
     
     if ROUTING or DEAGG_PROB:
-        loaded = bgp_handler.loadStructuresFromRoutingFile(routing_file)
+        if routing_file == '':
+            routing_file = BGPDataHandler.getRoutingFileForDate(date_to_work_with)
+            
+            if routing_file == '':
+                sys.stderr.write("No routing file available for date {}\n".format(date_to_work_with))
+                loaded = False
+            else:
+                loaded = bgp_handler.loadStructuresFromRoutingFile(routing_file)
     else:
         bgp_handler.routingDate = date_to_work_with
     
@@ -219,9 +226,9 @@ def main(argv):
             assert False, 'Unhandled option'
     
     if date_to_work_with == '':
-        date_to_work_with = date.today()
+        date_to_work_with = date.today() - timedelta(1)
         
-    readable_routing_file = readable_routing_file = insertionForDate(date_to_work_with)
+    insertionForDate(date.today())
 
     files_path = '/home/sofia/daily_execution'
 
@@ -229,8 +236,8 @@ def main(argv):
     # data to be updated daily.
     # When this function is called by pastDatesComputation, it is called with
     # BulkWHOIS = False
-    computeStatsForDate(date_to_work_with, files_path, readable_routing_file,
-                        ROUTING, STABILITY, DEAGG_PROB, True, ELASTIC)
+    computeStatsForDate(date_to_work_with, files_path, '', ROUTING, STABILITY,
+                        DEAGG_PROB, True, ELASTIC)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
