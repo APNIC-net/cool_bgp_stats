@@ -142,7 +142,7 @@ def main(argv):
     files_path = '/home/sofia/BGP_stats_files/UpdatesStats'
     
     for past_date in dates_set:
-        sys.stdout.write("starting to compute stats for {}\n".format(past_date))
+        sys.stdout.write("Starting to compute stats for {}\n".format(past_date))
         routing_file = ''
         
         if ROUTING or DEAGG_PROB:
@@ -150,12 +150,17 @@ def main(argv):
                                                 
             routing_file = BGPDataHandler.getRoutingFileForDate(past_date)
             
-            # TODO check if corresponding readable file is in readables_folder
-            
             if routing_file == '':
                 sys.stdout.write('No routing file is available for date {}\n'.format(past_date))
                 continue
                 
+            routing_filename = routing_file.split('/')[-1]
+            
+            readable_file = '{}/{}'.format(readables_folder, '.'.join(routing_filename.split('.')[0:-1]))
+            
+            if os.path.exists(readable_file):
+                routing_file = readable_file
+            
             sys.stdout.write('{}: Working with routing file {}\n'.format(datetime.now(), routing_file))
     
         computeStatsForDate(past_date, files_path, routing_file, ROUTING,
