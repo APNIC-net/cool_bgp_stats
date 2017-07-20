@@ -53,4 +53,3 @@ mapping = {"_default_" : {
 index_name = 'delegated_stats_index'
 doc_type = 'delegated_stats'
 unique_index = ["GeographicArea", "ResourceType", "Status", "Organization", "Date"]
-    

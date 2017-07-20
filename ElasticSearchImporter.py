@@ -40,23 +40,20 @@ class ElasticSearchImporter:
             self.ES.indices.create(index = index_name, body = request_body, ignore=400)
             self.ES.indices.refresh(index = index_name)
     
-    def prepareData(self, data_for_es, index_name, doc_type, numOfDocs, unique_index):
+    def prepareData(self, data_for_es, index_name, doc_type, unique_index):
         bulk_data = []
                                                 
         for index, row in data_for_es.iterrows():
             data_dict = row.to_dict()
             op_dict = {
-                    "_op_type": "create",
                     "_index": index_name,
                     "_type": doc_type,
                     "_source": data_dict
                         }  
-    
-            numOfDocs += 1
 
             bulk_data.append(op_dict)
     
-        return bulk_data, numOfDocs
+        return bulk_data
          
     def inputData(self, index_name, bulk_data, numOfDocs):
         helpers.bulk(self.ES, bulk_data)

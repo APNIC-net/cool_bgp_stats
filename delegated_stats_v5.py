@@ -247,13 +247,14 @@ def main(argv):
             
             plain_df = plain_df.fillna(-1)
     
-            bulk_data, numOfDocs = esImporter.prepareData(plain_df,
-                                                          delStats_ES_properties.index_name,
-                                                          delStats_ES_properties.doc_type,
-                                                          numOfDocs)
+            bulk_data = esImporter.prepareData(plain_df,
+                                               delStats_ES_properties.index_name,
+                                               delStats_ES_properties.doc_type,
+                                               delStats_ES_properties.unique_index)
                                                 
             dataImported = esImporter.inputData(delStats_ES_properties.index_name,
-                                                bulk_data, numOfDocs)
+                                                bulk_data,
+                                                numOfDocs + plain_df.shape[0])
     
             if dataImported:
                 sys.stderr.write("Stats about delegations for the dates {} saved to ElasticSearch successfully!\n".format(dateStr))

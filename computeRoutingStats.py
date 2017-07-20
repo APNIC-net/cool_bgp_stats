@@ -869,14 +869,14 @@ def computeAndSavePerPrefixStats(files_path, file_name, dateStr, routingStatsObj
 
         prefixes_stats_df = prefixes_stats_df.fillna(-1)
         
-        bulk_data, numOfDocs = esImporter.prepareData(prefixes_stats_df,
-                                                      prefStats_ES_properties.index_name,
-                                                      prefStats_ES_properties.doc_type,
-                                                      numOfDocs,
-                                                      prefStats_ES_properties.unique_index)
+        bulk_data = esImporter.prepareData(prefixes_stats_df,
+                                           prefStats_ES_properties.index_name,
+                                           prefStats_ES_properties.doc_type,
+                                           prefStats_ES_properties.unique_index)
                                             
         dataImported = esImporter.inputData(prefStats_ES_properties.index_name,
-                                            bulk_data, numOfDocs)
+                                            bulk_data,
+                                            numOfDocs + prefixes_stats_df.shape[0])
 
         if dataImported:
             sys.stderr.write("Stats about usage of prefixes delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
@@ -910,14 +910,14 @@ def computeAndSavePerASStats(files_path, file_name, dateStr, routingStatsObj,
 
         ases_stats_df = ases_stats_df.fillna(-1)
         
-        bulk_data, numOfDocs = esImporter.prepareData(ases_stats_df,
-                                                      ASesStats_ES_properties.index_name,
-                                                      ASesStats_ES_properties.doc_type,
-                                                      numOfDocs,
-                                                      ASesStats_ES_properties.unique_index)
+        bulk_data = esImporter.prepareData(ases_stats_df,
+                                           ASesStats_ES_properties.index_name,
+                                           ASesStats_ES_properties.doc_type,
+                                           ASesStats_ES_properties.unique_index)
                                             
         dataImported = esImporter.inputData(ASesStats_ES_properties.index_name,
-                                            bulk_data, numOfDocs)
+                                            bulk_data,
+                                            numOfDocs + ases_stats_df.shape[0])
 
         if dataImported:
             sys.stderr.write("Stats about usage of ASNs delegated during the period {} were saved to ElasticSearch successfully!\n".format(dateStr))
