@@ -49,7 +49,6 @@ class ElasticSearchImporter:
                     "_op_type": "create",
                     "_index": index_name,
                     "_type": doc_type,
-                    "_id": numOfDocs,
                     "_source": data_dict
                         }  
     
