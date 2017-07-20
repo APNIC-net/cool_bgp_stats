@@ -13,7 +13,7 @@ mapping = {"_default_" : {
                                         },
                                 "update_date" : {
                                     "type": "date",
-                                    "format": "yyyyMMdd"
+                                    "format": "yyyy-MM-dd"
                                         },
                                 'del_age' : {
                                     "type" : "integer"
