@@ -1,17 +1,17 @@
 mapping = {"_default_" : {
                             "properties" : {
-                                "deagg_stat_id" : {
-                                    "type": "integer"
-                                            },
                                 "prefix" : {
                                     "index" : "not_analyzed",
                                     "type": "text"
                                             },
+                                "cc" : {
+                                    "type" : "text"
+                                        },
                                 "del_date" : {
                                     "type": "date",
                                     "format": "yyyyMMdd"
                                         },
-                                "updates_date" : {
+                                "update_date" : {
                                     "type": "date",
                                     "format": "yyyyMMdd"
                                         },
@@ -21,13 +21,13 @@ mapping = {"_default_" : {
                                 "ip_version" : {
                                     "type" : "integer"
                                                     },
-                                "prefLength" : {
+                                "preflen" : {
                                     "type" : "integer"
                                                     },
-                                "numOfAnnouncements" : {
-                                    "type" : "integer"
+                                "upd_type" : {
+                                    "type" : "text"
                                                     },
-                                "numOfWithdraws" : {
+                                "updates_count" : {
                                     "type" : "integer"
                                                     }
                                         }
@@ -36,4 +36,4 @@ mapping = {"_default_" : {
                                 
 index_name = 'updates_stats_index'
 doc_type = 'updates_stats'
-unique_index = ["prefix", "updates_date"]
+unique_index = ["prefix", "updates_date", "upd_type"]
