@@ -92,4 +92,3 @@ mapping = {"_default_" : {
                                 
 index_name = 'ases_stats_index'
 doc_type = 'ases_stats'
-unique_index = ["asn", "routing_date"]

@@ -40,7 +40,7 @@ class ElasticSearchImporter:
             self.ES.indices.create(index = index_name, body = request_body, ignore=400)
             self.ES.indices.refresh(index = index_name)
     
-    def prepareData(self, data_for_es, index_name, doc_type, unique_index):
+    def prepareData(self, data_for_es, index_name, doc_type):
         bulk_data = []
                                                 
         for index, row in data_for_es.iterrows():
@@ -136,14 +136,13 @@ def main(argv):
                         
                     plain_df = plain_df.fillna(-1)
     
-                    bulk_data, numOfDocs = esImporter.prepareData(plain_df,
-                                                                  ES_properties.index_name,
-                                                                  ES_properties.doc_type,
-                                                                  numOfDocs,
-                                                                  ES_properties.unique_index)
+                    bulk_data = esImporter.prepareData(plain_df,
+                                                       ES_properties.index_name,
+                                                       ES_properties.doc_type)
                                                         
                     dataImported = esImporter.inputData(ES_properties.index_name,
-                                                        bulk_data, numOfDocs)
+                                                        bulk_data,
+                                                        numOfDocs + plain_df.shape[0])
     
                     if dataImported:
                         sys.stderr.write("Stats from file %s saved to ElasticSearch successfully!\n" % json_file)

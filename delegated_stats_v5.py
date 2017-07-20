@@ -249,8 +249,7 @@ def main(argv):
     
             bulk_data = esImporter.prepareData(plain_df,
                                                delStats_ES_properties.index_name,
-                                               delStats_ES_properties.doc_type,
-                                               delStats_ES_properties.unique_index)
+                                               delStats_ES_properties.doc_type)
                                                 
             dataImported = esImporter.inputData(delStats_ES_properties.index_name,
                                                 bulk_data,

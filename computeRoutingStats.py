@@ -871,8 +871,7 @@ def computeAndSavePerPrefixStats(files_path, file_name, dateStr, routingStatsObj
         
         bulk_data = esImporter.prepareData(prefixes_stats_df,
                                            prefStats_ES_properties.index_name,
-                                           prefStats_ES_properties.doc_type,
-                                           prefStats_ES_properties.unique_index)
+                                           prefStats_ES_properties.doc_type)
                                             
         dataImported = esImporter.inputData(prefStats_ES_properties.index_name,
                                             bulk_data,
@@ -912,8 +911,7 @@ def computeAndSavePerASStats(files_path, file_name, dateStr, routingStatsObj,
         
         bulk_data = esImporter.prepareData(ases_stats_df,
                                            ASesStats_ES_properties.index_name,
-                                           ASesStats_ES_properties.doc_type,
-                                           ASesStats_ES_properties.unique_index)
+                                           ASesStats_ES_properties.doc_type)
                                             
         dataImported = esImporter.inputData(ASesStats_ES_properties.index_name,
                                             bulk_data,

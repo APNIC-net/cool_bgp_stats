@@ -403,4 +403,3 @@ mapping = {"_default_" : {
                                 
 index_name = 'prefix_stats_index'
 doc_type = 'prefix_stats'
-unique_index = ["prefix", "routing_date"]

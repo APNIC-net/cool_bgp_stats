@@ -217,8 +217,7 @@ class StabilityAndDeagg:
         stats_df = stats_df.fillna(-1)
         
         bulk_data = esImporter.prepareData(stats_df, es_properties.index_name,
-                                           es_properties.doc_type,
-                                           es_properties.unique_index)
+                                           es_properties.doc_type)
                                             
         dataImported = esImporter.inputData(es_properties.index_name, bulk_data,
                                             numOfDocs + stats_df.shape[0])

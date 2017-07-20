@@ -36,4 +36,3 @@ mapping = {"_default_" : {
                                 
 index_name = 'updates_stats_index'
 doc_type = 'updates_stats'
-unique_index = ["prefix", "updates_date", "upd_type"]

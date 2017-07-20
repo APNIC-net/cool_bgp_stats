@@ -30,4 +30,3 @@ mapping = {"_default_" : {
                                 
 index_name = 'deagg_stats_index'
 doc_type = 'deagg_stats'
-unique_index = ["prefix", "routing_date"]
