@@ -106,6 +106,15 @@ class StabilityAndDeagg:
         return del_cc_df
         
 
+    @staticmethod
+    def getDelAge(update_date, del_date):
+        try:
+            del_age = (update_date - datetime.strptime(del_date, '%Y%m%d').date()).days
+        except ValueError:
+            del_age = -1
+            
+        return del_age
+        
     def computeUpdatesStats(self, updates_df, stats_file):
         if updates_df.shape[0] > 0:
             prefixes_file = '/tmp/prefixes.txt'
@@ -119,7 +128,7 @@ class StabilityAndDeagg:
             
             os.remove(prefixes_file)
             
-            updates_df['del_age'] = updates_df.apply(lambda row:(row['update_date'] - datetime.strptime(row['del_date'], '%Y%m%d').date()).days, axis=1)
+            updates_df['del_age'] = updates_df.apply(lambda row: self.getDelAge(row['update_date'], row['del_date']), axis=1)
             
             updates_df.to_csv(stats_file, header=True, index=False, columns=[
                                                                        'prefix',
