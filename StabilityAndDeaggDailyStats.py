@@ -95,6 +95,7 @@ class StabilityAndDeagg:
         output = subprocess.check_output(cmd, stdin=open(prefixes_file, 'r'))
         del_dates_df = pd.Series(output.split('\n')).str.rsplit(',', expand=True) 
         del_dates_df.columns = ['prefix', 'del_date', 'first_ip', 'count']
+        del_dates_df.loc[del_dates_df.del_date == '0', 'del_date'] = '19700101' 
         return del_dates_df
 
     @staticmethod
