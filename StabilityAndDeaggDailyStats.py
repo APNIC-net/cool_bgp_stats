@@ -24,6 +24,7 @@ from netaddr import IPNetwork
 import pandas as pd
 import subprocess, shlex
 from datetime import datetime, date, timedelta
+from time import time
 from BGPDataHandler import BGPDataHandler
 from ElasticSearchImporter import ElasticSearchImporter
 import updatesStats_ES_properties
@@ -118,7 +119,7 @@ class StabilityAndDeagg:
         
     def computeUpdatesStats(self, updates_df, stats_file):
         if updates_df.shape[0] > 0:
-            prefixes_file = '/tmp/prefixes.txt'
+            prefixes_file = '/tmp/prefixes_{}.txt'.format(time())
             with open(prefixes_file, 'w') as output_file:
                 output_file.write('\n'.join(set(updates_df['prefix'].tolist())))
 
