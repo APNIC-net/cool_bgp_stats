@@ -41,7 +41,7 @@ def insertionForDate(date_to_work_with):
                                                     date_to_work_with.strftime('%d'))
     
     # We first insert the files available in the current folder of the archive
-    # into the routing_data table
+    # into the archive_index table
     bgprib_file = '{}.bgprib.mrt'.format(file_name)
     if os.path.exists(bgprib_file):       
         dates_ready, routing_bgprib_csv = generateFilesFromRoutingFile(files_path,
@@ -109,9 +109,9 @@ def insertionForDate(date_to_work_with):
         sql_f.write("copy prefixes (prefix, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[0]))
         sql_f.write("copy asns (asn, isorigin, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[1]))
         sql_f.write("copy asns (asn, isorigin, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[2]))
-        sql_f.write("copy routing_data (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_bgprib_csv[0]))
-        sql_f.write("copy routing_data (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_dmp_csv[0]))
-        sql_f.write("copy routing_data (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_v6dmp_csv[0]))
+        sql_f.write("copy archive_index (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_bgprib_csv[0]))
+        sql_f.write("copy archive_index (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_dmp_csv[0]))
+        sql_f.write("copy archive_index (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_v6dmp_csv[0]))
         # If day_before is the first day of the year
         # (we consider day_beofre because the bgpupd.mrt file contains data for
         # the day before the date in its name)
