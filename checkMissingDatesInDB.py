@@ -23,9 +23,9 @@ db_originASes_dates = set(db_handler.getListOfDatesForOriginASes())
 db_middleASes_dates = set(db_handler.getListOfDatesForMiddleASes())
 missing_ASes = complete_dates_set - db_middleASes_dates.union(db_originASes_dates)
 
-db_routing_data_v4_dates = set(db_handler.getListOfDatesForRoutingData_v4Only())
-db_routing_data_v6_dates = set(db_handler.getListOfDatesForRoutingData_v6Only())
-db_routing_data_v4andv6_dates = set(db_handler.getListOfDatesForRoutingData_v4andv6())
+db_routing_data_v4_dates = set(db_handler.getListOfDatesFromArchiveIndex_v4Only())
+db_routing_data_v6_dates = set(db_handler.getListOfDatesFromArchiveIndex_v6Only())
+db_routing_data_v4andv6_dates = set(db_handler.getListOfDatesFromArchiveIndex_v4andv6())
 
 missing_routing = complete_dates_set - db_routing_data_v4andv6_dates.union(db_routing_data_v4_dates.intersection(db_routing_data_v6_dates))
 
