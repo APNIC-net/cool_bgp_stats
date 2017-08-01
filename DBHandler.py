@@ -6,25 +6,12 @@ Created on Thu Mar 23 09:47:06 2017
 """
 import os
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
-from iter_file import IteratorFile
 import sys, datetime
 import psycopg2
 import psycopg2.extras
 from itertools import chain
 import pandas as pd
 import sqlalchemy as sq
-
- # Radix indexed by routed IPv4 prefix containing as values dictionaries
-    # with the following keys:
-    # * periodsSeen - the value for this key is a list of tuples representing
-    # periods of time during which the corresponding IPv4 prefix was seen
-    # Each tuple has the format (startDate, endDate)
-    # * firstSeen - the value for this key is the first date in which the
-    # IPv4 prefix was seen
-    # * lastSeen - the value for this key is the last date in which the
-    # IPv4 prefix was seen
-    # * totalDays - the value for this key is the number of days during
-    # which the IPv4 prefix was seen
 
 class DBHandler:
     dbname = 'sofia'
@@ -52,41 +39,6 @@ class DBHandler:
     def close(self):
         self.cur.close()
         self.conn.close()
-
-    def storePrefixSeen(self, prefix, date):
-        try:
-            self.cur.execute("""INSERT INTO prefixes VALUES (%s, %s)""",
-                             (prefix, date,))
-            self.conn.commit()
-            return True
-        except psycopg2.IntegrityError:
-            self.conn.rollback()
-            # Duplicated tuple not inserted into the Prefixes table.
-            return False
-
-    def storeListOfPrefixesSeen(self, prefix_list, date):
-        tuplesToInsert = zip(prefix_list, [date]*len(prefix_list))
-        f = IteratorFile(("{}\t{}".format(x[0], x[1]) for x in tuplesToInsert))
-        self.cur.copy_from(f, 'prefixes', columns=('prefix', 'dateseen'))
-        self.conn.commit()
-
-            
-    def storeASSeen(self, asn, isOriginAS, date):
-        try:
-            self.cur.execute("""INSERT INTO asns VALUES (%s, %s, %s)""",
-                             (asn, isOriginAS, date,))
-            self.conn.commit()
-            return True
-        except psycopg2.IntegrityError:
-            self.conn.rollback()
-            # Duplicated tuple not inserted into the Prefixes table.
-            return False
-    
-    def storeListOfASesSeen(self, asnsList, areOriginASes, date):
-        tuplesToInsert = zip(asnsList, [areOriginASes]*len(asnsList), [date]*len(asnsList))
-        f = IteratorFile(("{}\t{}\t{}".format(x[0], x[1], x[2]) for x in tuplesToInsert))
-        self.cur.copy_from(f, 'asns', columns=('asn', 'isorigin', 'dateseen'))
-        self.conn.commit()
 
     def getDateFirstSeen(self, prefix):
         try:
@@ -259,60 +211,6 @@ class DBHandler:
             sys.stderr.write("Unable to get the date the ASN {} was last seen.\n".format(asn))
             return None
     
-    def getPrefixCountForDate(self, date):
-        try:
-            self.cur.execute("""select count(*) from prefixes where dateSeen = %s;""", (date,))
-            return self.cur.fetchone()[0]
-        except:
-            sys.stderr.write("Unable to get the number of prefixes seen on {}\n".format(date))
-            return -1
-            
-    def getOriginASCountForDate(self, date):
-        try:
-            self.cur.execute("""select count(*) from asns where isorigin = %s and dateSeen = %s;""", (True, date,))
-            return self.cur.fetchone()[0]
-        except:
-            sys.stderr.write("Unable to get the number of origin ASes seen on {}\n".format(date))
-            return -1        
-    
-    def getMiddleASCountForDate(self, date):
-        try:
-            self.cur.execute("""select count(*) from asns where isorigin = %s and dateSeen = %s;""", (False, date,))
-            return self.cur.fetchone()[0]
-        except:
-            sys.stderr.write("Unable to get the number of middle ASes seen on {}\n".format(date))
-            return -1
-    
-    def dropPrefixesForDate(self, date):
-        try:
-            self.cur.execute("""DELETE FROM prefixes WHERE dateseen = %s""",
-                             (date,))
-            self.conn.commit()
-            return True
-        except (Exception, psycopg2.DatabaseError) as error:
-            print(error)
-            return False
-
-    def dropOriginASesForDate(self, date):
-        try:
-            self.cur.execute("""DELETE FROM asns WHERE isorigin = %s and  dateseen = %s""",
-                             (True, date,))
-            self.conn.commit()
-            return True
-        except (Exception, psycopg2.DatabaseError) as error:
-            print(error)
-            return False
-
-    def dropMiddleASesForDate(self, date):
-        try:
-            self.cur.execute("""DELETE FROM asns WHERE isorigin = %s and  dateseen = %s""",
-                             (False, date,))
-            self.conn.commit()
-            return True
-        except (Exception, psycopg2.DatabaseError) as error:
-            print(error)
-            return False
-    
     def getListOfDatesForPrefixes(self):
         try:
             self.cur.execute("SELECT distinct(dateseen) from prefixes")
@@ -345,25 +243,25 @@ class DBHandler:
             sys.stderr.write("Unable to get the list of distinct dates for the updates in the DB.\n")
             return []
     
-    def getListOfDatesForRoutingData_v4Only(self):
+    def getListOfDatesFromArchiveIndex_v4Only(self):
         try:
-            self.cur.execute("SELECT distinct(routing_date) from routing_data where extension = 'dmp.gz'")
+            self.cur.execute("SELECT distinct(routing_date) from archive_index where extension = 'dmp.gz'")
             return list(chain(*self.cur.fetchall()))
         except:
             sys.stderr.write("Unable to get the list of distinct dates for v4 only routing data in the DB.\n")
             return []
     
-    def getListOfDatesForRoutingData_v6Only(self):
+    def getListOfDatesFromArchiveIndex_v6Only(self):
         try:
-            self.cur.execute("SELECT distinct(routing_date) from routing_data where extension = 'v6.dmp.gz'")
+            self.cur.execute("SELECT distinct(routing_date) from archive_index where extension = 'v6.dmp.gz'")
             return list(chain(*self.cur.fetchall()))
         except:
             sys.stderr.write("Unable to get the list of distinct dates for v6 only routing data in the DB.\n")
             return []
     
-    def getListOfDatesForRoutingData_v4andv6(self):
+    def getListOfDatesFromArchiveIndex_v4andv6(self):
         try:
-            self.cur.execute("SELECT distinct(routing_date) from routing_data where extension = 'bgprib.mrt'")
+            self.cur.execute("SELECT distinct(routing_date) from archive_index where extension = 'bgprib.mrt'")
             return list(chain(*self.cur.fetchall()))
         except:
             sys.stderr.write("Unable to get the list of distinct dates for v4 and v6 routing data in the DB.\n")
@@ -412,7 +310,7 @@ class DBHandler:
     # period of time.
     def getPathsToRoutingFilesForPeriod(self, startDate, endDate):
         try:
-            self.cur.execute("""SELECT routing_date, extension, file_path from routing_data 
+            self.cur.execute("""SELECT routing_date, extension, file_path from archive_index 
                                 where routing_date between %s and %s""",
                                 (startDate, endDate,))
                                 
@@ -434,7 +332,7 @@ class DBHandler:
     # in the archive corresponding to the provided date.
     def getPathsToRoutingFilesForDate(self, routing_date):
         try:
-            self.cur.execute("""SELECT extension, file_path from routing_data 
+            self.cur.execute("""SELECT extension, file_path from archive_index 
                                 where routing_date = %s""", (routing_date,))
                                 
             result_list = self.cur.fetchall()
@@ -453,7 +351,7 @@ class DBHandler:
             
     def getPathsToMostRecentRoutingFiles(self):
         try:
-            self.cur.execute("""SELECT distinct(routing_date) from routing_data 
+            self.cur.execute("""SELECT distinct(routing_date) from archive_index 
                                 order by routing_date desc limit 1""")
 
             mostRecentDate = self.cur.fetchone()[0]
