@@ -116,21 +116,32 @@ class StabilityAndDeagg:
             del_age = -1
             
         return del_age
+
+    # This function obtains the delegation date and the CC for each prefix
+    # in the DataFrame, adding this info in new columns.
+    # Additionally, it creates a new column with the delegation age computed
+    # as the difference between the date in the provided column and the delegation date
+    def completeDFwithDelegationData(self, df, date_col):
+        prefixes_file = '/tmp/prefixes_{}.txt'.format(time())
         
+        with open(prefixes_file, 'w') as output_file:
+            output_file.write('\n'.join(set(df['prefix'].tolist())))
+
+        del_dates_df = self.getDelegationDates_fromFile(prefixes_file)
+        df = pd.merge(df, del_dates_df, how='left', on='prefix')
+        del_cc_df = self.getDelegationCCs_fromFile(prefixes_file)
+        df = pd.merge(df, del_cc_df, how='left', on='prefix')
+        
+        os.remove(prefixes_file)
+        
+        df['del_age'] = df.apply(lambda row: self.getDelAge(row[date_col], row['del_date']), axis=1)
+        
+        return df
+                
     def computeUpdatesStats(self, updates_df, stats_file):
         if updates_df.shape[0] > 0:
-            prefixes_file = '/tmp/prefixes_{}.txt'.format(time())
-            with open(prefixes_file, 'w') as output_file:
-                output_file.write('\n'.join(set(updates_df['prefix'].tolist())))
-
-            del_dates_df = self.getDelegationDates_fromFile(prefixes_file)
-            updates_df = pd.merge(updates_df, del_dates_df, how='left', on='prefix')
-            del_cc_df = self.getDelegationCCs_fromFile(prefixes_file)
-            updates_df = pd.merge(updates_df, del_cc_df, how='left', on='prefix')
-            
-            os.remove(prefixes_file)
-            
-            updates_df['del_age'] = updates_df.apply(lambda row: self.getDelAge(row['update_date'], row['del_date']), axis=1)
+            updates_df = self.completeDFwithDelegationData(updates_df,
+                                                           'update_date')
             
             updates_df.to_csv(stats_file, header=True, index=False, columns=[
                                                                        'prefix',
@@ -142,29 +153,16 @@ class StabilityAndDeagg:
                                                                        'preflen',
                                                                        'upd_type',
                                                                        'updates_count'])
-                                                                         
-#            with open(self.prefixes_data_pkl, 'wb') as f:
-#                pickle.dump(self.prefixes_data, f, pickle.HIGHEST_PROTOCOL)
             
             return True
         else:
             return False
     
     def computeDeaggregationStats(self, bgp_handler, stats_file): 
+        deagg_stats_df = pd.DataFrame()
+        
         if bgp_handler.bgp_df.shape[0] > 0:        
             for prefix, prefix_subset in bgp_handler.bgp_df.groupby('prefix'):
-                pref_node = self.prefixes_data.search_exact(prefix)
-    
-                if pref_node is not None:
-                    del_date = pref_node.data['del_date']
-                    cc = pref_node.data['cc']
-                else:
-                    del_date = self.getDelegationDate(prefix)
-                    cc = self.getDelegationCC(prefix)
-                    pref_node = self.prefixes_data.add(prefix)
-                    pref_node.data['del_date'] = del_date
-                    pref_node.data['cc'] = cc
-                        
                 network = IPNetwork(prefix)
                 if network.version == 4:
                     prefixes_radix = bgp_handler.ipv4Prefixes_radix
@@ -183,17 +181,24 @@ class StabilityAndDeagg:
                     # itself, then the root prefix is being deaggregated.
                     if len(bgp_handler.ipv4Prefixes_radix.search_covered(prefix)) > 1:
                         isRootDeagg = True
-                
-                with open(stats_file, 'a') as s_file:
-                    s_file.write('{}|{}|{}|{}|{}|{}|{}\n'.format(prefix, del_date, cc,
-                                                                bgp_handler.routingDate,
-                                                                (bgp_handler.routingDate -\
-                                                                del_date).days,
-                                                                isRoot, isRootDeagg))
-            
-            with open(self.prefixes_data_pkl, 'wb') as f:
-                pickle.dump(self.prefixes_data, f, pickle.HIGHEST_PROTOCOL)
-        
+                        
+                deagg_stats_df = pd.concat([deagg_stats_df,
+                                            pd.DataFrame({
+                                            'prefix' : prefix,
+                                            'ip_version' : network.version,
+                                            'preflen' : network.prefixlen,
+                                            'routing_date' : bgp_handler.routingDate,
+                                            'isRoot' : isRoot,
+                                            'isRootDeagg' : isRootDeagg})])
+
+            deagg_stats_df = self.completeDFwithDelegationData(deagg_stats_df,
+                                                               'routing_date')
+
+            deagg_stats_df.to_csv(stats_file, header=True, index=False,
+                                  columns=['prefix', 'del_date', 'cc',
+                                           'routing_date', 'del_age',
+                                           'ip_version','preflen',
+                                           'isRoot', 'isRootDeagg'])        
             return True
         else:
             return False
@@ -251,9 +256,6 @@ class StabilityAndDeagg:
                                                              self.bgp_handler.routingDate)
             
             if not os.path.exists(deagg_stats_file):
-                with open(deagg_stats_file, 'w') as d_file:
-                    d_file.write('prefix|del_date|CC|routing_date|del_age|isRoot|isRootDeagg\n')
-                    
                 computed = self.computeDeaggregationStats(self.bgp_handler,
                                                           deagg_stats_file)
 
