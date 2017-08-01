@@ -16,7 +16,7 @@ from glob import glob
 today = datetime.today().date()
 
 def createSQLFile(item, suffix, existing_dates, files_path, generated_dates):
-    if item == 'routing_data':
+    if item == 'archive_index':
         sql_file = '{}/{}_{}_{}.sql'.format(files_path, item, suffix, today)
     else:
         sql_file = '{}/{}_{}.sql'.format(files_path, item, today)
@@ -29,8 +29,8 @@ def createSQLFile(item, suffix, existing_dates, files_path, generated_dates):
     elif item == 'originASes' or item == 'middleASes':
         table_name = 'asns'
         columns = '(asn, isorigin, dateseen)'
-    elif item == 'routing_data':
-        table_name = 'routing_data'
+    elif item == 'archive_index':
+        table_name = 'archive_index'
         columns = '(routing_date, extension, file_path)'
         suffixes = [suffix]
         
@@ -51,7 +51,7 @@ def createSQLFile(item, suffix, existing_dates, files_path, generated_dates):
                     
                     generated_dates[file_date][suffix] = True
                     
-                    if item != 'routing_data' and suffix == 'v4andv6':
+                    if item != 'archive_index' and suffix == 'v4andv6':
                         generated_dates[file_date]['v4'] = True
                         generated_dates[file_date]['v6'] = True
 
@@ -132,7 +132,7 @@ def checkMissingRoutingData(suffix, output_file, completeDatesSet, existingInDB,
                                                          generated))
             
             if not inDB and not generated:
-                sys.stdout.write('{} routing data not ready for date {}\n'.format(suffix, day))
+                sys.stdout.write('{} data for archive index not ready for date {}\n'.format(suffix, day))
     
 def main(argv):
     files_path = '/home/sofia/BGP_stats_files/CSVsAndCTLs'
@@ -141,19 +141,19 @@ def main(argv):
     try:
         opts, args = getopt.getopt(argv,"hp:t:", ['files_path=', 'data_type=',])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -p <files path> -t <visibility/routing/updates>'.format(sys.argv[0])
+        print 'Usage: {} -h | -p <files path> -t <visibility/index/updates>'.format(sys.argv[0])
         print "p: Provide the path to the folder where the CSV files are."
         print "By default /home/sofia/BGP_stats_files/CSVsAndCTLs is used."
-        print "t: Data type. Choose between 'visibility', 'routing' and 'updates'."
+        print "t: Data type. Choose between 'visibility', 'index' and 'updates'."
         print "By default 'visibility' is used."
         sys.exit()
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'Usage: {} -h | -p <files path> -t <visibility/routing/updates>'.format(sys.argv[0])
+            print 'Usage: {} -h | -p <files path> -t <visibility/index/updates>'.format(sys.argv[0])
             print "p: Provide the path to the folder where the CSV files are."
             print "By default /home/sofia/BGP_stats_files/CSVsAndCTLs is used."
-            print "t: Data type. Choose between 'visibility', 'routing' and 'updates'."
+            print "t: Data type. Choose between 'visibility', 'index' and 'updates'."
             print "By default 'visibility' is used."
             sys.exit()
         elif opt == '-p':
@@ -163,8 +163,8 @@ def main(argv):
         else:
             assert False, 'Unhandled option'
             
-    if data_type != 'visibility' and data_type != 'routing' and data_type != 'updates':
-        print "Wrong data type. You MUST choose between 'visibility', 'routing' and 'updates'."
+    if data_type != 'visibility' and data_type != 'index' and data_type != 'updates':
+        print "Wrong data type. You MUST choose between 'visibility', 'index' and 'updates'."
         sys.exit(-1)
         
     output_file = '{}/generateSQLfiles_{}_{}.output'.format(files_path,
@@ -217,12 +217,12 @@ def main(argv):
         sys.stdout.write('{} was generated for the insertion of Middle ASes.\n'.format(\
                         middleASesSQLfile))
                             
-    elif data_type == 'routing':
+    elif data_type == 'index':
         with open(output_file, 'a') as output:
             output.write('Date|Type|inDB|Generated\n')
             
-        existing_dates_bgprib = set(db_handler.getListOfDatesForRoutingData_v4andv6())
-        bgpribSQLfile, generated_dates_bgprib = createSQLFile('routing_data', 'v4andv6',
+        existing_dates_bgprib = set(db_handler.getListOfDatesFromArchiveIndex_v4andv6())
+        bgpribSQLfile, generated_dates_bgprib = createSQLFile('archive_index', 'v4andv6',
                                                           existing_dates_bgprib,
                                                           files_path,
                                                           dict())
@@ -230,11 +230,11 @@ def main(argv):
         checkMissingRoutingData('v4andv6', output_file, completeDatesSet,
                                 existing_dates_bgprib, generated_dates_bgprib)
                      
-        sys.stdout.write('{} was generated for the insertion of routing data from bgprib files.\n'.format(\
+        sys.stdout.write('{} was generated for the insertion of data for the archive index from bgprib files.\n'.format(\
                         bgpribSQLfile))
 
-        existing_dates_dmp = set(db_handler.getListOfDatesForRoutingData_v4Only())
-        dmpSQLfile, generated_dates_dmp = createSQLFile('routing_data', 'v4',
+        existing_dates_dmp = set(db_handler.getListOfDatesFromArchiveIndex_v4Only())
+        dmpSQLfile, generated_dates_dmp = createSQLFile('archive_index', 'v4',
                                                           existing_dates_dmp,
                                                           files_path,
                                                           dict())
@@ -242,11 +242,11 @@ def main(argv):
         checkMissingRoutingData('v4', output_file, completeDatesSet,
                                 existing_dates_dmp, generated_dates_dmp)
                      
-        sys.stdout.write('{} was generated for the insertion of routing data from dmp (v4 only) files.\n'.format(\
+        sys.stdout.write('{} was generated for the insertion of data for the archive index from dmp (v4 only) files.\n'.format(\
                         dmpSQLfile))
 
-        existing_dates_v6dmp = set(db_handler.getListOfDatesForRoutingData_v6Only())
-        v6dmpSQLfile, generated_dates_v6dmp = createSQLFile('routing_data', 'v6',
+        existing_dates_v6dmp = set(db_handler.getListOfDatesFromArchiveIndex_v6Only())
+        v6dmpSQLfile, generated_dates_v6dmp = createSQLFile('archive_index', 'v6',
                                                           existing_dates_v6dmp,
                                                           files_path,
                                                           dict())
@@ -254,7 +254,7 @@ def main(argv):
         checkMissingRoutingData('v6', output_file, completeDatesSet,
                                 existing_dates_v6dmp, generated_dates_v6dmp)
                      
-        sys.stdout.write('{} was generated for the insertion of routing data from v6.dmp (v6 only) files.\n'.format(\
+        sys.stdout.write('{} was generated for the insertion of data for the archive index from v6.dmp (v6 only) files.\n'.format(\
                         v6dmpSQLfile))
                         
     elif data_type == 'updates':

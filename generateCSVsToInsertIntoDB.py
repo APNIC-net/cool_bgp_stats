@@ -454,7 +454,7 @@ def main(argv):
         print 'Usage: {} -h | -t <visibility/routing> (-A <archive folder> -n <process number> | -f <readable routing file>) [-D]'.format(sys.argv[0])
         print "t: Data type. Type of data to be inserted into the DB."
         print "Visibility -> To insert the dates during which prefixes, origin ASes and middle ASes were seen in the routing table."
-        print "Routing -> To insert into the routing_data table the list of rows in the BGP routing table for the available dates."
+        print "Routing -> To insert into the archive_index table the list of rows in the BGP routing table for the available dates."
         print "Visibility will be used by default."
         print "A: Provide the path to the folder containing hitorical routing data."
         print "AND"
@@ -469,7 +469,7 @@ def main(argv):
             print 'Usage: {} -h | -t <visibility/routing> (-A <archive folder> -n <process number> | -f <readable routing file>) [-D]'.format(sys.argv[0])
             print "t: Data type. Type of data to be inserted into the DB."
             print "Visibility -> To insert the dates during which prefixes, origin ASes and middle ASes were seen in the routing table."
-            print "Routing -> To insert into the routing_data table the list of rows in the BGP routing table for the available dates."
+            print "Routing -> To insert into the archive_index table the list of rows in the BGP routing table for the available dates."
             print "Visibility will be used by default."
             print "A: Provide the path to the folder containing hitorical routing data."
             print "AND"
@@ -581,21 +581,21 @@ def main(argv):
                 dates_ready[ex_date]['middleASes']['v6'] = True
 
         elif data_type == 'routing':
-            existing_dates_v4 = set(db_handler.getListOfDatesForRoutingData_v4Only())
+            existing_dates_v4 = set(db_handler.getListOfDatesFromArchiveIndex_v4Only())
                         
             for ex_date in existing_dates_v4:
                 if ex_date not in dates_ready:
                     dates_ready[ex_date] = defaultdict(bool)
                 dates_ready[ex_date]['routing_v4'] = True
 
-            existing_dates_v6 = set(db_handler.getListOfDatesForRoutingData_v6Only())
+            existing_dates_v6 = set(db_handler.getListOfDatesFromArchiveIndex_v6Only())
             
             for ex_date in existing_dates_v6:
                 if ex_date not in dates_ready:
                     dates_ready[ex_date] = defaultdict(bool)
                 dates_ready[ex_date]['routing_v6'] = True
                 
-            existing_dates_v4andv6 = set(db_handler.getListOfDatesForRoutingData_v4andv6())
+            existing_dates_v4andv6 = set(db_handler.getListOfDatesFromArchiveIndex_v4andv6())
             
             for ex_date in existing_dates_v4andv6:
                 if ex_date not in dates_ready:
@@ -645,7 +645,7 @@ def main(argv):
                                         output.write('Visibility data for {} coming from {} file not ready for date {}.\n'.format(item, v, ex_date))
 
             elif data_type == 'routing':
-                output.write('Dates that are not in the routing_data table in the DB and for which some of the CSV files were not created.\n')
+                output.write('Dates that are not in the archive_index table in the DB and for which some of the CSV files were not created.\n')
 
                 for ex_date in completeDatesSet:
                     if ex_date not in dates_ready:
