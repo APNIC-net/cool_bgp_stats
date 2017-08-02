@@ -80,8 +80,7 @@ def weighted_avg_and_std(values, weights):
 def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first_seen_intact):
     prefix = str(network)
     # History of Visibility (Visibility Evoluntion in Time) computation
-    today = date.today()
-    daysUsable = (today-statsForPrefix['del_date']).days + 1
+    daysUsable = (statsForPrefix['routing_date']-statsForPrefix['del_date']).days + 1
     
     # Intact Allocation History of Visibility
     # The Intact Allocation History of Visibility only takes into
@@ -92,7 +91,7 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
     if numOfPeriods > 0:
         last_seen_intact = db_handler.getDateLastSeenExact(prefix)
         statsForPrefix['lastSeenIntact'] = last_seen_intact
-        statsForPrefix['isDeadIntact'] = ((today-last_seen_intact).days > 365)
+        statsForPrefix['isDeadIntact'] = ((statsForPrefix['routing_date']-last_seen_intact).days > 365)
         daysUsed = (last_seen_intact-first_seen_intact).days + 1
         daysSeen = db_handler.getTotalDaysSeenExact(prefix)
         
@@ -232,7 +231,7 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
             statsForPrefix['maxVisibility'] = np.max(visibilities)
         
             statsForPrefix['lastSeen'] = last_seen
-            statsForPrefix['isDead'] = ((today-last_seen).days > 365)
+            statsForPrefix['isDead'] = ((statsForPrefix['routing_date']-last_seen).days > 365)
 
 def computeNetworkUsageLatency(prefix, statsForPrefix, db_handler): 
     # Usage Latency computation
@@ -735,7 +734,6 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, stats_filename, files_pa
 # (BGP announcements for which the AS appears in the middle of the AS path)
 # * a numeric variable (numOfPrefixesOriginated) specifying the number of prefixes originated by the AS
 def computeASesStats(routingStatsObj, bgp_handler, stats_filename, TEMPORAL_DATA):
-    today = date.today()
     expanded_del_asns_df = routingStatsObj.del_handler.getExpandedASNsDF() 
         
     for i in expanded_del_asns_df.index:
@@ -777,7 +775,7 @@ def computeASesStats(routingStatsObj, bgp_handler, stats_filename, TEMPORAL_DATA
             statsForAS['numOfWithdraws'] = asn_subset[asn_subset['upd_type'] == 'W']['count']
                 
         if TEMPORAL_DATA:
-            daysUsable = (today-del_date).days + 1
+            daysUsable = (bgp_handler.routingDate-del_date).days + 1
     
             # Usage Latency
             # We define usage latency of an ASN as the time interval between
@@ -797,7 +795,7 @@ def computeASesStats(routingStatsObj, bgp_handler, stats_filename, TEMPORAL_DATA
             if numOfPeriods > 0:
                 last_seen = routingStatsObj.db_handler.getDateASNLastSeen(asn)
                 statsForAS['lastSeen'] = last_seen
-                statsForAS['isDead'] = ((today-last_seen).days > 365)
+                statsForAS['isDead'] = ((bgp_handler.routingDate-last_seen).days > 365)
                 
                 daysUsed = (last_seen-first_seen).days + 1
                 daysSeen = routingStatsObj.db_handler.getTotalDaysASNSeen(asn)
@@ -936,8 +934,6 @@ def main(argv):
     prefixes_stats_file = ''
     ases_stats_file = ''
     routing_date = ''
-    INCREMENTAL = False
-    final_existing_date = ''
     TEMPORAL_DATA = False
     es_host = ''
     
@@ -958,7 +954,6 @@ def main(argv):
             print 'h = Help'
             print "f = Path to folder in which Files will be saved. (MANDATORY)"
             print 'r = Work with routing data from Internet Routing data file.'
-            print 'If the routing file contains a "show ip bgp" output, the "-o" option must be used to specify this.'
             print "If no routing file is provided, the script will try to work with routing data from the archive /data/wattle/bgplog for the routing date specified with option -R or for the date before today."
             print "S = Start date in format YYYY or YYYYmm or YYYYmmdd. The start date of the period of time during which the considered resources were delegated."
             print 'E = End date in format YYYY or YYYYmm or YYYYmmdd. The end date of the period of time during which the considered resources were delegated.'
@@ -970,10 +965,6 @@ def main(argv):
             print "If option -x is not used in DEBUG mode, delegated file must be delegated file not extended."
             print "R = Routing Date in format YYYYmmdd. Date for which routing stats will be computed."
             print "If a routing date is not provided, statistics for the day before today will be computed."
-            print "p = Compute incremental statistics from existing prefixes stats file (CSV)."
-            print "a = Compute incremental statistics from existing ASes stats file (CSV)."
-            print "Both the -p and the -a options should be used or none of them should be used."
-            print "If options -p and -a are used, the corresponding paths to files with existing statistics for prefixes and ASes respectively MUST be provided."
             print "D = Elasticsearch Database host. Host running Elasticsearch into which computed stats will be stored."
             sys.exit()
         elif opt == '-r':
@@ -1009,20 +1000,6 @@ def main(argv):
                 files_path = os.path.abspath(arg.rstrip('/'))
             else:
                 print "You must provide the path to a folder to save files."
-                sys.exit()
-        elif opt == '-p':
-            if arg != '':
-                prefixes_stats_file = os.path.abspath(arg)
-                INCREMENTAL = True
-            else:
-                print "If option -p is used, the path to a file with statistics for prefixes MUST be provided."
-                sys.exit()
-        elif opt == '-a':
-            if arg != '':
-                ases_stats_file = os.path.abspath(arg)
-                INCREMENTAL = True
-            else:
-                print "If option -p is used, the path to a file with statistics for prefixes MUST be provided."
                 sys.exit()
         elif opt == '-R':
             try:
@@ -1117,26 +1094,13 @@ def main(argv):
     else:
         file_name = '%s/routing_stats_test_%s' % (files_path, dateStr)
         
-    if INCREMENTAL:
-        if prefixes_stats_file == '' or ases_stats_file == '':
-            print "You CANNOT use only one of the option -p and -a."            
-            print "Both the -p and the -a options should be used or none of them should be used."
-            print "If options -p and -a are used, the corresponding paths to files with existing statistics for prefixes and ASes respectively MUST be provided."
-        try:
-            maxDate_prefixes = max(pd.read_csv(prefixes_stats_file, sep = ',')['Date'])
-            maxDate_ases = max(pd.read_csv(ases_stats_file, sep = ',')['Date'])
-            final_existing_date = str(max(maxDate_prefixes, maxDate_ases))
-        except (ValueError, pd.EmptyDataError, KeyError):
-            final_existing_date = ''
-            INCREMENTAL = False
-    else:
-        prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
-        ases_stats_file = '{}_ases.csv'.format(file_name)
+
+    prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
+    ases_stats_file = '{}_ases.csv'.format(file_name)
     
     routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
                                     del_file, startDate_date, endDate_date,
-                                    routing_date, INCREMENTAL,
-                                    final_existing_date, prefixes_stats_file,
+                                    routing_date, prefixes_stats_file,
                                     ases_stats_file, TEMPORAL_DATA)
 
     bgp_handler = BGPDataHandler(DEBUG, files_path)
@@ -1144,8 +1108,7 @@ def main(argv):
     loaded = False 
 
     if routing_file != '':
-        loaded = bgp_handler.loadStructuresFromRoutingFile(\
-                                                                routing_file)
+        loaded = bgp_handler.loadStructuresFromRoutingFile(routing_file)
 
         if loaded:
             loaded = bgp_handler.loadUpdatesDFs(bgp_handler.routingDate)

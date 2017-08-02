@@ -26,8 +26,6 @@ def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
     EXTENDED = True
     del_file = '{}/extended_apnic_{}.txt'.format(files_path, date.today())
     startDate_date = ''
-    INCREMENTAL = False
-    final_existing_date = ''
     dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
     dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
     file_name = '{}/RoutingStats_{}'.format(files_path, dateStr)
@@ -36,8 +34,7 @@ def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
     TEMPORAL_DATA = True
     routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
                                         del_file, startDate_date, date_to_work_with,
-                                        date_to_work_with, INCREMENTAL,
-                                        final_existing_date, prefixes_stats_file,
+                                        date_to_work_with, prefixes_stats_file,
                                         ases_stats_file, TEMPORAL_DATA)
 
     if BulkWHOIS:

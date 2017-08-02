@@ -18,14 +18,14 @@ import numpy as np
 class RoutingStats:
     
     def __init__(self, files_path, DEBUG, KEEP, EXTENDED, del_file,\
-                startDate, endDate, routing_date, INCREMENTAL, final_existing_date,\
-                prefixes_stats_file, ases_stats_file, TEMPORAL_DATA):
+                startDate, endDate, routing_date, prefixes_stats_file,
+                ases_stats_file, TEMPORAL_DATA):
         
         self.files_path = files_path
         
         self.del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file,
-                                            startDate, endDate, INCREMENTAL,
-                                            final_existing_date, KEEP)
+                                            startDate, endDate, False,
+                                            '', KEEP)
 
         if TEMPORAL_DATA:
             self.db_handler = DBHandler(routing_date)
@@ -225,16 +225,15 @@ class RoutingStats:
         self.allAttr_pref = other_data_columns + booleanKeys_pref +\
                         valueKeys_pref + counterKeys_pref
 
-        if not INCREMENTAL:
-            line = self.allAttr_pref[0]
-        
-            for i in range(len(self.allAttr_pref)-1):
-                line = '{},{}'.format(line, self.allAttr_pref[i+1])
-        
-            line = line + '\n'
-                    
-            with open(prefixes_stats_file, 'w') as csv_file:
-                csv_file.write(line)
+        line = self.allAttr_pref[0]
+    
+        for i in range(len(self.allAttr_pref)-1):
+            line = '{},{}'.format(line, self.allAttr_pref[i+1])
+    
+        line = line + '\n'
+                
+        with open(prefixes_stats_file, 'w') as csv_file:
+            csv_file.write(line)
         
         self.def_dict_pref = self.getDictionaryWithDefaults(booleanKeys_pref, valueKeys_pref, counterKeys_pref)
  
@@ -267,16 +266,15 @@ class RoutingStats:
         self.allAttr_ases = expanded_del_asn_df_columns + other_ases_data_columns +\
                             booleanKeys_ases + valueKeys_ases + counterKeys_ases
 
-        if not INCREMENTAL:
-            line = self.allAttr_ases[0]
-            
-            for i in range(len(self.allAttr_ases)-1):
-                line = '{},{}'.format(line, self.allAttr_ases[i+1])
-            
-            line = line + '\n'
+        line = self.allAttr_ases[0]
+        
+        for i in range(len(self.allAttr_ases)-1):
+            line = '{},{}'.format(line, self.allAttr_ases[i+1])
+        
+        line = line + '\n'
 
-            with open(ases_stats_file, 'w') as csv_file:
-                csv_file.write(line)
+        with open(ases_stats_file, 'w') as csv_file:
+            csv_file.write(line)
                 
         self.def_dict_ases = self.getDictionaryWithDefaults(booleanKeys_ases,
                                                   valueKeys_ases, counterKeys_ases)
