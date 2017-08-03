@@ -190,12 +190,12 @@ def insertionForDate(date_to_work_with):
         for csv in visibility_csvs:
             os.remove(csv)
         
-    sys.stdout.write('{}: Removing BGPRIB routing CSV {}.\n'.format(datetime.now(), routing_bgprib_csv))
-    os.remove(routing_bgprib_csv)
-    sys.stdout.write('{}: Removing DMP routing CSV {}.\n'.format(datetime.now(), routing_dmp_csv))
-    os.remove(routing_dmp_csv)
-    sys.stdout.write('{}: Removing v6 DMP routing CSV {}.\n'.format(datetime.now(), routing_v6dmp_csv))
-    os.remove(routing_v6dmp_csv)
+    sys.stdout.write('{}: Removing BGPRIB routing CSV {}.\n'.format(datetime.now(), routing_bgprib_csv[0]))
+    os.remove(routing_bgprib_csv[0])
+    sys.stdout.write('{}: Removing DMP routing CSV {}.\n'.format(datetime.now(), routing_dmp_csv[0]))
+    os.remove(routing_dmp_csv[0])
+    sys.stdout.write('{}: Removing v6 DMP routing CSV {}.\n'.format(datetime.now(), routing_v6dmp_csv[0]))
+    os.remove(routing_v6dmp_csv[0])
     if updates_csv != '':
         sys.stdout.write('{}: Removing updates CSV {}.\n'.format(datetime.now(), updates_csv))
         os.remove(updates_csv)
