@@ -88,7 +88,9 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
     
     if ROUTING or DEAGG_PROB:
         if routing_file == '':
-            routing_file = BGPDataHandler.getRoutingFileForDate(date_to_work_with)
+            routing_file = BGPDataHandler.getRoutingFileForDate(date_to_work_with,
+                                                                files_path,
+                                                                DEBUG)
             
             if routing_file == '':
                 sys.stderr.write("No routing file available for date {}\n".format(date_to_work_with))
