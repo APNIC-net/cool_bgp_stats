@@ -173,10 +173,7 @@ def main(argv):
         print "You must provide a folder to save files."
         sys.exit()                             
             
-    today = datetime.date.today().strftime('%Y%m%d')
-    
-    if endDate == '':
-        endDate = today
+    today_str = today.strftime('%Y%m%d')
     
     dateStr = 'UNTIL{}'.format(endDate)
     if startDate != '':
@@ -186,9 +183,9 @@ def main(argv):
         file_name = '%s/delegated_stats_%s' % (files_path, dateStr)
 
         if EXTENDED:
-            del_file = '%s/extended_apnic_%s.txt' % (files_path, today)
+            del_file = '%s/extended_apnic_%s.txt' % (files_path, today_str)
         else:
-            del_file = '%s/delegated_apnic_%s.txt' % (files_path, today)
+            del_file = '%s/delegated_apnic_%s.txt' % (files_path, today_str)
             
     else:
         file_name = '%s/delegated_stats_test_%s' % (files_path, dateStr)
