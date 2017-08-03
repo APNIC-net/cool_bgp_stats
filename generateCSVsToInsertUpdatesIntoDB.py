@@ -7,6 +7,7 @@ Created on Wed Jun 14 17:43:13 2017
 import os, sys, getopt
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from BGPDataHandler import BGPDataHandler
+from DBHandler import DBHandler
 import gzip
 import shlex, subprocess
 from datetime import datetime, date, timedelta
@@ -20,6 +21,13 @@ def generateCSVFromUpdatesFile(updates_file, files_path, readables_path, DEBUG,
                                    
     sys.stdout.write('Starting to work with file {}\n'.format(updates_file))
     
+    db_handler = DBHandler('')
+    file_already_exists = db_handler.checkIfUpdatesFileExists(updates_file)
+    db_handler.close()
+    
+    if file_already_exists:
+        return ''
+        
     filename = updates_file.split('/')[-1]
     csv_file = '{}/{}.csv'.format(files_path, filename)
     
