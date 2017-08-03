@@ -189,7 +189,8 @@ class StabilityAndDeagg:
                                             'preflen' : network.prefixlen,
                                             'routing_date' : bgp_handler.routingDate,
                                             'isRoot' : isRoot,
-                                            'isRootDeagg' : isRootDeagg})])
+                                            'isRootDeagg' : isRootDeagg},
+                                            index = [prefix])])
 
             deagg_stats_df = self.completeDFwithDelegationData(deagg_stats_df,
                                                                'routing_date')
