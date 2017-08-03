@@ -202,6 +202,7 @@ def main(argv):
         print 'Usage: {} -h | -D <Date to work with>'.format(sys.argv[0])
         print "D: Date of the files whose data you want to be inserted into the DB. Format YYYYMMDD."
         print "The data from the files in /data/wattle/bgplog/YYYY/MM/DD will be inserted into the DB."
+        print "Unless there is no bgpupd.mrt file in that folder in which case the log.gz file in the folder corresponding to the day before will be inserted."
         print "If this option is not used, insertions of the data from the files in the folder corresponding to today will be inserted into the DB."
         sys.exit()
 

@@ -1123,13 +1123,15 @@ def main(argv):
     if es_host != '':
         esImporter = ElasticSearchImporter(es_host)
 
-    computeAndSavePerPrefixStats(files_path, file_name, dateStr, routingStatsObj,
-                                 bgp_handler, prefixes_stats_file,
-                                 TEMPORAL_DATA, es_host, esImporter)
-
-    computeAndSavePerASStats(files_path, file_name, dateStr, routingStatsObj,
-                             bgp_handler, ases_stats_file, TEMPORAL_DATA,
-                             es_host, esImporter)
+    if not os.path.exists(prefixes_stats_file):
+        computeAndSavePerPrefixStats(files_path, file_name, dateStr, routingStatsObj,
+                                     bgp_handler, prefixes_stats_file,
+                                     TEMPORAL_DATA, es_host, esImporter)
+    
+    if not os.path.exists(ases_stats_file):
+        computeAndSavePerASStats(files_path, file_name, dateStr, routingStatsObj,
+                                 bgp_handler, ases_stats_file, TEMPORAL_DATA,
+                                 es_host, esImporter)
                              
 
 if __name__ == "__main__":

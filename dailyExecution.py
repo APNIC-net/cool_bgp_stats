@@ -52,18 +52,20 @@ def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
     if fork3_pid == 0:
         # If we are in the child process of the third fork,
         # we compute stats for prefixes
-        computeAndSavePerPrefixStats(files_path, file_name, dateStr,
-                                     routingStatsObj, bgp_handler,
-                                     prefixes_stats_file,
-                                     TEMPORAL_DATA, es_host)
+        if not os.path.exists(prefixes_stats_file):
+            computeAndSavePerPrefixStats(files_path, file_name, dateStr,
+                                         routingStatsObj, bgp_handler,
+                                         prefixes_stats_file,
+                                         TEMPORAL_DATA, es_host)
         sys.exit(0)
 
     else:
         # If we are in the parent process of the third fork,
         # we compute stats for ASes
-        computeAndSavePerASStats(files_path, file_name, dateStr,
-                                 routingStatsObj, bgp_handler,
-                                 ases_stats_file, TEMPORAL_DATA, es_host)
+        if not os.path.exists(ases_stats_file):
+            computeAndSavePerASStats(files_path, file_name, dateStr,
+                                     routingStatsObj, bgp_handler,
+                                     ases_stats_file, TEMPORAL_DATA, es_host)
         os.waitpid(fork3_pid, 0)
         
         
@@ -225,7 +227,7 @@ def main(argv):
     if date_to_work_with == '':
         date_to_work_with = date.today() - timedelta(1)
         
-    insertionForDate(date.today())
+    insertionForDate(date_to_work_with)
 
     files_path = '/home/sofia/daily_execution'
 
