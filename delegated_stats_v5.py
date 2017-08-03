@@ -175,9 +175,12 @@ def main(argv):
             
     today_str = today.strftime('%Y%m%d')
     
-    dateStr = 'UNTIL{}'.format(endDate)
-    if startDate != '':
-        dateStr = 'SINCE{}{}'.format(startDate, dateStr)
+    if endDate == startDate:
+        dateStr = endDate
+    else:
+        dateStr = 'UNTIL{}'.format(endDate)
+        if startDate != '':
+            dateStr = 'SINCE{}{}'.format(startDate, dateStr)
     
     if not DEBUG:
         file_name = '%s/delegated_stats_%s' % (files_path, dateStr)
@@ -232,7 +235,7 @@ def main(argv):
             numOfDocs = esImporter.ES.count(delStats_ES_properties.index_name)['count']
             
             if INCREMENTAL:
-                plain_df = stats_df[datetime.datetime.strptime(stats_df['Date'], '%Y%m%d') > final_existing_date]
+                plain_df = stats_df[datetime.strptime(stats_df['Date'], '%Y%m%d') > final_existing_date]
             else:
                 plain_df = stats_df
             
