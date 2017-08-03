@@ -19,7 +19,7 @@ yearsForProcNums = {1:[2007, 2008, 2009], 2:[2010, 2011], 3:[2012, 2013],
 def generateCSVFromUpdatesFile(updates_file, files_path, readables_path, DEBUG,
                                output_file):
                                    
-    sys.stdout.write('Starting to work with file {}\n'.format(updates_file))
+    sys.stdout.write('Starting to generate CSV file from {}\n'.format(updates_file))
     
     db_handler = DBHandler('')
     file_already_exists = db_handler.checkIfUpdatesFileExists(updates_file,
