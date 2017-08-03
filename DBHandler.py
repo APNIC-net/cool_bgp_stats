@@ -384,3 +384,14 @@ class DBHandler:
         except:
             sys.stderr.write("Unable to get updates DataFrame for date {}.\n".format(updates_date))
             return pd.DataFrame()
+    
+    def checkIfUpdatesFileExists(self, source_file):
+        try:
+            self.cur.execute("""SELECT count(*) from updates where source_file = %s""", (source_file,))
+            if self.cur.fetchone()[0] > 0:
+                return True
+            else:
+                return False
+        except:
+            sys.stderr.write("Unable to get number of rows of updates table for source file {}\n".format(source_file))
+            return False
