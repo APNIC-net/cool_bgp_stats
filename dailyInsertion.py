@@ -80,13 +80,16 @@ def insertionForDate(date_to_work_with):
                                                         files_path,
                                                         DEBUG)
 
-    dates_ready, visibility_csvs = generateFilesFromRoutingFile(files_path,
-                                                               routing_file,
-                                                               bgp_handler,
-                                                               'visibility',
-                                                               dict(), log_file,
-                                                               archive_folder,
-                                                               DEBUG)
+    visibility_csvs = []
+    
+    if routing_file != '':
+        dates_ready, visibility_csvs = generateFilesFromRoutingFile(files_path,
+                                                                   routing_file,
+                                                                   bgp_handler,
+                                                                   'visibility',
+                                                                   dict(), log_file,
+                                                                   archive_folder,
+                                                                   DEBUG)
                                                                
     updates_file = '{}.bgpupd.mrt'.format(file_name)
     
@@ -108,9 +111,10 @@ def insertionForDate(date_to_work_with):
     
     with open(sql_file, 'w') as sql_f:
         sql_f.write("\connect sofia;\n")
-        sql_f.write("copy prefixes (prefix, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[0]))
-        sql_f.write("copy asns (asn, isorigin, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[1]))
-        sql_f.write("copy asns (asn, isorigin, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[2]))
+        if len(visibility_csvs) > 0:
+            sql_f.write("copy prefixes (prefix, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[0]))
+            sql_f.write("copy asns (asn, isorigin, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[1]))
+            sql_f.write("copy asns (asn, isorigin, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[2]))
         sql_f.write("copy archive_index (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_bgprib_csv[0]))
         sql_f.write("copy archive_index (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_dmp_csv[0]))
         sql_f.write("copy archive_index (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_v6dmp_csv[0]))
@@ -155,23 +159,24 @@ def insertionForDate(date_to_work_with):
                             $$\n
                             LANGUAGE plpgsql;\n''')
     
-        # If day_before is the first or the last day of the year,
-        # we insert into the master table (updates table)
-        # and let the updates_insert_trigger function redirect the insertions
-        # to the right partition, as the CSV file may contain rows for a different year.
-        if day_before.month == 1 and day_before.day == 1 or\
-            day_before.month == 12 and day_before.day == 31:
-    
-            sql_f.write('''copy updates (update_date, update_time, upd_type, 
-                                    bgp_neighbor, peeras, prefix, source_file) from 
-                                    '{}' WITH (FORMAT csv);\n'''.format(updates_csv))
-    
-        # else we insert into the right partition for better efficiency
-        else:
-            sql_f.write('''copy updates_y{} (update_date, update_time, upd_type, 
-                            bgp_neighbor, peeras, prefix, source_file) from 
-                            '{}' WITH (FORMAT csv);\n'''\
-                            .format(day_before.year, updates_csv))
+        if updates_csv != '':
+            # If day_before is the first or the last day of the year,
+            # we insert into the master table (updates table)
+            # and let the updates_insert_trigger function redirect the insertions
+            # to the right partition, as the CSV file may contain rows for a different year.
+            if day_before.month == 1 and day_before.day == 1 or\
+                day_before.month == 12 and day_before.day == 31:
+        
+                sql_f.write('''copy updates (update_date, update_time, upd_type, 
+                                        bgp_neighbor, peeras, prefix, source_file) from 
+                                        '{}' WITH (FORMAT csv);\n'''.format(updates_csv))
+        
+            # else we insert into the right partition for better efficiency
+            else:
+                sql_f.write('''copy updates_y{} (update_date, update_time, upd_type, 
+                                bgp_neighbor, peeras, prefix, source_file) from 
+                                '{}' WITH (FORMAT csv);\n'''\
+                                .format(day_before.year, updates_csv))
     
     sys.stdout.write('{}: SQL file generated. Inserting into the DB.\n'.format(datetime.now()))
     
@@ -180,9 +185,10 @@ def insertionForDate(date_to_work_with):
     
     sys.stdout.write('{}: Cleaning up.\n'.format(datetime.now()))
     
-    sys.stdout.write('{}: Removing visibility CSVs {}.\n'.format(datetime.now(), visibility_csvs))
-    for csv in visibility_csvs:
-        os.remove(csv)
+    if len(visibility_csvs) > 0:
+        sys.stdout.write('{}: Removing visibility CSVs {}.\n'.format(datetime.now(), visibility_csvs))
+        for csv in visibility_csvs:
+            os.remove(csv)
         
     sys.stdout.write('{}: Removing BGPRIB routing CSV {}.\n'.format(datetime.now(), routing_bgprib_csv))
     os.remove(routing_bgprib_csv)
@@ -190,8 +196,9 @@ def insertionForDate(date_to_work_with):
     os.remove(routing_dmp_csv)
     sys.stdout.write('{}: Removing v6 DMP routing CSV {}.\n'.format(datetime.now(), routing_v6dmp_csv))
     os.remove(routing_v6dmp_csv)
-    sys.stdout.write('{}: Removing updates CSV {}.\n'.format(datetime.now(), updates_csv))
-    os.remove(updates_csv)
+    if updates_csv != '':
+        sys.stdout.write('{}: Removing updates CSV {}.\n'.format(datetime.now(), updates_csv))
+        os.remove(updates_csv)
     sys.stdout.write('{}: Removing SQL file {}.\n'.format(datetime.now(), sql_file))
     os.remove(sql_file)
     
