@@ -22,7 +22,8 @@ def generateCSVFromUpdatesFile(updates_file, files_path, readables_path, DEBUG,
     sys.stdout.write('Starting to work with file {}\n'.format(updates_file))
     
     db_handler = DBHandler('')
-    file_already_exists = db_handler.checkIfUpdatesFileExists(updates_file)
+    file_already_exists = db_handler.checkIfUpdatesFileExists(updates_file,
+                                                              BGPDataHandler.getDateFromFileName(updates_file).year)
     db_handler.close()
     
     if file_already_exists:
