@@ -76,7 +76,9 @@ def insertionForDate(date_to_work_with):
     # For visibility data, we insert data about the day before because the mrt file is generated the day after
     day_before = date_to_work_with - timedelta(1)
     
-    routing_file = BGPDataHandler.getRoutingFileForDate(day_before)
+    routing_file = BGPDataHandler.getRoutingFileForDate(day_before,
+                                                        files_path,
+                                                        DEBUG)
 
     dates_ready, visibility_csvs = generateFilesFromRoutingFile(files_path,
                                                                routing_file,
