@@ -387,8 +387,9 @@ class DBHandler:
     
     def checkIfUpdatesFileExists(self, source_file, year):
         try:
-            self.cur.execute("""SELECT count(*) from updates_y%s where source_file = %s""", (year, source_file,))
-            if self.cur.fetchone()[0] > 0:
+            self.cur.execute("""SELECT * from updates_y%s where source_file = %s limit 1""", (year, source_file,))
+
+            if self.cur.fetchone() is not None:
                 return True
             else:
                 return False
