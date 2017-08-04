@@ -250,7 +250,7 @@ def main(argv):
         
     insertionForDate(date_to_work_with)
 
-    files_path = '/home/sofia/daily_execution'
+    files_path = '/home/sofia/BGP_stats_files'
 
     # We call this function with BulkWHOIS = True because we want the Bulk WHOIS
     # data to be updated daily.

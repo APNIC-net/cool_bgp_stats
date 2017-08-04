@@ -23,7 +23,7 @@ def concatenateFiles(routing_file, v4_routing_file, v6_routing_file):
 
 def insertionForDate(date_to_work_with):
     DEBUG = False
-    files_path = '/home/sofia/daily_execution'
+    files_path = '/home/sofia/BGP_stats_files'
     archive_folder = '/data/wattle/bgplog'
     log_file = '{}/dailyInsertion_{}.log'.format(files_path, date_to_work_with)
     
