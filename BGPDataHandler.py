@@ -717,13 +717,13 @@ class BGPDataHandler:
         else:
             prefixes_radix = self.ipv6Prefixes_radix
             
-        less_specifics = []
+        less_specifics = dict()
        
         for less_spec_node in prefixes_radix.search_covering(str(network)):
             less_spec_pref = less_spec_node.prefix
         
             if less_spec_pref != str(network):
-                less_specifics.append(less_spec_pref)
+                less_specifics[less_spec_node.prefixlen] = less_spec_pref
             
         return less_specifics
     
@@ -735,10 +735,10 @@ class BGPDataHandler:
         else:
             prefixes_radix = self.ipv6Prefixes_radix
             
-        more_specifics = []
+        more_specifics = dict()
        
         for more_spec_node in prefixes_radix.search_covered(str(network)):
-            more_specifics.append(more_spec_node.prefix)
+            more_specifics[more_spec_node.prefixlen] = more_spec_node.prefix
                         
         return more_specifics
         
