@@ -45,7 +45,7 @@ def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
         BulkWHOISParser(files_path, DEBUG)
 
     # Computation of routing stats
-    sys.stdout.write('{}: Starting computation of routing stats.\n'.format(datetime.now()))
+    sys.stdout.write('{}: Starting to compute routing stats.\n'.format(datetime.now()))
     
     # and then we fork again
     fork3_pid = os.fork()
@@ -54,6 +54,7 @@ def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
         # If we are in the child process of the third fork,
         # we compute stats for prefixes
         if not os.path.exists(prefixes_stats_file):
+            sys.stdout.write('{}: Starting to compute routing stats for prefixes.\n'.format(datetime.now()))
             computeAndSavePerPrefixStats(files_path, file_name, dateStr,
                                          routingStatsObj, bgp_handler,
                                          prefixes_stats_file,
@@ -64,6 +65,7 @@ def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
         # If we are in the parent process of the third fork,
         # we compute stats for ASes
         if not os.path.exists(ases_stats_file):
+            sys.stdout.write('{}: Starting to compute routing stats for ASNs.\n'.format(datetime.now()))
             computeAndSavePerASStats(files_path, file_name, dateStr,
                                      routingStatsObj, bgp_handler,
                                      ases_stats_file, TEMPORAL_DATA, es_host)
@@ -151,14 +153,12 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
                 sys.exit(0)
                 
         else:
-            sys.stdout.write('{}: Starting to compute routing stats.\n'.format(datetime.now()))
             computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
                            bgp_handler, es_host)
             
             os.waitpid(fork1_pid, 0)
 
     elif ROUTING:
-        sys.stdout.write('{}: Starting to compute routing stats.\n'.format(datetime.now()))
         computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
                            bgp_handler, es_host)
     
