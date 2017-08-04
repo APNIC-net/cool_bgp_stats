@@ -235,23 +235,29 @@ class StabilityAndDeagg:
             sys.stderr.write("Stats about {} could not be saved to ElasticSearch.\n".format(stats_name))
     
     def computeAndSaveStabilityDailyStats(self):           
-        updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path,
-                                                             self.bgp_handler.routingDate)
-        if not os.path.exists(updates_stats_file):
-            computed = self.computeUpdatesStats(self.bgp_handler.updates_prefixes,
-                                                updates_stats_file)
-            
-            if computed:
-                updates_stats_df = self.generateJSONfile(updates_stats_file)
-            
-                if self.es_host != '':
-                    self.importStatsIntoElasticSearch(self.es_host,
-                                                      updates_stats_df,
-                                                      'BGP updates',
-                                                      updatesStats_ES_properties)
+        updates_stats_file = ''
+        
+        if self.bgp_handler.routingDate is not None:    
+            updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path,
+                                                                 self.bgp_handler.routingDate)
+            if not os.path.exists(updates_stats_file):
+                computed = self.computeUpdatesStats(self.bgp_handler.updates_prefixes,
+                                                    updates_stats_file)
+                
+                if computed:
+                    updates_stats_df = self.generateJSONfile(updates_stats_file)
+                
+                    if self.es_host != '':
+                        self.importStatsIntoElasticSearch(self.es_host,
+                                                          updates_stats_df,
+                                                          'BGP updates',
+                                                          updatesStats_ES_properties)
 
-
+        return updates_stats_file
+        
     def computeAndSaveDeaggDailyStats(self):
+        deagg_stats_file = ''
+        
         if self.bgp_handler.routingDate is not None:
             deagg_stats_file = '{}/deaggStats_{}.csv'.format(self.files_path,
                                                              self.bgp_handler.routingDate)
@@ -269,7 +275,8 @@ class StabilityAndDeagg:
                                                           'deaggregation',
                                                           deaggStats_ES_properties)
 
-
+        return deagg_stats_file
+        
 def main(argv):
     DEBUG = False
     files_path = '/home/sofia/BGP_stats_files'

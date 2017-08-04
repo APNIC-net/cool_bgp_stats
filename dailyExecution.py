@@ -20,6 +20,10 @@ from RoutingStats import RoutingStats
 from StabilityAndDeaggDailyStats import StabilityAndDeagg
 from computeRoutingStats import computeAndSavePerPrefixStats, computeAndSavePerASStats
 
+routing_stats_folder = '/home/sofia/BGP_stats_files/RoutingStats'
+updates_stats_folder = '/home/sofia/BGP_stats_files/UpdatesStats'
+deagg_stats_folder = '/home/sofia/BGP_stats_files/DeaggStats'
+
 def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
                    bgp_handler, es_host):
     KEEP = False
@@ -28,7 +32,7 @@ def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
     startDate_date = ''
     dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
     dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
-    file_name = '{}/RoutingStats_{}'.format(files_path, dateStr)
+    file_name = '{}/RoutingStats_{}'.format(routing_stats_folder, dateStr)
     prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
     ases_stats_file = '{}_asns.csv'.format(file_name)
     TEMPORAL_DATA = True
@@ -93,10 +97,12 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
                                                                 DEBUG)
             
             if routing_file == '':
-                sys.stderr.write("No routing file available for date {}\n".format(date_to_work_with))
+                sys.stderr.write("{}: No routing file available for date {}\n".format(datetime.now(), date_to_work_with))
                 loaded = False
             else:
                 loaded = bgp_handler.loadStructuresFromRoutingFile(routing_file)
+        else:
+            loaded = bgp_handler.loadStructuresFromRoutingFile(routing_file)
     else:
         bgp_handler.routingDate = date_to_work_with
     
@@ -106,10 +112,13 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
     if not loaded:
         sys.stdout.write('{}: Data structures not loaded! Aborting.\n'.format(datetime.now()))
         sys.exit()
+    else:
+        sys.stdout.write('{}: Data structures loaded successfully!\n'.format(datetime.now()))
+
     
     if STABILITY or DEAGG_PROB:
         # Computation of stats about updates rate and probability of deaggregation
-        sys.stdout.write('{}: Starting to compute stats about the updates rates and the probability of deaggregation.\n'.format(datetime.now()))
+        sys.stdout.write('{}: Instantiating the StabilityAndDeagg class.\n'.format(datetime.now()))
         
         StabilityAndDeagg_inst = StabilityAndDeagg(DEBUG, files_path, ELASTIC,
                                                    bgp_handler)
@@ -122,30 +131,61 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
                 # If we are in the child process of the first fork, we fork again
                 fork2_pid = os.fork()
                 if fork2_pid == 0:
-                    if STABILITY:
-                        # If we are in the child process of the second fork, we compute some stats
+                    # If we are in the child process of the second fork, we compute some stats
+                    sys.stdout.write('{}: Starting to compute update rates.\n'.format(datetime.now()))
+
+                    updates_stats_file =\
                         StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
+                    
+                    updates_stats_file_new_path = '{}/{}'.format(updates_stats_folder,
+                                                                  updates_stats_file.split('/')[-1])
+                    os.rename(updates_stats_file, updates_stats_file_new_path)
+                    sys.stdout.write('{}: Updates stats file moved to {}\n'.format(datetime.now(), updates_stats_file_new_path))
+                        
                     sys.exit(0)
                 else:
-                    if DEAGG_PROB:
-                        # If we are in the parent process of the second fork, we compute some other stats
+                    # If we are in the parent process of the second fork, we compute some other stats
+                    sys.stdout.write('{}: Starting to compute statistics about deaggregation.\n'.format(datetime.now()))
+                    deagg_stats_file =\
                         StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()
+                    deagg_stats_file_new_path = '{}/{}'.format(deagg_stats_folder,
+                                                                  deagg_stats_file.split('/')[-1])
+                    os.rename(deagg_stats_file, deagg_stats_file_new_path)
+                    sys.stdout.write('{}: Deaggregation stats file moved to {}\n'.format(datetime.now(), deagg_stats_file_new_path))
+                        
                     os.waitpid(fork2_pid, 0)
                     sys.exit(0)
             elif STABILITY:
-                StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
+                sys.stdout.write('{}: Starting to compute update rates.\n'.format(datetime.now()))
+                updates_stats_file =\
+                    StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
+                    
+                updates_stats_file_new_path = '{}/{}'.format(updates_stats_folder,
+                                                                updates_stats_file.split('/')[-1])
+                os.rename(updates_stats_file, updates_stats_file_new_path)
+                sys.stdout.write('{}: Updates stats file moved to {}\n'.format(datetime.now(), updates_stats_file_new_path))
+                        
                 sys.exit(0)
             elif DEAGG_PROB:
-                StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()
+                sys.stdout.write('{}: Starting to compute statistics about deaggregation.\n'.format(datetime.now()))
+                deagg_stats_file =\
+                    StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()
+                deagg_stats_file_new_path = '{}/{}'.format(deagg_stats_folder,
+                                                          deagg_stats_file.split('/')[-1])
+                os.rename(deagg_stats_file, deagg_stats_file_new_path)
+                sys.stdout.write('{}: Deaggregation stats file moved to {}\n'.format(datetime.now(), deagg_stats_file_new_path))
+
                 sys.exit(0)
                 
-        elif ROUTING:
+        else:
+            sys.stdout.write('{}: Starting to compute routing stats.\n'.format(datetime.now()))
             computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
                            bgp_handler, es_host)
             
             os.waitpid(fork1_pid, 0)
 
     elif ROUTING:
+        sys.stdout.write('{}: Starting to compute routing stats.\n'.format(datetime.now()))
         computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
                            bgp_handler, es_host)
     
@@ -154,21 +194,47 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
 
         if fork2_pid == 0:
             # If we are in the child process of the second fork, we compute some stats
-            StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
+            sys.stdout.write('{}: Starting to compute update rates.\n'.format(datetime.now()))
+            updates_stats_file =\
+                StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
+            updates_stats_file_new_path = '{}/{}'.format(updates_stats_folder,
+                                                          updates_stats_file.split('/')[-1])
+            os.rename(updates_stats_file, updates_stats_file_new_path)
+            sys.stdout.write('{}: Updates stats file moved to {}\n'.format(datetime.now(), updates_stats_file_new_path))
             sys.exit(0)
         else:
             # If we are in the parent process of the second fork, we compute some other stats
-            StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()
+            sys.stdout.write('{}: Starting to compute statistics about deaggregation.\n'.format(datetime.now()))
+            deagg_stats_file =\
+                StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()
+            deagg_stats_file_new_path = '{}/{}'.format(deagg_stats_folder,
+                                                          deagg_stats_file.split('/')[-1])
+            os.rename(deagg_stats_file, deagg_stats_file_new_path)
+            sys.stdout.write('{}: Deaggregation stats file moved to {}\n'.format(datetime.now(), deagg_stats_file_new_path))
+
             os.waitpid(fork2_pid, 0)
 
     elif STABILITY:
-        StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
+        sys.stdout.write('{}: Starting to compute update rates.\n'.format(datetime.now()))
+        updates_stats_file =\
+            StabilityAndDeagg_inst.computeAndSaveStabilityDailyStats()
+        updates_stats_file_new_path = '{}/{}'.format(updates_stats_folder,
+                                                      updates_stats_file.split('/')[-1])
+        os.rename(updates_stats_file, updates_stats_file_new_path)
+        sys.stdout.write('{}: Updates stats file moved to {}\n'.format(datetime.now(), updates_stats_file_new_path))
+        
     elif DEAGG_PROB:
-        StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()
+        sys.stdout.write('{}: Starting to compute statistics about deaggregation.\n'.format(datetime.now()))
+        deagg_stats_file =\
+            StabilityAndDeagg_inst.computeAndSaveDeaggDailyStats()
+        deagg_stats_file_new_path = '{}/{}'.format(deagg_stats_folder,
+                                                      deagg_stats_file.split('/')[-1])
+        os.rename(deagg_stats_file, deagg_stats_file_new_path)
+        sys.stdout.write('{}: Deaggregation stats file moved to {}\n'.format(datetime.now(), deagg_stats_file_new_path))
+
+# TODO Uncomment when we are sure everything is OK                        
+#    sys.stdout.write('{}: Cleaning up.\n'.format(datetime.now()))
     
-    sys.stdout.write('{}: Cleaning up.\n'.format(datetime.now()))
-    
-    # TODO Uncomment when we are sure everything is OK
 #    sys.stdout.write('{}: Removing readable file {}.\n'.format(datetime.now(), readable_routing_file))
 #    os.remove(readable_routing_file)
 
