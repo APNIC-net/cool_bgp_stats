@@ -139,10 +139,10 @@ def main(argv):
         sys.exit(0)
     
     readables_folder = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
-    files_path = '/home/sofia/BGP_stats_files/UpdatesStats'
+    files_path = '/home/sofia/BGP_stats_files/daily_execution'
     
     for past_date in dates_set:
-        sys.stdout.write("Starting to compute stats for {}\n".format(past_date))
+        sys.stdout.write("{}: Starting to compute stats for {}\n".format(datetime.now(), past_date))
         routing_file = ''
         
         if ROUTING or DEAGG_PROB:
