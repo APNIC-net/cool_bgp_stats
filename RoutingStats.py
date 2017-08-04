@@ -135,8 +135,9 @@ class RoutingStats:
         booleanGralKeysTemp_pref = ['isDead', 'isDeadIntact']
         
         self.prefix_variables = {'lonely': 'isLonely',
-                                 'delegated': 'isDelegated',
-                                 'deaggregated': 'isDeaggregated',                                     
+                                 'holePunching': 'isHolePunching',
+                                 'trafficEngineering': 'isTrafficEngineering',
+                                 'overlay': 'isOverlay',
                                  'coveredLevel1': 'isCoveredLevel1',
                                  'coveredLevel2plus': 'isCoveredLevel2plus',
                                  'covering': 'isCovering'}
@@ -195,15 +196,17 @@ class RoutingStats:
                             'numOfAnnouncements', 'numOfWithdraws']
                                    
         self.moreSpec_variables = {'lonely': 'numOfLonelyMoreSpec',
-                                   'delegated': 'numOfDelegatedMoreSpec',
-                                   'deaggregated': 'numOfDeaggregatedMoreSpec',
+                                   'holePunching': 'numOfHolePunchingMoreSpec',
+                                   'trafficEngineering': 'numOfTrafficEngineeringMoreSpec',
+                                   'overlay': 'numOfOverlayMoreSpec',
                                    'coveredLevel1': 'numOfCoveredLevel1MoreSpec',
                                    'coveredLevel2plus': 'numOfCoveredLevel2plusMoreSpec',
                                    'covering': 'numOfCoveringMoreSpec'}
         
         self.lessSpec_variables = {'lonely': 'numOfLonelyLessSpec',
-                                   'delegated': 'numOfDelegatedLessSpec',
-                                   'deaggregated': 'numOfDeaggregatedLessSpec',
+                                   'holePunching': 'numOfHolePunchingLessSpec',
+                                   'trafficEngineering': 'numOfTrafficEngineeringLessSpec',
+                                   'overlay': 'numOfOverlayLessSpec',
                                    'coveredLevel1': 'numOfCoveredLevel1LessSpec',
                                    'coveredLevel2plus': 'numOfCoveredLevel2plusLessSpec',
                                    'covering': 'numOfCoveringLessSpec'}
