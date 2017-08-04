@@ -609,7 +609,9 @@ class BGPDataHandler:
                 source_filename = source.split('/')[-1]
         
             # If the routing file is a MRT file, we process it using BGPdump
-            if source.endswith('mrt'):            
+            if source.endswith('mrt'): 
+                sys.stdout.write("Starting to convert MRT file into readable format.\n")
+                sys.stdout.write("If this process is interrupted make sure you remove the file {} as it will mostly sure be incomplete.\n".format(readable_file_name))
                 cmd = shlex.split('%s -m -O %s %s' % (bgpdump, readable_file_name, source))
                 #        cmd = shlex.split('bgpdump -m -O %s %s' % (readable_file_name, routing_file))   
         

@@ -139,7 +139,7 @@ def main(argv):
         sys.exit(0)
     
     readables_folder = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
-    files_path = '/home/sofia/BGP_stats_files/daily_execution'
+    files_path = '/home/sofia/BGP_stats_files'
     
     for past_date in dates_set:
         sys.stdout.write("{}: Starting to compute stats for {}\n".format(datetime.now(), past_date))
