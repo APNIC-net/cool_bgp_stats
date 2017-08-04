@@ -148,7 +148,9 @@ def main(argv):
         if ROUTING or DEAGG_PROB:
             sys.stdout.write('{}: Looking for routing file to be used.\n'.format(datetime.now()))
                                                 
-            routing_file = BGPDataHandler.getRoutingFileForDate(past_date)
+            routing_file = BGPDataHandler.getRoutingFileForDate(past_date,
+                                                                files_path,
+                                                                False)
             
             if routing_file == '':
                 sys.stdout.write('No routing file is available for date {}\n'.format(past_date))
