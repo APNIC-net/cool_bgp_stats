@@ -318,8 +318,11 @@ def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, routingStatsObj):
 # This function classifies the provided prefix into Covering or Covered
 # (Level 1 or Level 2+). If the prefix is a covered prefix, it is further
 # classified into the following classes depending on the relation between its
-# origin ASes and its covering prefix's origin ASes: 'deaggregated' and 'delegated'
-# These classes are taken from those defined in [2]
+# origin ASes and its covering prefix's origin ASes and on the relation between
+# its AS paths and its covering prefix's AS paths:
+# 'holePunching', 'trafficEngineering' and 'overlay'
+# These classes are taken from those defined in [3]
+
 # The corresponding variables in the statsForPrefix dictionary are incremented
 # to keep track of the number of prefixes in each class.
 def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
@@ -404,32 +407,53 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
             else:
                 statsForPrefix[variables['coveredLevel2plus']] += 1
 
-        # We classify the covered prefix based on its AS paths
-        # relative to those of its corresponding covering prefix
+#        # We classify the covered prefix based on its origin ASes
+#        # relative to those of its corresponding covering prefix
 
-        # The corresponding covering prefix is the last prefix in the
-        # list of less specifics
-        coveringPref = net_less_specifics[-1]
-        coveringNet = IPNetwork(coveringPref)
-        coveringPrefOriginASes = bgp_handler.getOriginASesForBlock(coveringNet)
-        coveringPrefASpaths = bgp_handler.getASpathsForBlock(coveringNet)       
-  
+#        # The corresponding covering prefix is the last prefix in the
+#        # list of less specifics
+#        coveringPref = net_less_specifics[-1]
+#        coveringNet = IPNetwork(coveringPref)
+#        coveringPrefOriginASes = bgp_handler.getOriginASesForBlock(coveringNet)
+#        coveringPrefASpaths = bgp_handler.getASpathsForBlock(coveringNet)       
+
+        # We classify the covered prefix based on its relationship
+        # its immediately enclosing aggregate advertisement
+
+        immAggrPref = net_less_specifics[max[net_less_specifics.keys()]]
+        immAggrNet = IPNetwork(immAggrPref)
+        immAggrOriginASes = bgp_handler.getOriginASesForBlock(immAggrNet)
+        immAggrASPaths = bgp_handler.getASpathsForBlock(immAggrNet)
+        
         # If all the origin ASes of the covered prefix are also origin ASes of
-        # the covering prefix, then the covered prefix is a deaggregated prefix
-        if blockOriginASes.issubset(coveringPrefOriginASes):
-            if isDelegated:
-                statsForPrefix[variables['deaggregated']] = True
+        # the immediate aggregate prefix, then the deaggregation is classified as
+        # 'overlay' or 'traffic engineering'
+        if blockOriginASes.issubset(immAggrOriginASes):
+            # If all the AS paths of the covered prefix are also AS paths of
+            # the immediate aggregate prefix, then the deaggregation is
+            # classified as 'overlay'
+            if blockOriginASes.issubset(immAggrASPaths):
+                if isDelegated:
+                    statsForPrefix[variables['overlay']] = True
+                else:
+                    statsForPrefix[variables['overlay']] += 1 
+            # If the AS paths are different, then the deaggregation is
+            # classified as 'traffic engineering'
             else:
-                statsForPrefix[variables['deaggregated']] += 1
-            
+                if isDelegated:
+                    statsForPrefix[variables['trafficEngineering']] = True
+                else:
+                    statsForPrefix[variables['trafficEngineering']] += 1
+        # If the origin ASes are different, then the deaggregation is
+        # classified as 'hole punching'
         else:
             if isDelegated:
-                statsForPrefix[variables['delegated']] = True
+                statsForPrefix[variables['holePunching']] = True
             else:
-                statsForPrefix[variables['delegated']] += 1
+                statsForPrefix[variables['holePunching']] += 1
         
         levenshteinDists.extend(getLevenshteinDistances(blockASpaths,
-                                                        coveringPrefASpaths))
+                                                        immAggrASPaths))
                     
     # If there are no less specific blocks being routed
     else:              
@@ -524,7 +548,7 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, stats_filename, files_pa
             numsOfAnnouncementsLessSpec = []
             numsOfWithdrawsLessSpec = []
             levenshteinDists = []
-            for lessSpec in less_specifics:
+            for lessSpec in less_specifics.values():
                 # For less specific prefixes we are not interested in the number
                 # of origin ASes, the number of AS paths or the AS paths lengths,
                 # that's why we use None for the parameters corresponding to the
@@ -584,9 +608,9 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, stats_filename, files_pa
                 statsForPrefix['maxNumOfWithdrawsLessSpec'] = numsOfWithdrawsLessSpec.max()
             
         if len(more_specifics) > 0:
-            more_specifics_wo_prefix = copy.copy(more_specifics)
+            more_specifics_wo_prefix = copy.copy(more_specifics.values())
 
-            if prefix in more_specifics:
+            if prefix in more_specifics.values():
                 # For the statistics we do not want to count the prefix itself
                 # as a more specific prefix routed
                 statsForPrefix['numOfMoreSpecificsRouted'] = len(more_specifics) - 1
@@ -1139,3 +1163,4 @@ if __name__ == "__main__":
 
 # [1] http://irl.cs.ucla.edu/papers/05-ccr-address.pdf
 # [2] http://www.eecs.qmul.ac.uk/~steve/papers/JSAC-deaggregation.pdf
+# [3] https://labs.apnic.net/?p=1016
