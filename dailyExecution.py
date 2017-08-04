@@ -53,22 +53,20 @@ def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
     if fork3_pid == 0:
         # If we are in the child process of the third fork,
         # we compute stats for prefixes
-        if not os.path.exists(prefixes_stats_file):
-            sys.stdout.write('{}: Starting to compute routing stats for prefixes.\n'.format(datetime.now()))
-            computeAndSavePerPrefixStats(files_path, file_name, dateStr,
-                                         routingStatsObj, bgp_handler,
-                                         prefixes_stats_file,
-                                         TEMPORAL_DATA, es_host)
+        sys.stdout.write('{}: Starting to compute routing stats for prefixes.\n'.format(datetime.now()))
+        computeAndSavePerPrefixStats(files_path, file_name, dateStr,
+                                     routingStatsObj, bgp_handler,
+                                     prefixes_stats_file,
+                                     TEMPORAL_DATA, es_host)
         sys.exit(0)
 
     else:
         # If we are in the parent process of the third fork,
         # we compute stats for ASes
-        if not os.path.exists(ases_stats_file):
-            sys.stdout.write('{}: Starting to compute routing stats for ASNs.\n'.format(datetime.now()))
-            computeAndSavePerASStats(files_path, file_name, dateStr,
-                                     routingStatsObj, bgp_handler,
-                                     ases_stats_file, TEMPORAL_DATA, es_host)
+        sys.stdout.write('{}: Starting to compute routing stats for ASNs.\n'.format(datetime.now()))
+        computeAndSavePerASStats(files_path, file_name, dateStr,
+                                 routingStatsObj, bgp_handler,
+                                 ases_stats_file, TEMPORAL_DATA, es_host)
         os.waitpid(fork3_pid, 0)
         
         
