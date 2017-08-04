@@ -238,7 +238,7 @@ class StabilityAndDeagg:
         updates_stats_file = ''
         
         if self.bgp_handler.routingDate is not None:    
-            updates_stats_file = '{}/updatesStats_{}.csv'.format(self.files_path,
+            updates_stats_file = '{}/UpdatesStats/updatesStats_{}.csv'.format(self.files_path,
                                                                  self.bgp_handler.routingDate)
             if not os.path.exists(updates_stats_file):
                 computed = self.computeUpdatesStats(self.bgp_handler.updates_prefixes,
@@ -259,7 +259,7 @@ class StabilityAndDeagg:
         deagg_stats_file = ''
         
         if self.bgp_handler.routingDate is not None:
-            deagg_stats_file = '{}/deaggStats_{}.csv'.format(self.files_path,
+            deagg_stats_file = '{}/DeaggStats/deaggStats_{}.csv'.format(self.files_path,
                                                              self.bgp_handler.routingDate)
             
             if not os.path.exists(deagg_stats_file):
