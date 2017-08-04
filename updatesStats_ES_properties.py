@@ -34,5 +34,5 @@ mapping = {"_default_" : {
                                     }
                                 }
                                 
-index_name = 'updates_stats_index'
+index_name = 'updates_index'
 doc_type = 'updates_stats'
