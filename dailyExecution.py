@@ -19,10 +19,11 @@ from BGPDataHandler import BGPDataHandler
 from RoutingStats import RoutingStats
 from StabilityAndDeaggDailyStats import StabilityAndDeagg
 from ElasticSearchImporter import ElasticSearchImporter
-from computeRoutingStats import computeAndSavePerPrefixStats, computeAndSavePerASStats
+from computeRoutingStats import partialPrefixStats, partialASesStats
+from multiprocessing.pool import Pool
 
 
-def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
+def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
                    bgp_handler, es_host):
     KEEP = False
     EXTENDED = True
@@ -31,8 +32,6 @@ def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
     dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
     dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
     file_name = '{}/RoutingStats/RoutingStats_{}'.format(files_path, dateStr)
-    prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
-    ases_stats_file = '{}_asns.csv'.format(file_name)
     TEMPORAL_DATA = True
     routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
                                         del_file, startDate_date, date_to_work_with,
@@ -40,6 +39,8 @@ def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
                                         
     if es_host != '':
         esImporter = ElasticSearchImporter(es_host)
+    else:
+        esImporter = None
 
     if BulkWHOIS:
         # If we are in the parent process of the first fork, we call BulkWHOISParser
@@ -50,50 +51,86 @@ def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
     # Computation of routing stats
     sys.stdout.write('{}: Starting to compute routing stats.\n'.format(datetime.now()))
     
-    # and then we fork again
-    fork3_pid = os.fork()
+    fork_pid = os.fork()
     
-    if fork3_pid == 0:
+    if fork_pid == 0:
         # If we are in the child process of the third fork,
         # we compute stats for prefixes
         sys.stdout.write('{}: Starting to compute routing stats for prefixes.\n'.format(datetime.now()))
         
-        if not os.path.exists(prefixes_stats_file):
-            routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref, prefixes_stats_file)
+        delegatedNetworks = routingStatsObj.del_handler.delegated_df[\
+                                (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv4') |\
+                                (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')]
 
-            delegatedNetworks = routingStatsObj.del_handler.delegated_df[\
-                            (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv4') |\
-                            (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')]
+        # TODO Remove after debugging
+        delegatedNetworks = delegatedNetworks[0:10]
+
+        pref_parts_size = round(float(delegatedNetworks.shape[0])/numOfProcs)
+
+        argsDicts = []
+        pref_pos = 0
+        
+        for i in range(numOfProcs):
+            partial_pref_stats_file = '{}_prefixes_{}.csv'.format(file_name, i)
+            if not os.path.exists(partial_pref_stats_file):
+                routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref,
+                                                     partial_pref_stats_file)
     
-            # TODO Remove after debugging
-            delegatedNetworks = delegatedNetworks[0:10]
+                argsDicts.append({'routingStatsObj' : routingStatsObj,
+                                    'bgp_handler' : bgp_handler,
+                                    'files_path' : files_path,
+                                    'delegatedNetworks' : delegatedNetworks[pref_pos:pref_pos+pref_parts_size],
+                                    'prefixes_stats_file' : partial_pref_stats_file,
+                                    'TEMPORAL_DATA' : TEMPORAL_DATA,
+                                    'es_host' : es_host,
+                                    'esImporter' : esImporter})
+
+                pref_pos = pref_pos + pref_parts_size
+                
+        with Pool(numOfProcs) as pref_pool:
+            pref_pool.map(partialPrefixStats, argsDicts)
             
-            computeAndSavePerPrefixStats(routingStatsObj, bgp_handler,
-                                         delegatedNetworks, prefixes_stats_file,
-                                         TEMPORAL_DATA, files_path, dateStr,
-                                         es_host, esImporter)
         sys.exit(0)
 
     else:
         # If we are in the parent process of the third fork,
         # we compute stats for ASes
-        if not os.path.exists(ases_stats_file):
-            routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_ases, ases_stats_file)
+        expanded_del_asns_df = routingStatsObj.del_handler.getExpandedASNsDF()
+    
+        # TODO Remove after debugging
+        expanded_del_asns_df = expanded_del_asns_df[0:10]
+        
+        ases_parts_size = round(float(expanded_del_asns_df.shape[0])/numOfProcs)
+    
+        argsDicts = []
+        ases_pos = 0
+        
+        for i in range(numOfProcs):
+            partial_ases_stats_file = '{}_ases_{}.csv'.format(file_name, i)
+            if not os.path.exists(partial_ases_stats_file):
+                routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_ases,
+                                                     partial_ases_stats_file)
+                
+                argsDicts.append({'routingStatsObj' : routingStatsObj,
+                                     'bgp_handler' : bgp_handler,
+                                     'expanded_ases_df' : expanded_del_asns_df[ases_pos:ases_pos+ases_parts_size],
+                                     'ases_stats_file' : partial_ases_stats_file,
+                                     'TEMPORAL_DATA' : TEMPORAL_DATA,
+                                     'dateStr' : dateStr,
+                                     'es_host' : es_host,
+                                     'esImporter' : esImporter})
+                
+                ases_pos = ases_pos + ases_parts_size
 
-            expanded_del_asns_df = routingStatsObj.del_handler.getExpandedASNsDF()
+        with Pool(numOfProcs) as ases_pool:
+            ases_pool.map(partialASesStats, argsDicts)
             
-            # TODO Remove after debugging
-            expanded_del_asns_df = expanded_del_asns_df[0:10]
-        
-            computeAndSavePerASStats(routingStatsObj, bgp_handler,
-                                     expanded_del_asns_df, ases_stats_file,
-                                     TEMPORAL_DATA, es_host, esImporter)
-        
-        os.waitpid(fork3_pid, 0)
+        os.waitpid(fork_pid, 0)
         
         
-def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
-                        STABILITY, DEAGG_PROB, BulkWHOIS, ELASTIC):
+        
+def computeStatsForDate(date_to_work_with, numOfProcs, files_path, routing_file,
+                        ROUTING, STABILITY, DEAGG_PROB, BulkWHOIS, ELASTIC):
     DEBUG = False
     
     sys.stdout.write('{}: Initializing variables and classes.\n'.format(datetime.now()))
@@ -173,14 +210,14 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
                 sys.exit(0)
                 
         else:
-            computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
-                           bgp_handler, es_host)
+            computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG,
+                           BulkWHOIS, bgp_handler, es_host)
             
             os.waitpid(fork1_pid, 0)
 
     elif ROUTING:
-        computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
-                           bgp_handler, es_host)
+        computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG,
+                       BulkWHOIS, bgp_handler, es_host)
     
     elif STABILITY and DEAGG_PROB:
         fork2_pid = os.fork()
@@ -212,6 +249,7 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
 #    os.remove(readable_routing_file)
 
 def main(argv):
+    numOfProcs = 1
     ROUTING = False
     STABILITY = False
     DEAGG_PROB = False
@@ -220,9 +258,14 @@ def main(argv):
     try:
         opts, args = getopt.getopt(argv,"hRSDE", [])
     except getopt.GetoptError:
-        print 'Usage: {} -h | [-R] [-S] [-D] [-E]'.format(sys.argv[0])
+        print 'Usage: {} -h | [-n <num of processes>] [-R] [-S] [-D] [-E]'.format(sys.argv[0])
         print "The data from the files in /data/wattle/bgplog/YYYY/MM/DD will be inserted into the DB, being YYYYMMDD the date of today"
         print "In order to be sure all the needed data is available, statistics will be computed for yesterday."
+        print "n = Number of parallel processes for computation of routing stats."
+        print "The main process will be forked so that one process takes care of the computation of stats about BGP updates, another one takes care of the computation of stats about deaggregation and another one takes care of the computation of routing stats."
+        print "Besides, the process in charge of computing routing stats will be forked so that one subprocess takes care of the computation of stats for prefixes and another one takes care of the computation of stats for ASes."
+        print "Finally, each of these subprocesses will be divided into a pool of n threads in order to compute the stats in parallel for n subsets of prefixes/ASes."
+        print "Therefore, if the three flags R, S and D are used there will be (2 + 2*n) parallel processes in total."
         print "R: Routing. Compute statistics about routing (for prefixes and ASes)."
         print "S: Stability. Compute statistics about stability (update rate)."
         print "D: Deaggregation probability. Compute statistics about the probability of deaggregation for each routed prefix."
@@ -238,6 +281,12 @@ def main(argv):
             print "D: Deaggregation probability. Compute statistics about the probability of deaggregation for each routed prefix."
             print "E: elasticSearch. Save computed stats to ElasicSearch engine in twerp.rand.apnic.net"
             sys.exit()
+        elif opt == '-n':
+            try:
+                numOfProcs = int(arg)
+            except ValueError:
+                print "The number of processes MUST be a number!"
+                sys.exit(-1)
         elif opt == '-R':
             ROUTING = True
         elif opt == '-S':
@@ -257,8 +306,8 @@ def main(argv):
     # data to be updated daily.
     # When this function is called by pastDatesComputation, it is called with
     # BulkWHOIS = False
-    computeStatsForDate(date.today() - timedelta(1), files_path, '', ROUTING, STABILITY,
-                        DEAGG_PROB, True, ELASTIC)
+    computeStatsForDate(date.today() - timedelta(1), numOfProcs, files_path, '',
+                        ROUTING, STABILITY, DEAGG_PROB, True, ELASTIC)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
