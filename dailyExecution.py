@@ -18,6 +18,7 @@ from BulkWHOISParser import BulkWHOISParser
 from BGPDataHandler import BGPDataHandler
 from RoutingStats import RoutingStats
 from StabilityAndDeaggDailyStats import StabilityAndDeagg
+from ElasticSearchImporter import ElasticSearchImporter
 from computeRoutingStats import computeAndSavePerPrefixStats, computeAndSavePerASStats
 
 
@@ -35,8 +36,10 @@ def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
     TEMPORAL_DATA = True
     routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
                                         del_file, startDate_date, date_to_work_with,
-                                        date_to_work_with, prefixes_stats_file,
-                                        ases_stats_file, TEMPORAL_DATA)
+                                        date_to_work_with, TEMPORAL_DATA)
+                                        
+    if es_host != '':
+        esImporter = ElasticSearchImporter(es_host)
 
     if BulkWHOIS:
         # If we are in the parent process of the first fork, we call BulkWHOISParser
@@ -54,19 +57,38 @@ def computeRouting(date_to_work_with, files_path, DEBUG, BulkWHOIS,
         # If we are in the child process of the third fork,
         # we compute stats for prefixes
         sys.stdout.write('{}: Starting to compute routing stats for prefixes.\n'.format(datetime.now()))
-        computeAndSavePerPrefixStats(files_path, file_name, dateStr,
-                                     routingStatsObj, bgp_handler,
-                                     prefixes_stats_file,
-                                     TEMPORAL_DATA, es_host)
+        
+        if not os.path.exists(prefixes_stats_file):
+            routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref, prefixes_stats_file)
+
+            delegatedNetworks = routingStatsObj.del_handler.delegated_df[\
+                            (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv4') |\
+                            (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')]
+    
+            # TODO Remove after debugging
+            delegatedNetworks = delegatedNetworks[0:10]
+            
+            computeAndSavePerPrefixStats(routingStatsObj, bgp_handler,
+                                         delegatedNetworks, prefixes_stats_file,
+                                         TEMPORAL_DATA, files_path, dateStr,
+                                         es_host, esImporter)
         sys.exit(0)
 
     else:
         # If we are in the parent process of the third fork,
         # we compute stats for ASes
-        sys.stdout.write('{}: Starting to compute routing stats for ASNs.\n'.format(datetime.now()))
-        computeAndSavePerASStats(files_path, file_name, dateStr,
-                                 routingStatsObj, bgp_handler,
-                                 ases_stats_file, TEMPORAL_DATA, es_host)
+        if not os.path.exists(ases_stats_file):
+            routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_ases, ases_stats_file)
+
+            expanded_del_asns_df = routingStatsObj.del_handler.getExpandedASNsDF()
+            
+            # TODO Remove after debugging
+            expanded_del_asns_df = expanded_del_asns_df[0:10]
+        
+            computeAndSavePerASStats(routingStatsObj, bgp_handler,
+                                     expanded_del_asns_df, ases_stats_file,
+                                     TEMPORAL_DATA, es_host, esImporter)
+        
         os.waitpid(fork3_pid, 0)
         
         
@@ -190,19 +212,17 @@ def computeStatsForDate(date_to_work_with, files_path, routing_file, ROUTING,
 #    os.remove(readable_routing_file)
 
 def main(argv):
-    date_to_work_with = ''
     ROUTING = False
     STABILITY = False
     DEAGG_PROB = False
     ELASTIC = False
 
     try:
-        opts, args = getopt.getopt(argv,"hd:RSDE", ['date_to_work_with=',])
+        opts, args = getopt.getopt(argv,"hRSDE", [])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -d <Date to work with> [-R] [-S] [-D] [-E]'.format(sys.argv[0])
-        print "d: Date of the files whose data you want to be inserted into the DB. Format YYYYMMDD."
-        print "The data from the files in /data/wattle/bgplog/YYYY/MM/DD will be inserted into the DB."
-        print "If this option is not used, insertions of the data from the files in the folder corresponding to today will be inserted into the DB."
+        print 'Usage: {} -h | [-R] [-S] [-D] [-E]'.format(sys.argv[0])
+        print "The data from the files in /data/wattle/bgplog/YYYY/MM/DD will be inserted into the DB, being YYYYMMDD the date of today"
+        print "In order to be sure all the needed data is available, statistics will be computed for yesterday."
         print "R: Routing. Compute statistics about routing (for prefixes and ASes)."
         print "S: Stability. Compute statistics about stability (update rate)."
         print "D: Deaggregation probability. Compute statistics about the probability of deaggregation for each routed prefix."
@@ -211,27 +231,13 @@ def main(argv):
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'Usage: {} -h | -d <Date to work with> [-R] [-S] [-D] [-E]'.format(sys.argv[0])
-            print "d: Date of the files whose data you want to be inserted into the DB. Format YYYYMMDD."
-            print "The data from the files in /data/wattle/bgplog/YYYY/MM/DD will be inserted into the DB."
-            print "If this option is not used, insertions of the data from the files in the folder corresponding to today will be inserted into the DB."
+            print "The data from the files in /data/wattle/bgplog/YYYY/MM/DD will be inserted into the DB, being YYYYMMDD the date of today"
+            print "In order to be sure all the needed data is available, statistics will be computed for yesterday."
             print "R: Routing. Compute statistics about routing (for prefixes and ASes)."
             print "S: Stability. Compute statistics about stability (update rate)."
             print "D: Deaggregation probability. Compute statistics about the probability of deaggregation for each routed prefix."
             print "E: elasticSearch. Save computed stats to ElasicSearch engine in twerp.rand.apnic.net"
             sys.exit()
-        elif opt == '-d':
-            if arg != '':
-                try:
-                    date_to_work_with = date(int(arg[0:4]),
-                                             int(arg[4:6]),
-                                             int(arg[6:8]))
-                except ValueError:
-                    print "If you use the option -D you MUST provide a date in format YYYYMMDD."
-                    sys.exit(-1)
-            else:
-                print "If you use the option -D you MUST provide a date in format YYYYMMDD."
-                sys.exit(-1)
         elif opt == '-R':
             ROUTING = True
         elif opt == '-S':
@@ -242,11 +248,8 @@ def main(argv):
             ELASTIC = True
         else:
             assert False, 'Unhandled option'
-    
-    if date_to_work_with == '':
-        date_to_work_with = date.today() - timedelta(1)
         
-    insertionForDate(date_to_work_with)
+    insertionForDate(date.today())
 
     files_path = '/home/sofia/BGP_stats_files'
 
@@ -254,7 +257,7 @@ def main(argv):
     # data to be updated daily.
     # When this function is called by pastDatesComputation, it is called with
     # BulkWHOIS = False
-    computeStatsForDate(date_to_work_with, files_path, '', ROUTING, STABILITY,
+    computeStatsForDate(date.today() - timedelta(1), files_path, '', ROUTING, STABILITY,
                         DEAGG_PROB, True, ELASTIC)
 
 if __name__ == "__main__":
