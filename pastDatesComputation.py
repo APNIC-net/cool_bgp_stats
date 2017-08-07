@@ -52,14 +52,20 @@ def main(argv):
     proc_num = -1
     ELASTIC = False
     stats_date = None
+    numOfProcs = 1
 
     try:
-        opts, args = getopt.getopt(argv,"hn:y:d:RSDE", ['procNumber=', 'year=', 'date=',])
+        opts, args = getopt.getopt(argv,"hn:y:d:N:RSDE", ['procNumber=', 'year=', 'date=', 'numOfProcs=',])
     except getopt.GetoptError:
-        print 'Usage: {} -h | -n <process number> | -y <year> | -d <date> [-R] [-S] [-D] [-E]'.format(sys.argv[0])
+        print 'Usage: {} -h | (-n <process number> | -y <year> | -d <date>) [-N <number of processes>] [-R] [-S] [-D] [-E]'.format(sys.argv[0])
         print "n: Process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
         print "y: Year. Year for which you want the stats to be computed."
         print "d: date: Date for which you want the stats to be computed. Format: YYYYMMDD"
+        print "N: Number of parallel processes within computation of routing stats."
+        print "The main process will be forked so that one process takes care of the computation of stats about BGP updates, another one takes care of the computation of stats about deaggregation and another one takes care of the computation of routing stats."
+        print "Besides, the process in charge of computing routing stats will be forked so that one subprocess takes care of the computation of stats for prefixes and another one takes care of the computation of stats for ASes."
+        print "Finally, each of these subprocesses will be divided into a pool of n threads in order to compute the stats in parallel for n subsets of prefixes/ASes."
+        print "Therefore, if the three flags R, S and D are used there will be (2 + 2*n) parallel processes in total."
         print "R: Routing stats. Use this option if you want the routing stats to be computed."
         print "S: Stability stats. Use this option if you want the stats about update rates to be computed."
         print "D: Deaggregation probability stats. Use this option if you want the stats about probability of deaggregation  to be computed."
@@ -68,10 +74,15 @@ def main(argv):
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'Usage: {} -h | -n <process number> | -y <year> | -d <date> [-R] [-S] [-D] [-E]'.format(sys.argv[0])
+            print 'Usage: {} -h | (-n <process number> | -y <year> | -d <date>) [-N <number of processes>] [-R] [-S] [-D] [-E]'.format(sys.argv[0])
             print "n: Provide a process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
             print "y: Year. Year for which you want the stats to be computed."
             print "d: date: Date for which you want the stats to be computed. Format: YYYYMMDD"
+            print "N: Number of parallel processes within computation of routing stats."
+            print "The main process will be forked so that one process takes care of the computation of stats about BGP updates, another one takes care of the computation of stats about deaggregation and another one takes care of the computation of routing stats."
+            print "Besides, the process in charge of computing routing stats will be forked so that one subprocess takes care of the computation of stats for prefixes and another one takes care of the computation of stats for ASes."
+            print "Finally, each of these subprocesses will be divided into a pool of n threads in order to compute the stats in parallel for n subsets of prefixes/ASes."
+            print "Therefore, if the three flags R, S and D are used there will be (2 + 2*n) parallel processes in total."
             print "R: Routing stats. Use this option if you want the routing stats to be computed."
             print "S: Stability stats. Use this option if you want the stats about update rates to be computed."
             print "D: Deaggregation probability stats. Use this option if you want the stats about probability of deaggregation  to be computed."
@@ -103,6 +114,12 @@ def main(argv):
                     sys.exit(-1)
             else:
                 print "If the -d option is used you MUST provide the date for which you want the stats to be computed."
+                sys.exit(-1)
+        elif opt == '-N':
+            try:
+                numOfProcs = int(arg)
+            except ValueError:
+                print "The number of processes MUST be a number."
                 sys.exit(-1)
         elif opt == '-R':
             ROUTING = True
@@ -165,8 +182,8 @@ def main(argv):
             
             sys.stdout.write('{}: Working with routing file {}\n'.format(datetime.now(), routing_file))
     
-        computeStatsForDate(past_date, files_path, routing_file, ROUTING,
-                            STABILITY, DEAGG_PROB, False, ELASTIC)
+        computeStatsForDate(past_date, numOfProcs, files_path, routing_file,
+                            ROUTING, STABILITY, DEAGG_PROB, False, ELASTIC)
         
         # Lo llamamos con BulkWHOIS = False porque no es necesario que cada vez parsee el Bulk WHOIS
         # Las estructuras disponibles van a estar actualizadas porque BulkWHOISParser se va a instanciar a diario
