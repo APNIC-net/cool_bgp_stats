@@ -60,7 +60,7 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
         
         delegatedNetworks = routingStatsObj.del_handler.delegated_df[\
                                 (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv4') |\
-                                (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')]
+                                (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')].reset_index()
 
         # TODO Remove after debugging
         delegatedNetworks = delegatedNetworks[0:10]
