@@ -19,6 +19,10 @@ from time import time
 from ElasticSearchImporter import ElasticSearchImporter
 import prefStats_ES_properties
 import ASesStats_ES_properties
+import multiprocessing
+
+# Number of parts in which the datasets will be divided for concurrent computation of stats
+numOfParts = 5
     
 # Function that computes the Levenshtein distance between two AS paths
 # From https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
@@ -484,12 +488,12 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
                 statsForPrefix[variables['covering']] += 1
 
     
-def writeStatsLineToFile(stats_dict, allAttr, stats_filename):
-    line = stats_dict[allAttr[0]]
+def writeStatsLineToFile(stats_dict, vars_names, stats_filename):
+    line = stats_dict[vars_names[0]]
         
-    for i in range(len(allAttr)-1):
+    for i in range(len(vars_names)-1):
         try:
-            line = '{},{}'.format(line, stats_dict[allAttr[i+1]])
+            line = '{},{}'.format(line, stats_dict[vars_names[i+1]])
         except KeyError:
             line = '{},{}'.format(line, '-')
     
@@ -498,13 +502,8 @@ def writeStatsLineToFile(stats_dict, allAttr, stats_filename):
     with open(stats_filename, 'a') as stats_file:
         stats_file.write(line)
 
-# Decide which historical data has to be taken into account in this case
-def computePerPrefixStats(routingStatsObj, bgp_handler, stats_filename, files_path, TEMPORAL_DATA):
-    # Obtain a subset of all the delegated prefixes
-    delegatedNetworks = routingStatsObj.del_handler.delegated_df[\
-                            (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv4') |\
-                            (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')]
-                
+def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
+                          stats_filename, files_path, TEMPORAL_DATA):
     for i in delegatedNetworks.index:
         prefix_row = delegatedNetworks.ix[i]
         prefix = '{}/{}'.format(prefix_row['initial_resource'],\
@@ -749,7 +748,7 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, stats_filename, files_pa
                 statsForPrefix['minNumOfWithdrawsMoreSpec'] = numsOfWithdrawsMoreSpec.min()
                 statsForPrefix['maxNumOfWithdrawsMoreSpec'] = numsOfWithdrawsMoreSpec.max()
             
-        writeStatsLineToFile(statsForPrefix, routingStatsObj.allAttr_pref, stats_filename)
+        writeStatsLineToFile(statsForPrefix, routingStatsObj.allVar_pref, stats_filename)
         
 # This function determines whether the allocated ASNs are active
 # either as middle AS, origin AS or both
@@ -757,9 +756,8 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, stats_filename, files_pa
 # * a numeric variable (numOfPrefixesPropagated) specifying the number of prefixes propagated by the AS
 # (BGP announcements for which the AS appears in the middle of the AS path)
 # * a numeric variable (numOfPrefixesOriginated) specifying the number of prefixes originated by the AS
-def computeASesStats(routingStatsObj, bgp_handler, stats_filename, TEMPORAL_DATA):
-    expanded_del_asns_df = routingStatsObj.del_handler.getExpandedASNsDF() 
-        
+def computeASesStats(routingStatsObj, bgp_handler, expanded_del_asns_df,
+                     stats_filename, TEMPORAL_DATA):        
     for i in expanded_del_asns_df.index:
         statsForAS = routingStatsObj.def_dict_ases.copy()
         
@@ -851,15 +849,26 @@ def computeASesStats(routingStatsObj, bgp_handler, stats_filename, TEMPORAL_DATA
                     statsForAS['minPeriodLength'] = periodsLengths.min()
                     statsForAS['maxPeriodLength'] = periodsLengths.max()
 
-        writeStatsLineToFile(statsForAS, routingStatsObj.allAttr_ases, stats_filename)
+        writeStatsLineToFile(statsForAS, routingStatsObj.allVar_ases, stats_filename)
 
-def computeAndSavePerPrefixStats(files_path, file_name, dateStr, routingStatsObj,
-                                 bgp_handler, prefixes_stats_file,
-                                 TEMPORAL_DATA, es_host):
+def partialPrefixStats(argsDict):
+    computeAndSavePerPrefixStats(argsDict['routingStatsObj'],
+                                 argsDict['bgp_handler'],
+                                 argsDict['delegatedNetworks'],
+                                 argsDict['prefixes_stats_file'],
+                                 argsDict['TEMPORAL_DATA'],
+                                 argsDict['files_path'],
+                                 argsDict['dateStr'],
+                                 argsDict['es_host'],
+                                 argsDict['esImporter'])
+                                 
+def computeAndSavePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
+                                 prefixes_stats_file, TEMPORAL_DATA, files_path,
+                                 dateStr, es_host, esImporter):
                                      
-    start_time = time()
-    computePerPrefixStats(routingStatsObj, bgp_handler, prefixes_stats_file,
-                          files_path, TEMPORAL_DATA)
+    start_time = time()    
+    computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
+                          prefixes_stats_file, files_path, TEMPORAL_DATA)
     end_time = time()
     sys.stderr.write("Stats for prefixes computed successfully!\n")
     sys.stderr.write("Prefixes statistics computation took {} seconds\n".format(end_time-start_time))
@@ -876,15 +885,13 @@ def computeAndSavePerPrefixStats(files_path, file_name, dateStr, routingStatsObj
     # Ver TODO más arriba
 
     prefixes_stats_df = pd.read_csv(prefixes_stats_file, sep = ',')
-    prefixes_json_filename = '{}_prefixes.json'.format(file_name)
+    prefixes_json_filename = '{}.json'.format('.'.join(prefixes_stats_file.split('.')[:-1]))
     prefixes_stats_df.to_json(prefixes_json_filename, orient='index')
     sys.stderr.write("Prefixes stats saved to JSON and CSV files successfully!\n")
     sys.stderr.write("Files generated:\n{}\n\nand\n\n{}\n".format(prefixes_stats_file,
                                                     prefixes_json_filename))
     
     if es_host != '':
-        esImporter = ElasticSearchImporter(es_host)
-
         esImporter.createIndex(prefStats_ES_properties.mapping,
                                prefStats_ES_properties.index_name)
         numOfDocs = esImporter.ES.count(prefStats_ES_properties.index_name)['count']
@@ -904,10 +911,22 @@ def computeAndSavePerPrefixStats(files_path, file_name, dateStr, routingStatsObj
         else:
             sys.stderr.write("Stats about usage of prefixes delegated during the period {} could not be saved to ElasticSearch.\n".format(dateStr))
 
-def computeAndSavePerASStats(files_path, file_name, dateStr, routingStatsObj,
-                             bgp_handler, ases_stats_file, TEMPORAL_DATA, es_host):
+def partialASesStats(argsDict):
+    computeAndSavePerASStats(argsDict['routingStatsObj'],
+                             argsDict['bgp_handler'],
+                             argsDict['expanded_ases_df'],
+                             argsDict['ases_stats_file'],
+                             argsDict['TEMPORAL_DATA'],
+                             argsDict['dateStr'],
+                             argsDict['es_host'],
+                             argsDict['esImporter'])
+                             
+def computeAndSavePerASStats(routingStatsObj, bgp_handler, expanded_ases_df,
+                             ases_stats_file, TEMPORAL_DATA, dateStr,
+                             es_host, esImporter):
     start_time = time()
-    computeASesStats(routingStatsObj, bgp_handler, ases_stats_file, TEMPORAL_DATA)
+    computeASesStats(routingStatsObj, bgp_handler, expanded_ases_df,
+                     ases_stats_file, TEMPORAL_DATA)
     end_time = time()
     sys.stderr.write("Stats for ASes computed successfully!\n")
     sys.stderr.write("ASes statistics computation took {} seconds\n".format(end_time-start_time))   
@@ -916,15 +935,13 @@ def computeAndSavePerASStats(files_path, file_name, dateStr, routingStatsObj,
         routingStatsObj.db_handler.close()
 
     ases_stats_df = pd.read_csv(ases_stats_file, sep = ',')
-    ases_json_filename = '{}_ases.json'.format(file_name)
+    ases_json_filename = '{}.json'.format('.'.join(ases_stats_file.split('.')[:-1]))
     ases_stats_df.to_json(ases_json_filename, orient='index')
     sys.stderr.write("ASes stats saved to JSON and CSV files successfully!\n")
     sys.stderr.write("Files generated:\n{}\n\nand\n\n{}\n".format(ases_stats_file,
                                                                 ases_json_filename))
     
     if es_host != '':
-        esImporter = ElasticSearchImporter(es_host)
-
         esImporter.createIndex(ASesStats_ES_properties.mapping,
                                ASesStats_ES_properties.index_name)
         numOfDocs = esImporter.ES.count(ASesStats_ES_properties.index_name)['count']
@@ -955,8 +972,6 @@ def main(argv):
     startDate = ''
     endDate = ''
     del_file = ''
-    prefixes_stats_file = ''
-    ases_stats_file = ''
     routing_date = ''
     TEMPORAL_DATA = False
     es_host = ''
@@ -1118,14 +1133,10 @@ def main(argv):
     else:
         file_name = '%s/routing_stats_test_%s' % (files_path, dateStr)
         
-
-    prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
-    ases_stats_file = '{}_ases.csv'.format(file_name)
     
     routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
                                     del_file, startDate_date, endDate_date,
-                                    routing_date, prefixes_stats_file,
-                                    ases_stats_file, TEMPORAL_DATA)
+                                    routing_date, TEMPORAL_DATA)
 
     bgp_handler = BGPDataHandler(DEBUG, files_path)
     
@@ -1147,15 +1158,69 @@ def main(argv):
     if es_host != '':
         esImporter = ElasticSearchImporter(es_host)
 
-    if not os.path.exists(prefixes_stats_file):
-        computeAndSavePerPrefixStats(files_path, file_name, dateStr, routingStatsObj,
-                                     bgp_handler, prefixes_stats_file,
-                                     TEMPORAL_DATA, es_host, esImporter)
+    delegatedNetworks = routingStatsObj.del_handler.delegated_df[\
+                            (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv4') |\
+                            (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')]
     
-    if not os.path.exists(ases_stats_file):
-        computeAndSavePerASStats(files_path, file_name, dateStr, routingStatsObj,
-                                 bgp_handler, ases_stats_file, TEMPORAL_DATA,
-                                 es_host, esImporter)
+    expanded_del_asns_df = routingStatsObj.del_handler.getExpandedASNsDF()
+    
+    pref_parts_size = round(float(delegatedNetworks.shape[0])/numOfParts)
+    ases_parts_size = round(float(expanded_del_asns_df.shape[0])/numOfParts)
+    
+    jobs = []
+    pref_pos = 0
+    ases_pos = 0
+    for i in range(numOfParts):
+        partial_pref_stats_file = '{}_prefixes_{}.csv'.format(file_name, i)
+        if not os.path.exists(partial_pref_stats_file):
+            routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref,
+                                                 partial_pref_stats_file)
+
+            partial_pref_args = {'routingStatsObj' : routingStatsObj,
+                                'bgp_handler' : bgp_handler,
+                                'files_path' : files_path,
+                                'delegatedNetworks' : delegatedNetworks[pref_pos:pref_pos+pref_parts_size],
+                                'prefixes_stats_file' : partial_pref_stats_file,
+                                'TEMPORAL_DATA' : TEMPORAL_DATA,
+                                'es_host' : es_host,
+                                'esImporter' : esImporter}
+
+            pref_proc = multiprocessing.Process(target=partialPrefixStats,
+                                                args=(partial_pref_args,))
+            jobs.append(pref_proc)
+            pref_proc.start()
+
+            pref_pos = pref_pos + pref_parts_size
+        
+        partial_ases_stats_file = '{}_ases_{}.csv'.format(file_name, i)
+        if not os.path.exists(partial_ases_stats_file):
+            routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_ases,
+                                                 partial_ases_stats_file)
+            
+            partial_ases_args = {'routingStatsObj' : routingStatsObj,
+                                 'bgp_handler' : bgp_handler,
+                                 'expanded_ases_df' : expanded_del_asns_df[ases_pos:ases_pos+ases_parts_size],
+                                 'ases_stats_file' : partial_ases_stats_file,
+                                 'TEMPORAL_DATA' : TEMPORAL_DATA,
+                                 'dateStr' : dateStr,
+                                 'es_host' : es_host,
+                                 'esImporter' : esImporter}
+            
+            ases_proc = multiprocessing.Process(target=partialASesStats,
+                                                args=(partial_ases_args,))
+            jobs.append(ases_proc)
+            ases_proc.start()
+            
+            ases_pos = ases_pos + ases_parts_size
+
+        
+    # TODO Concurrent programming
+    # This is not OK. See https://pymotw.com/2/multiprocessing/basics.html
+    # The target function MUST be importble
+        
+    # TODO Do the same in dailyExecution    
+    
+
                              
 
 if __name__ == "__main__":
