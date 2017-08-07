@@ -19,10 +19,7 @@ from time import time
 from ElasticSearchImporter import ElasticSearchImporter
 import prefStats_ES_properties
 import ASesStats_ES_properties
-import multiprocessing
-
-# Number of parts in which the datasets will be divided for concurrent computation of stats
-numOfParts = 5
+from multiprocessing.pool import Pool
     
 # Function that computes the Levenshtein distance between two AS paths
 # From https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
@@ -975,23 +972,29 @@ def main(argv):
     routing_date = ''
     TEMPORAL_DATA = False
     es_host = ''
+    numOfParts = 1
     
     try:
-        opts, args = getopt.getopt(argv, "hf:r:S:E:Tkd:xp:a:R:D:",
-                                        ["files_path=", "routing_file=",
-                                        "StartDate=", "EndDate=", "delegated_file=",
-                                        "prefixes_stats_file=", "ases_stats_file=",
+        opts, args = getopt.getopt(argv, "hf:n:r:S:E:Tkd:xp:a:R:D:",
+                                        ["files_path=", "numOfParts=",
+                                        "routing_file=", "StartDate=",
+                                        "EndDate=", "delegated_file=",
+                                        "prefixes_stats_file=",
+                                        "ases_stats_file=",
                                         "Routing date=",
                                         "ElasticsearchDB_host="])
     except getopt.GetoptError:
-        print 'Usage: computeRoutingStats.py -h | -f <files path> [-r <routing file>] [-S <Start date>] [-E <End Date>] [-T] [-k] [-d <delegated file>] [-x] [-R <Routing date>] [-p <prefixes stats file> -a <ases stats file>] [-D <Elasticsearch Database host>]'
+        print 'Usage: computeRoutingStats.py -h | -f <files path> [-n <num of parallel processes>] [-r <routing file>] [-S <Start date>] [-E <End Date>] [-T] [-k] [-d <delegated file>] [-x] [-R <Routing date>] [-p <prefixes stats file> -a <ases stats file>] [-D <Elasticsearch Database host>]'
         sys.exit()
     for opt, arg in opts:
         if opt == '-h':
             print "This script computes routing statistics from files containing Internet routing data and a delegated file."
-            print 'Usage: computeRoutingStats.py -h | -f <files path> [-r <routing file>] [-S <Start date>] [-E <End Date>] [-T] [-k] [-d <delegated file>] [-x] [-R <Routing date>] [-p <prefixes stats file> -a <ases stats file>] [-D <Elasticsearch Database host>]'
+            print 'Usage: computeRoutingStats.py -h | -f <files path> [-n <num of parallel processes>] [-r <routing file>] [-S <Start date>] [-E <End Date>] [-T] [-k] [-d <delegated file>] [-x] [-R <Routing date>] [-p <prefixes stats file> -a <ases stats file>] [-D <Elasticsearch Database host>]'
             print 'h = Help'
             print "f = Path to folder in which Files will be saved. (MANDATORY)"
+            print "n = Number of parallel processes. The main process will be forked so that one process takes care of the computation of stats for prefixes and the other one takes care of the computation of stats for ASes."
+            print "Besides, each of these processes will be divided into a pool of n threads in order to compute the stats in parallel for n subsets of prefixes/ASes."
+            print "Therefore, there will be 2*n parallel processes in total."
             print 'r = Work with routing data from Internet Routing data file.'
             print "If no routing file is provided, the script will try to work with routing data from the archive /data/wattle/bgplog for the routing date specified with option -R or for the date before today."
             print "S = Start date in format YYYY or YYYYmm or YYYYmmdd. The start date of the period of time during which the considered resources were delegated."
@@ -1014,6 +1017,12 @@ def main(argv):
                 sys.exit()
         elif opt == '-k':
             KEEP = True
+        elif opt == '-n':
+            try:
+                numOfParts = int(arg)
+            except ValueError:
+                print "The number of processes MUST be a number."
+                sys.exit(-1)
         elif opt == '-S':
             startDate = arg
             if startDate == '':
@@ -1157,71 +1166,74 @@ def main(argv):
     
     if es_host != '':
         esImporter = ElasticSearchImporter(es_host)
+    else:
+        esImporter = None
 
-    delegatedNetworks = routingStatsObj.del_handler.delegated_df[\
-                            (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv4') |\
-                            (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')]
+
+    fork_pid = os.fork()
     
-    expanded_del_asns_df = routingStatsObj.del_handler.getExpandedASNsDF()
-    
-    pref_parts_size = round(float(delegatedNetworks.shape[0])/numOfParts)
-    ases_parts_size = round(float(expanded_del_asns_df.shape[0])/numOfParts)
-    
-    jobs = []
-    pref_pos = 0
-    ases_pos = 0
-    for i in range(numOfParts):
-        partial_pref_stats_file = '{}_prefixes_{}.csv'.format(file_name, i)
-        if not os.path.exists(partial_pref_stats_file):
-            routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref,
-                                                 partial_pref_stats_file)
-
-            partial_pref_args = {'routingStatsObj' : routingStatsObj,
-                                'bgp_handler' : bgp_handler,
-                                'files_path' : files_path,
-                                'delegatedNetworks' : delegatedNetworks[pref_pos:pref_pos+pref_parts_size],
-                                'prefixes_stats_file' : partial_pref_stats_file,
-                                'TEMPORAL_DATA' : TEMPORAL_DATA,
-                                'es_host' : es_host,
-                                'esImporter' : esImporter}
-
-            pref_proc = multiprocessing.Process(target=partialPrefixStats,
-                                                args=(partial_pref_args,))
-            jobs.append(pref_proc)
-            pref_proc.start()
-
-            pref_pos = pref_pos + pref_parts_size
+    if fork_pid == 0:
         
-        partial_ases_stats_file = '{}_ases_{}.csv'.format(file_name, i)
-        if not os.path.exists(partial_ases_stats_file):
-            routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_ases,
-                                                 partial_ases_stats_file)
-            
-            partial_ases_args = {'routingStatsObj' : routingStatsObj,
-                                 'bgp_handler' : bgp_handler,
-                                 'expanded_ases_df' : expanded_del_asns_df[ases_pos:ases_pos+ases_parts_size],
-                                 'ases_stats_file' : partial_ases_stats_file,
-                                 'TEMPORAL_DATA' : TEMPORAL_DATA,
-                                 'dateStr' : dateStr,
-                                 'es_host' : es_host,
-                                 'esImporter' : esImporter}
-            
-            ases_proc = multiprocessing.Process(target=partialASesStats,
-                                                args=(partial_ases_args,))
-            jobs.append(ases_proc)
-            ases_proc.start()
-            
-            ases_pos = ases_pos + ases_parts_size
+        delegatedNetworks = routingStatsObj.del_handler.delegated_df[\
+                                (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv4') |\
+                                (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')]
 
+        pref_parts_size = round(float(delegatedNetworks.shape[0])/numOfParts)
+
+        argsDicts = []
+        pref_pos = 0
         
-    # TODO Concurrent programming
-    # This is not OK. See https://pymotw.com/2/multiprocessing/basics.html
-    # The target function MUST be importble
-        
-    # TODO Do the same in dailyExecution    
+        for i in range(numOfParts):
+            partial_pref_stats_file = '{}_prefixes_{}.csv'.format(file_name, i)
+            if not os.path.exists(partial_pref_stats_file):
+                routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref,
+                                                     partial_pref_stats_file)
     
+                argsDicts.append({'routingStatsObj' : routingStatsObj,
+                                    'bgp_handler' : bgp_handler,
+                                    'files_path' : files_path,
+                                    'delegatedNetworks' : delegatedNetworks[pref_pos:pref_pos+pref_parts_size],
+                                    'prefixes_stats_file' : partial_pref_stats_file,
+                                    'TEMPORAL_DATA' : TEMPORAL_DATA,
+                                    'es_host' : es_host,
+                                    'esImporter' : esImporter})
 
-                             
+                pref_pos = pref_pos + pref_parts_size
+                
+        with Pool(numOfParts) as pref_pool:
+            pref_pool.map(partialPrefixStats, argsDicts)
+            
+        sys.exit(0)
+
+    else:
+        expanded_del_asns_df = routingStatsObj.del_handler.getExpandedASNsDF()
+    
+        ases_parts_size = round(float(expanded_del_asns_df.shape[0])/numOfParts)
+    
+        argsDicts = []
+        ases_pos = 0
+        
+        for i in range(numOfParts):
+            partial_ases_stats_file = '{}_ases_{}.csv'.format(file_name, i)
+            if not os.path.exists(partial_ases_stats_file):
+                routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_ases,
+                                                     partial_ases_stats_file)
+                
+                argsDicts.append({'routingStatsObj' : routingStatsObj,
+                                     'bgp_handler' : bgp_handler,
+                                     'expanded_ases_df' : expanded_del_asns_df[ases_pos:ases_pos+ases_parts_size],
+                                     'ases_stats_file' : partial_ases_stats_file,
+                                     'TEMPORAL_DATA' : TEMPORAL_DATA,
+                                     'dateStr' : dateStr,
+                                     'es_host' : es_host,
+                                     'esImporter' : esImporter})
+                
+                ases_pos = ases_pos + ases_parts_size
+
+        with Pool(numOfParts) as ases_pool:
+            ases_pool.map(partialASesStats, argsDicts)
+            
+        os.waitpid(fork_pid, 0)
 
 if __name__ == "__main__":
     main(sys.argv[1:])
