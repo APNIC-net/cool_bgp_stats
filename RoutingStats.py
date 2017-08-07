@@ -261,6 +261,7 @@ class RoutingStats:
         self.def_dict_ases = self.getDictionaryWithDefaults(booleanKeys_ases,
                                                   valueKeys_ases, counterKeys_ases)
     
+    @staticmethod    
     def writeStatsFileHeader(variables_list, stats_file):
         line = variables_list[0]
         
