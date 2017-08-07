@@ -4,7 +4,7 @@ Created on Sat Mar 25 09:39:25 2017
 
 @author: sofiasilva
 """
-import os, bz2, sys
+import os, bz2
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 #Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
@@ -14,13 +14,11 @@ from OrgHeuristics import OrgHeuristics
 from get_file import get_file
 import pandas as pd
 import numpy as np
-from datetime import datetime
 
 class RoutingStats:
     
     def __init__(self, files_path, DEBUG, KEEP, EXTENDED, del_file,\
-                startDate, endDate, routing_date, prefixes_stats_file,
-                ases_stats_file, TEMPORAL_DATA):
+                startDate, endDate, routing_date, TEMPORAL_DATA):
         
         self.files_path = files_path
         
@@ -226,24 +224,9 @@ class RoutingStats:
         if TEMPORAL_DATA:
             other_data_columns = other_data_columns + other_data_columnsTemp
         
-        self.allAttr_pref = other_data_columns + booleanKeys_pref +\
+        self.allVar_pref = other_data_columns + booleanKeys_pref +\
                         valueKeys_pref + counterKeys_pref
 
-        if not os.path.exists(prefixes_stats_file):
-            line = self.allAttr_pref[0]
-        
-            for i in range(len(self.allAttr_pref)-1):
-                line = '{},{}'.format(line, self.allAttr_pref[i+1])
-        
-            line = line + '\n'
-                    
-            with open(prefixes_stats_file, 'w') as csv_file:
-                csv_file.write(line)
-        else:
-            sys.stdout.write("{}: Prefixes stats file already exists. {}".format(datetime.now(),
-                                                                                 prefixes_stats_file))
-            
-            
         self.def_dict_pref = self.getDictionaryWithDefaults(booleanKeys_pref, valueKeys_pref, counterKeys_pref)
  
         if TEMPORAL_DATA:            
@@ -272,26 +255,23 @@ class RoutingStats:
         else:
             other_ases_data_columns = ['routing_date']
 
-        self.allAttr_ases = expanded_del_asn_df_columns + other_ases_data_columns +\
+        self.allVar_ases = expanded_del_asn_df_columns + other_ases_data_columns +\
                             booleanKeys_ases + valueKeys_ases + counterKeys_ases
 
-        if not os.path.exists(ases_stats_file):
-            line = self.allAttr_ases[0]
-            
-            for i in range(len(self.allAttr_ases)-1):
-                line = '{},{}'.format(line, self.allAttr_ases[i+1])
-            
-            line = line + '\n'
-    
-            with open(ases_stats_file, 'w') as csv_file:
-                csv_file.write(line)
-        else:
-            sys.stdout.write("{}: ASes stats file already exists. {}".format(datetime.now(),
-                                                                             ases_stats_file))
-                
         self.def_dict_ases = self.getDictionaryWithDefaults(booleanKeys_ases,
                                                   valueKeys_ases, counterKeys_ases)
     
+    def writeStatsFileHeader(variables_list, stats_file):
+        line = variables_list[0]
+        
+        for i in range(len(variables_list)-1):
+            line = '{},{}'.format(line, variables_list[i+1])
+    
+        line = line + '\n'
+                
+        with open(stats_file, 'w') as csv_file:
+            csv_file.write(line)
+            
     def instantiateOrgHeuristics(self):
         self.orgHeuristics = OrgHeuristics(self.files_path)
         
