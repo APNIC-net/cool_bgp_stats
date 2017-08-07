@@ -1176,7 +1176,7 @@ def main(argv):
         
         delegatedNetworks = routingStatsObj.del_handler.delegated_df[\
                                 (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv4') |\
-                                (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')]
+                                (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')].reset_index()
 
         pref_parts_size = round(float(delegatedNetworks.shape[0])/numOfParts)
 
