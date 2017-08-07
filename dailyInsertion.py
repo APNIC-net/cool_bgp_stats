@@ -27,9 +27,6 @@ def insertionForDate(date_to_work_with):
     archive_folder = '/data/wattle/bgplog'
     log_file = '{}/dailyInsertion_{}.log'.format(files_path, date_to_work_with)
     
-    # Insertion of visibility, routing and updates data into the DB
-    sys.stdout.write('{}: Starting generating CSV files for insertion of visibility, routing and updates data into the DB.\n'.format(datetime.now()))
-    
     bgp_handler = BGPDataHandler(DEBUG, files_path)
         
     file_name = '{}/{}/{}/{}/{}-{}-{}'.format(archive_folder,
@@ -39,7 +36,10 @@ def insertionForDate(date_to_work_with):
                                                     date_to_work_with.year,
                                                     date_to_work_with.strftime('%m'),
                                                     date_to_work_with.strftime('%d'))
-    
+
+    # Insertion of data into the archive index and updates tables
+    sys.stdout.write('{}: Starting generating CSV files for insertion of data into the archive index and updates tables.\n'.format(datetime.now()))    
+
     # We first insert the files available in the current folder of the archive
     # into the archive_index table
     bgprib_file = '{}.bgprib.mrt'.format(file_name)
@@ -73,26 +73,11 @@ def insertionForDate(date_to_work_with):
                                                                       archive_folder,
                                                                       DEBUG)
 
-    # For visibility data, we insert data about the day before because the mrt file is generated the day after
-    day_before = date_to_work_with - timedelta(1)
-    
-    routing_file = BGPDataHandler.getRoutingFileForDate(day_before,
-                                                        files_path,
-                                                        DEBUG)
-
-    visibility_csvs = []
-    
-    if routing_file != '':
-        dates_ready, visibility_csvs = generateFilesFromRoutingFile(files_path,
-                                                                   routing_file,
-                                                                   bgp_handler,
-                                                                   'visibility',
-                                                                   dict(), log_file,
-                                                                   archive_folder,
-                                                                   DEBUG)
-                                                               
+    # and insert the BGP updates data                                                  
     updates_file = '{}.bgpupd.mrt'.format(file_name)
     
+    day_before = date_to_work_with - timedelta(1)
+
     if not os.path.exists(updates_file):
         updates_file = '{}/{}/{}/{}/{}-{}-{}.log.gz'.format(archive_folder,
                                                             day_before.year,
@@ -105,16 +90,12 @@ def insertionForDate(date_to_work_with):
     updates_csv = generateCSVFromUpdatesFile(updates_file, files_path, files_path,
                                              DEBUG, log_file)
                                              
-    sys.stdout.write('{}: Finished generating CSV files. Starting generating SQL file for insertion of visibility, routing and updates data into the DB.\n'.format(datetime.now()))
+    sys.stdout.write('{}: Finished generating CSV files for the archive_index and for the updates tables. Starting generating the corresponding SQL file for insertion if this data into the DB.\n'.format(datetime.now()))
     
-    sql_file = '{}/dailyInsertion_{}.sql'.format(files_path, date_to_work_with)
+    sql_file = '{}/dailyInsertion_arch_index_and_updates_{}.sql'.format(files_path, date_to_work_with)
     
     with open(sql_file, 'w') as sql_f:
         sql_f.write("\connect sofia;\n")
-        if len(visibility_csvs) > 0:
-            sql_f.write("copy prefixes (prefix, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[0]))
-            sql_f.write("copy asns (asn, isorigin, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[1]))
-            sql_f.write("copy asns (asn, isorigin, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[2]))
         sql_f.write("copy archive_index (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_bgprib_csv[0]))
         sql_f.write("copy archive_index (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_dmp_csv[0]))
         sql_f.write("copy archive_index (routing_date, extension, file_path) from '{}' WITH (FORMAT csv);\n".format(routing_v6dmp_csv[0]))
@@ -184,11 +165,6 @@ def insertionForDate(date_to_work_with):
     subprocess.call(cmd)
     
     sys.stdout.write('{}: Cleaning up.\n'.format(datetime.now()))
-    
-    if len(visibility_csvs) > 0:
-        sys.stdout.write('{}: Removing visibility CSVs {}.\n'.format(datetime.now(), visibility_csvs))
-        for csv in visibility_csvs:
-            os.remove(csv)
         
     sys.stdout.write('{}: Removing BGPRIB routing CSV {}.\n'.format(datetime.now(), routing_bgprib_csv[0]))
     os.remove(routing_bgprib_csv[0])
@@ -199,6 +175,51 @@ def insertionForDate(date_to_work_with):
     if updates_csv != '':
         sys.stdout.write('{}: Removing updates CSV {}.\n'.format(datetime.now(), updates_csv))
         os.remove(updates_csv)
+    sys.stdout.write('{}: Removing SQL file {}.\n'.format(datetime.now(), sql_file))
+    os.remove(sql_file)
+    
+    # Now we can insert visibility data, using the data we already inserted into the archive index table
+    sys.stdout.write('{}: Starting generating CSV files for insertion of visibility data into the prefixes and asns tables.\n'.format(datetime.now()))
+    
+    routing_file = BGPDataHandler.getRoutingFileForDate(date_to_work_with,
+                                                        files_path,
+                                                        DEBUG)
+
+    visibility_csvs = []
+    
+    if routing_file != '':
+        dates_ready, visibility_csvs = generateFilesFromRoutingFile(files_path,
+                                                                   routing_file,
+                                                                   bgp_handler,
+                                                                   'visibility',
+                                                                   dict(), log_file,
+                                                                   archive_folder,
+                                                                   DEBUG)
+                                                                   
+    if len(visibility_csvs) == 0:
+        sys.stderr.write('{}: No CSV files for insertion of visibility data were generated. Aborting.\n'.format(datetime.now()))
+        sys.exit(-1)
+        
+    sys.stdout.write('{}: Finished generating CSV files for insertion of visibility data into the DB. Starting generating the corresponding SQL file.\n'.format(datetime.now()))
+    
+    sql_file = '{}/dailyInsertion_visibility_{}.sql'.format(files_path, date_to_work_with)
+    
+    with open(sql_file, 'w') as sql_f:
+        sql_f.write("\connect sofia;\n")
+        sql_f.write("copy prefixes (prefix, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[0]))
+        sql_f.write("copy asns (asn, isorigin, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[1]))
+        sql_f.write("copy asns (asn, isorigin, dateseen) from '{}' WITH (FORMAT csv);\n".format(visibility_csvs[2]))
+
+    sys.stdout.write('{}: SQL file generated. Inserting into the DB.\n'.format(datetime.now()))
+    
+    cmd = shlex.split('psql -U postgres -f {}'.format(sql_file))
+    subprocess.call(cmd)
+    
+    sys.stdout.write('{}: Cleaning up.\n'.format(datetime.now()))
+    
+    sys.stdout.write('{}: Removing visibility CSVs {}.\n'.format(datetime.now(), visibility_csvs))
+    for csv in visibility_csvs:
+        os.remove(csv)
     sys.stdout.write('{}: Removing SQL file {}.\n'.format(datetime.now(), sql_file))
     os.remove(sql_file)
     
