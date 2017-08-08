@@ -64,31 +64,44 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
 
         # TODO Remove after debugging
         delegatedNetworks = delegatedNetworks[0:10]
-
-        pref_parts_size = int(round(float(delegatedNetworks.shape[0])/numOfProcs))
-
-        argsDicts = []
-        pref_pos = 0
+        prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
+        partialPrefixStats({'routingStatsObj' : routingStatsObj,
+                            'bgp_handler' : bgp_handler,
+                            'files_path' : files_path,
+                            'delegatedNetworks' : delegatedNetworks,
+                            'prefixes_stats_file' : prefixes_stats_file,
+                            'TEMPORAL_DATA' : TEMPORAL_DATA,
+                            'es_host' : es_host,
+                            'esImporter' : esImporter})
         
-        for i in range(numOfProcs):
-            partial_pref_stats_file = '{}_prefixes_{}.csv'.format(file_name, i)
-            if not os.path.exists(partial_pref_stats_file):
-                routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref,
-                                                     partial_pref_stats_file)
-    
-                argsDicts.append({'routingStatsObj' : routingStatsObj,
-                                    'bgp_handler' : bgp_handler,
-                                    'files_path' : files_path,
-                                    'delegatedNetworks' : delegatedNetworks[pref_pos:pref_pos+pref_parts_size],
-                                    'prefixes_stats_file' : partial_pref_stats_file,
-                                    'TEMPORAL_DATA' : TEMPORAL_DATA,
-                                    'es_host' : es_host,
-                                    'esImporter' : esImporter})
-
-                pref_pos = pref_pos + pref_parts_size
-                
-        with Pool(numOfProcs) as pref_pool:
-            pref_pool.map(partialPrefixStats, argsDicts)
+# TODO Fix parallelization
+        # It currently throws: AttributeError: __exit__
+        # at line --> with Pool(numOfProcs) as pref_pool:
+        
+#        pref_parts_size = int(round(float(delegatedNetworks.shape[0])/numOfProcs))
+#
+#        argsDicts = []
+#        pref_pos = 0
+#        
+#        for i in range(numOfProcs):
+#            partial_pref_stats_file = '{}_prefixes_{}.csv'.format(file_name, i)
+#            if not os.path.exists(partial_pref_stats_file):
+#                routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref,
+#                                                     partial_pref_stats_file)
+#    
+#                argsDicts.append({'routingStatsObj' : routingStatsObj,
+#                                    'bgp_handler' : bgp_handler,
+#                                    'files_path' : files_path,
+#                                    'delegatedNetworks' : delegatedNetworks[pref_pos:pref_pos+pref_parts_size],
+#                                    'prefixes_stats_file' : partial_pref_stats_file,
+#                                    'TEMPORAL_DATA' : TEMPORAL_DATA,
+#                                    'es_host' : es_host,
+#                                    'esImporter' : esImporter})
+#
+#                pref_pos = pref_pos + pref_parts_size
+#                
+#        with Pool(numOfProcs) as pref_pool:
+#            pref_pool.map(partialPrefixStats, argsDicts)
             
         sys.exit(0)
 
@@ -99,31 +112,41 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
     
         # TODO Remove after debugging
         expanded_del_asns_df = expanded_del_asns_df[0:10]
-        
-        ases_parts_size = int(round(float(expanded_del_asns_df.shape[0])/numOfProcs))
-    
-        argsDicts = []
-        ases_pos = 0
-        
-        for i in range(numOfProcs):
-            partial_ases_stats_file = '{}_ases_{}.csv'.format(file_name, i)
-            if not os.path.exists(partial_ases_stats_file):
-                routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_ases,
-                                                     partial_ases_stats_file)
-                
-                argsDicts.append({'routingStatsObj' : routingStatsObj,
-                                     'bgp_handler' : bgp_handler,
-                                     'expanded_ases_df' : expanded_del_asns_df[ases_pos:ases_pos+ases_parts_size],
-                                     'ases_stats_file' : partial_ases_stats_file,
-                                     'TEMPORAL_DATA' : TEMPORAL_DATA,
-                                     'dateStr' : dateStr,
-                                     'es_host' : es_host,
-                                     'esImporter' : esImporter})
-                
-                ases_pos = ases_pos + ases_parts_size
+        ases_stats_file = '{}_ases.csv'.format(file_name)
+        partialASesStats({'routingStatsObj' : routingStatsObj,
+                         'bgp_handler' : bgp_handler,
+                         'expanded_ases_df' : expanded_del_asns_df,
+                         'ases_stats_file' : ases_stats_file,
+                         'TEMPORAL_DATA' : TEMPORAL_DATA,
+                         'dateStr' : dateStr,
+                         'es_host' : es_host,
+                         'esImporter' : esImporter})
 
-        with Pool(numOfProcs) as ases_pool:
-            ases_pool.map(partialASesStats, argsDicts)
+# TODO Fix parallelization       
+#        ases_parts_size = int(round(float(expanded_del_asns_df.shape[0])/numOfProcs))
+#    
+#        argsDicts = []
+#        ases_pos = 0
+#        
+#        for i in range(numOfProcs):
+#            partial_ases_stats_file = '{}_ases_{}.csv'.format(file_name, i)
+#            if not os.path.exists(partial_ases_stats_file):
+#                routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_ases,
+#                                                     partial_ases_stats_file)
+#                
+#                argsDicts.append({'routingStatsObj' : routingStatsObj,
+#                                     'bgp_handler' : bgp_handler,
+#                                     'expanded_ases_df' : expanded_del_asns_df[ases_pos:ases_pos+ases_parts_size],
+#                                     'ases_stats_file' : partial_ases_stats_file,
+#                                     'TEMPORAL_DATA' : TEMPORAL_DATA,
+#                                     'dateStr' : dateStr,
+#                                     'es_host' : es_host,
+#                                     'esImporter' : esImporter})
+#                
+#                ases_pos = ases_pos + ases_parts_size
+#
+#        with Pool(numOfProcs) as ases_pool:
+#            ases_pool.map(partialASesStats, argsDicts)
             
         os.waitpid(fork_pid, 0)
         
