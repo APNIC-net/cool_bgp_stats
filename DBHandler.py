@@ -311,7 +311,7 @@ class DBHandler:
     def getPathsToRoutingFilesForPeriod(self, startDate, endDate):
         try:
             self.cur.execute("""SELECT routing_date, extension, file_path from archive_index 
-                                where routing_date between '%s'::date and '%s'::date""",
+                                where routing_date between %s and %s""",
                                 (startDate, endDate,))
                                 
             result_list = self.cur.fetchall()
