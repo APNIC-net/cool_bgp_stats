@@ -82,7 +82,7 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
         argsDicts = []
         pref_pos = 0
         
-        for i in range(numOfProcs):
+        for i in range(numOfProcs+1):
             partial_pref_stats_file = '{}_prefixes_{}.csv'.format(file_name, i)
             if not os.path.exists(partial_pref_stats_file):
                 routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref,
@@ -128,7 +128,7 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
         argsDicts = []
         ases_pos = 0
         
-        for i in range(numOfProcs):
+        for i in range(numOfProcs+1):
             partial_ases_stats_file = '{}_ases_{}.csv'.format(file_name, i)
             if not os.path.exists(partial_ases_stats_file):
                 routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_ases,
