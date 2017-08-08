@@ -65,7 +65,7 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
         # TODO Remove after debugging
         delegatedNetworks = delegatedNetworks[0:10]
 
-        pref_parts_size = round(float(delegatedNetworks.shape[0])/numOfProcs)
+        pref_parts_size = int(round(float(delegatedNetworks.shape[0])/numOfProcs))
 
         argsDicts = []
         pref_pos = 0
@@ -100,7 +100,7 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
         # TODO Remove after debugging
         expanded_del_asns_df = expanded_del_asns_df[0:10]
         
-        ases_parts_size = round(float(expanded_del_asns_df.shape[0])/numOfProcs)
+        ases_parts_size = int(round(float(expanded_del_asns_df.shape[0])/numOfProcs))
     
         argsDicts = []
         ases_pos = 0
