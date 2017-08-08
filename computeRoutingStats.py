@@ -1178,7 +1178,7 @@ def main(argv):
                                 (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv4') |\
                                 (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')].reset_index()
 
-        pref_parts_size = round(float(delegatedNetworks.shape[0])/numOfParts)
+        pref_parts_size = int(round(float(delegatedNetworks.shape[0])/numOfParts))
 
         argsDicts = []
         pref_pos = 0
@@ -1208,7 +1208,7 @@ def main(argv):
     else:
         expanded_del_asns_df = routingStatsObj.del_handler.getExpandedASNsDF()
     
-        ases_parts_size = round(float(expanded_del_asns_df.shape[0])/numOfParts)
+        ases_parts_size = int(round(float(expanded_del_asns_df.shape[0])/numOfParts))
     
         argsDicts = []
         ases_pos = 0
