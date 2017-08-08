@@ -333,7 +333,7 @@ class DBHandler:
     def getPathsToRoutingFilesForDate(self, routing_date):
         try:
             self.cur.execute("""SELECT extension, file_path from archive_index 
-                                where routing_date = '%s'::date""", (routing_date,))
+                                where routing_date = %s""", (routing_date,))
                                 
             result_list = self.cur.fetchall()
             
