@@ -72,6 +72,7 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
 #                            'delegatedNetworks' : delegatedNetworks,
 #                            'prefixes_stats_file' : prefixes_stats_file,
 #                            'TEMPORAL_DATA' : TEMPORAL_DATA,
+#                            'dateStr': dateStr,
 #                            'es_host' : es_host,
 #                            'esImporter' : esImporter})
         
@@ -93,6 +94,7 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
                                     'delegatedNetworks' : delegatedNetworks[pref_pos:pref_pos+pref_parts_size],
                                     'prefixes_stats_file' : partial_pref_stats_file,
                                     'TEMPORAL_DATA' : TEMPORAL_DATA,
+                                    'dateStr' : dateStr,
                                     'es_host' : es_host,
                                     'esImporter' : esImporter})
 
