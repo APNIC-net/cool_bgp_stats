@@ -20,6 +20,8 @@ from ElasticSearchImporter import ElasticSearchImporter
 import prefStats_ES_properties
 import ASesStats_ES_properties
 from multiprocessing.pool import Pool
+from contextlib import closing
+
     
 # Function that computes the Levenshtein distance between two AS paths
 # From https://en.wikibooks.org/wiki/Algorithm_Implementation/Strings/Levenshtein_distance#Python
@@ -1200,8 +1202,9 @@ def main(argv):
 
                 pref_pos = pref_pos + pref_parts_size
                 
-        with Pool(numOfParts) as pref_pool:
+        with closing(Pool(numOfParts)) as pref_pool:
             pref_pool.map(partialPrefixStats, argsDicts)
+            pref_pool.terminate()
             
         sys.exit(0)
 
@@ -1230,8 +1233,9 @@ def main(argv):
                 
                 ases_pos = ases_pos + ases_parts_size
 
-        with Pool(numOfParts) as ases_pool:
+        with closing(Pool(numOfParts)) as ases_pool:
             ases_pool.map(partialASesStats, argsDicts)
+            ases_pool.terminate()
             
         os.waitpid(fork_pid, 0)
 
