@@ -217,9 +217,10 @@ def main(argv):
     del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,
                                    final_existing_date, KEEP)
 
-    del_handler.delegated_df = del_handler.delegated_df[del_handler.delegated_df['date'] <= endDate_date] 
+    if not del_handler.delegated_df.empty:
+        del_handler.delegated_df = del_handler.delegated_df[del_handler.delegated_df['date'] <= endDate_date] 
     
-    if startDate_date is not None:
+    if startDate_date is not None and not del_handler.delegated_df.empty:
         del_handler.delegated_df = del_handler.delegated_df[del_handler.delegated_df['date'] >= startDate_date]
         
     if not del_handler.delegated_df.empty:
