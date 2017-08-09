@@ -26,12 +26,11 @@ from contextlib import closing
 
 
 def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
-                   bgp_handler, del_handler, es_host):
+                   TEMPORAL_DATA, bgp_handler, del_handler, es_host):
 
     dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
     dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
     file_name = '{}/RoutingStats/RoutingStats_{}'.format(files_path, dateStr)
-    TEMPORAL_DATA = True
     routingStatsObj = RoutingStats(files_path, TEMPORAL_DATA)
                                         
     if es_host != '':
@@ -153,7 +152,7 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
         
 def computeStatsForDate(date_to_work_with, numOfProcs, files_path, routing_file,
                         del_handler, ROUTING, STABILITY, DEAGG_PROB, BulkWHOIS,
-                        ELASTIC):
+                        TEMPORAL_DATA, ELASTIC):
     DEBUG = False
     
     sys.stdout.write('{}: Initializing variables and classes.\n'.format(datetime.now()))
@@ -234,13 +233,15 @@ def computeStatsForDate(date_to_work_with, numOfProcs, files_path, routing_file,
                 
         else:
             computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG,
-                           BulkWHOIS, bgp_handler, del_handler, es_host)
+                           BulkWHOIS, TEMPORAL_DATA, bgp_handler, del_handler,
+                           es_host)
             
             os.waitpid(fork1_pid, 0)
 
     elif ROUTING:
         computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG,
-                       BulkWHOIS, bgp_handler, del_handler, es_host)
+                       BulkWHOIS, TEMPORAL_DATA, bgp_handler, del_handler,
+                       es_host)
     
     elif STABILITY and DEAGG_PROB:
         fork2_pid = os.fork()
@@ -277,11 +278,12 @@ def main(argv):
     STABILITY = False
     DEAGG_PROB = False
     ELASTIC = False
+    TEMPORAL_DATA = False
 
     try:
-        opts, args = getopt.getopt(argv,"hRSDE", [])
+        opts, args = getopt.getopt(argv,"hRSDET", [])
     except getopt.GetoptError:
-        print 'Usage: {} -h | [-n <num of processes>] [-R] [-S] [-D] [-E]'.format(sys.argv[0])
+        print 'Usage: {} -h | [-n <num of processes>] [-R] [-T] [-S] [-D] [-E]'.format(sys.argv[0])
         print "The data from the files in /data/wattle/bgplog/YYYY/MM/DD will be inserted into the DB, being YYYYMMDD the date of today"
         print "In order to be sure all the needed data is available, statistics will be computed for yesterday."
         print "n = Number of parallel processes for computation of routing stats."
@@ -290,6 +292,7 @@ def main(argv):
         print "Finally, each of these subprocesses will be divided into a pool of n threads in order to compute the stats in parallel for n subsets of prefixes/ASes."
         print "Therefore, if the three flags R, S and D are used there will be (2 + 2*n) parallel processes in total."
         print "R: Routing. Compute statistics about routing (for prefixes and ASes)."
+        print "T: Usage in Time. If this flag is used, statistics about (routing) usage in time will be computed."
         print "S: Stability. Compute statistics about stability (update rate)."
         print "D: Deaggregation probability. Compute statistics about the probability of deaggregation for each routed prefix."
         print "E: elasticSearch. Save computed stats to ElasicSearch engine in twerp.rand.apnic.net"
@@ -300,6 +303,7 @@ def main(argv):
             print "The data from the files in /data/wattle/bgplog/YYYY/MM/DD will be inserted into the DB, being YYYYMMDD the date of today"
             print "In order to be sure all the needed data is available, statistics will be computed for yesterday."
             print "R: Routing. Compute statistics about routing (for prefixes and ASes)."
+            print "T: Usage in Time. If this flag is used, statistics about (routing) usage in time will be computed."
             print "S: Stability. Compute statistics about stability (update rate)."
             print "D: Deaggregation probability. Compute statistics about the probability of deaggregation for each routed prefix."
             print "E: elasticSearch. Save computed stats to ElasicSearch engine in twerp.rand.apnic.net"
@@ -312,6 +316,8 @@ def main(argv):
                 sys.exit(-1)
         elif opt == '-R':
             ROUTING = True
+        elif opt == '-T':
+            TEMPORAL_DATA = True
         elif opt == '-S':
             STABILITY = True
         elif opt == '-D':
@@ -343,7 +349,8 @@ def main(argv):
     # When this function is called by pastDatesComputation, it is called with
     # BulkWHOIS = False
     computeStatsForDate(yesterday, numOfProcs, files_path, '', del_handler,
-                        ROUTING, STABILITY, DEAGG_PROB, True, ELASTIC)
+                        ROUTING, STABILITY, DEAGG_PROB, True, TEMPORAL_DATA,
+                        ELASTIC)
 
 if __name__ == "__main__":
     main(sys.argv[1:])

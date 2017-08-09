@@ -54,11 +54,12 @@ def main(argv):
     ELASTIC = False
     stats_date = None
     numOfProcs = 1
+    TEMPORAL_DATA = False
 
     try:
-        opts, args = getopt.getopt(argv,"hn:y:d:N:RSDE", ['procNumber=', 'year=', 'date=', 'numOfProcs=',])
+        opts, args = getopt.getopt(argv,"hn:y:d:N:RTSDE", ['procNumber=', 'year=', 'date=', 'numOfProcs=',])
     except getopt.GetoptError:
-        print 'Usage: {} -h | (-n <process number> | -y <year> | -d <date>) [-N <number of processes>] [-R] [-S] [-D] [-E]'.format(sys.argv[0])
+        print 'Usage: {} -h | (-n <process number> | -y <year> | -d <date>) [-N <number of processes>] [-R] [-T] [-S] [-D] [-E]'.format(sys.argv[0])
         print "n: Process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
         print "y: Year. Year for which you want the stats to be computed."
         print "d: date: Date for which you want the stats to be computed. Format: YYYYMMDD"
@@ -68,6 +69,7 @@ def main(argv):
         print "Finally, each of these subprocesses will be divided into a pool of n threads in order to compute the stats in parallel for n subsets of prefixes/ASes."
         print "Therefore, if the three flags R, S and D are used there will be (2 + 2*n) parallel processes in total."
         print "R: Routing stats. Use this option if you want the routing stats to be computed."
+        print "T: Usage in Time. If this flag is used, statistics about (routing) usage in time will be computed."
         print "S: Stability stats. Use this option if you want the stats about update rates to be computed."
         print "D: Deaggregation probability stats. Use this option if you want the stats about probability of deaggregation  to be computed."
         print "E: ElasticSearch. Save computed stats to ElasicSearch engine in twerp.rand.apnic.net"
@@ -75,7 +77,7 @@ def main(argv):
 
     for opt, arg in opts:
         if opt == '-h':
-            print 'Usage: {} -h | (-n <process number> | -y <year> | -d <date>) [-N <number of processes>] [-R] [-S] [-D] [-E]'.format(sys.argv[0])
+            print 'Usage: {} -h | (-n <process number> | -y <year> | -d <date>) [-N <number of processes>] [-R] [-T] [-S] [-D] [-E]'.format(sys.argv[0])
             print "n: Provide a process number from 1 to 5, which allows the script to compute stats for a subset of the past dates."
             print "y: Year. Year for which you want the stats to be computed."
             print "d: date: Date for which you want the stats to be computed. Format: YYYYMMDD"
@@ -85,6 +87,7 @@ def main(argv):
             print "Finally, each of these subprocesses will be divided into a pool of n threads in order to compute the stats in parallel for n subsets of prefixes/ASes."
             print "Therefore, if the three flags R, S and D are used there will be (2 + 2*n) parallel processes in total."
             print "R: Routing stats. Use this option if you want the routing stats to be computed."
+            print "T: Usage in Time. If this flag is used, statistics about (routing) usage in time will be computed."
             print "S: Stability stats. Use this option if you want the stats about update rates to be computed."
             print "D: Deaggregation probability stats. Use this option if you want the stats about probability of deaggregation  to be computed."
             print "E: ElasticSearch. Save computed stats to ElasicSearch engine in twerp.rand.apnic.net"
@@ -124,6 +127,8 @@ def main(argv):
                 sys.exit(-1)
         elif opt == '-R':
             ROUTING = True
+        elif opt == '-T':
+            TEMPORAL_DATA = True
         elif opt == '-S':
             STABILITY = True
         elif opt == '-D':
@@ -198,7 +203,7 @@ def main(argv):
         
         computeStatsForDate(past_date, numOfProcs, files_path, routing_file,
                             del_handler, ROUTING, STABILITY, DEAGG_PROB, False,
-                            ELASTIC)
+                            TEMPORAL_DATA, ELASTIC)
         
         # Lo llamamos con BulkWHOIS = False porque no es necesario que cada vez parsee el Bulk WHOIS
         # Las estructuras disponibles van a estar actualizadas porque BulkWHOISParser se va a instanciar a diario
