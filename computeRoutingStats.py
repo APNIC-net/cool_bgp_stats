@@ -427,7 +427,7 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
         # We classify the covered prefix based on its relationship
         # its immediately enclosing aggregate advertisement
 
-        immAggrPref = net_less_specifics[max[net_less_specifics.keys()]]
+        immAggrPref = net_less_specifics[max(net_less_specifics.keys())]
         immAggrNet = IPNetwork(immAggrPref)
         immAggrOriginASes = bgp_handler.getOriginASesForBlock(immAggrNet)
         immAggrASPaths = bgp_handler.getASpathsForBlock(immAggrNet)
