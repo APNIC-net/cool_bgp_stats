@@ -91,12 +91,12 @@ class DelegatedHandler:
         # Just to verify
         num_rows = len(delegated_df)
         if not num_rows == int(summary_records[summary_records['Type'] == 'All']['count']):
-            print 'THERE\'S SOMETHING WRONG!'
+            sys.stderr.write('{}: THERE\'S SOMETHING WRONG!'.format(datetime.datetime.now()))
     
         for r in res_types:
             total = len(delegated_df[delegated_df['resource_type'] == r])
             if not total == int(summary_records[summary_records['Type'] == r]['count']):
-                print 'THERE\'S SOMETHING WRONG WITH THE NUMBER OF %s' % r
+                sys.stderr.write('{}: THERE\'S SOMETHING WRONG WITH THE NUMBER OF {}'.format(datetime.datetime.now(), r))
         
         # Rows for available and reserved space are filtered out as we are not
         # interested in generating stats about this space.
@@ -114,7 +114,7 @@ class DelegatedHandler:
         delegated_df = delegated_df[delegated_df['date'] < today]
             
         if delegated_df.empty:
-            print 'Data Frame is empty after aplying filters!\n'
+            sys.stdout.write('{}: Data Frame is empty after aplying filters!\n'.format(datetime.datetime.now()))
             return False
             
         if DEBUG:
@@ -127,7 +127,7 @@ class DelegatedHandler:
         if INCREMENTAL:
             delegated_df = delegated_df[delegated_df['date'] > pd.to_datetime(final_existing_date)]
             if delegated_df.empty:
-                print 'Data Frame is empty after aplying filters!\n'
+                sys.stdout.write('{}: Data Frame is empty after aplying filters!\n'.format(datetime.datetime.now()))
                 return False
             
         delegated_df.ix[pd.isnull(delegated_df.cc), 'cc'] = 'XX'

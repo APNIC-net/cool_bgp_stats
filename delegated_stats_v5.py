@@ -228,14 +228,14 @@ def main(argv):
         computeStatistics(del_handler, stats_file)       
 
         end_time = time()
-        sys.stderr.write("Stats computed successfully!\n")
-        sys.stderr.write("Statistics computation took {} seconds\n".format(end_time-start_time))   
+        sys.stderr.write("{}: Stats computed successfully!\n".format(datetime.now()))
+        sys.stderr.write("{}: Statistics computation took {} seconds\n".format(datetime.now(), end_time-start_time))   
 
         stats_df = pd.read_csv(stats_file, sep = ',')
         json_filename = '{}.json'.format(file_name)
         stats_df.to_json(json_filename, orient='index')
-        sys.stderr.write("Stats saved to JSON file successfully!\n")
-        sys.stderr.write("Files generated:\n{}\nand\n{})\n".format(stats_file, json_filename))
+        sys.stderr.write("{}: Stats saved to JSON file successfully!\n".format(datetime.now()))
+        sys.stderr.write("{}: Files generated:\n{}\nand\n{})\n".format(datetime.now(), stats_file, json_filename))
         
         if host != '':  
             esImporter = ElasticSearchImporter(host)
@@ -263,9 +263,9 @@ def main(argv):
                                                 numOfDocs + plain_df.shape[0])
     
             if dataImported:
-                sys.stderr.write("Stats about delegations for the dates {} saved to ElasticSearch successfully!\n".format(dateStr))
+                sys.stderr.write("{}: Stats about delegations for the dates {} saved to ElasticSearch successfully!\n".format(datetime.now(), dateStr))
             else:
-                sys.stderr.write("Stats about delegations for the dates {} could not be saved to ElasticSearch.\n".format(dateStr))
+                sys.stderr.write("{}: Stats about delegations for the dates {} could not be saved to ElasticSearch.\n".format(datetime.now(), dateStr))
             
 if __name__ == "__main__":
     main(sys.argv[1:])
