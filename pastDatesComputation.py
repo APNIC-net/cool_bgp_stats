@@ -161,7 +161,7 @@ def main(argv):
     
     DEBUG = False
     EXTENDED = True
-    del_file = '{}/delegated_extended_{}.txt'.format(date.today())
+    del_file = '{}/delegated_extended_{}.txt'.format(files_path, date.today())
     INCREMENTAL = False
     final_existing_date = ''
     KEEP = False
