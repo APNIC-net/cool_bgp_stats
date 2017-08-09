@@ -524,7 +524,7 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
         statsForPrefix['opaque_id'] = prefix_row['opaque_id']
         statsForPrefix['cc'] = prefix_row['cc']
         statsForPrefix['region'] = prefix_row['region']
-        statsForPrefix['routing_date'] = str(bgp_handler.routingDate)
+        statsForPrefix['routing_date'] = bgp_handler.routingDate
 
         delNetwork = IPNetwork(prefix)
         
@@ -782,7 +782,7 @@ def computeASesStats(routingStatsObj, bgp_handler, expanded_del_asns_df,
         statsForAS['region'] = expanded_del_asns_df.ix[i]['region']
         del_date = expanded_del_asns_df.ix[i]['date'].to_pydatetime().date()
         statsForAS['del_date'] = del_date
-        statsForAS['routing_date'] = str(bgp_handler.routingDate)
+        statsForAS['routing_date'] = bgp_handler.routingDate
         
         # We comment this line out as the URL to download CAIDA's AS relationships
         # dataset does not always work. It is not conceived to be automatically
@@ -818,49 +818,48 @@ def computeASesStats(routingStatsObj, bgp_handler, expanded_del_asns_df,
             # or as a middle AS in the BGP routing table being analyzed
             first_seen = db_handler.getDateASNFirstSeen(asn)
                         
-            if first_seen is not None:
-                statsForAS['UsageLatency'] = (first_seen-del_date).days + 1
-            else:
+            if first_seen is None:
                 statsForAS['UsageLatency'] = float('inf')               
-                
-            # History of Activity
-            periodsActive = db_handler.getPeriodsASNSeen(asn)
-            numOfPeriods = len(periodsActive)
-                
-            if numOfPeriods > 0:
-                last_seen = db_handler.getDateASNLastSeen(asn)
-                statsForAS['lastSeen'] = last_seen
-                statsForAS['isDead'] = ((bgp_handler.routingDate-last_seen).days > 365)
-                
-                daysUsed = (last_seen-first_seen).days + 1
-                daysSeen = db_handler.getTotalDaysASNSeen(asn)
+            else:
+                statsForAS['UsageLatency'] = (first_seen-del_date).days + 1
+                # History of Activity
+                periodsActive = db_handler.getPeriodsASNSeen(asn)
+                numOfPeriods = len(periodsActive)
                     
-                # We define the "relative used time" as the percentage of
-                # days the ASN was used from the total number of days
-                # the ASN could have been used (Usable time)
-                statsForAS['relUsedTime'] = 100*float(daysUsed)/daysUsable
-                
-                # We define the "effective usage" as the percentage of days
-                # the ASN was seen from the number of days the ASN was used
-                statsForAS['effectiveUsage'] = 100*float(daysSeen)/daysUsed
-                
-                # We define the "time fragmentation" as the average number
-                # of periods in a 60 days (aprox 2 months) time lapse.
-                # We chose to use 60 days to be coherent with the
-                # considered interval of time used to analyze visibility
-                # stability in [1]
-                statsForAS['timeFragmentation'] = numOfPeriods/(float(daysUsed)/60)
-                                                
-                periodsLengths = []
-                for period in periodsActive:
-                    periodsLengths.append((period[1] - period[0]).days + 1)
-                
-                if len(periodsLengths) > 0:
-                    periodsLengths = np.array(periodsLengths)
-                    statsForAS['avgPeriodLength'] = periodsLengths.mean()
-                    statsForAS['stdPeriodLength'] = periodsLengths.std()
-                    statsForAS['minPeriodLength'] = periodsLengths.min()
-                    statsForAS['maxPeriodLength'] = periodsLengths.max()
+                if numOfPeriods > 0:
+                    last_seen = db_handler.getDateASNLastSeen(asn)
+                    statsForAS['lastSeen'] = last_seen
+                    statsForAS['isDead'] = ((bgp_handler.routingDate-last_seen).days > 365)
+                    
+                    daysUsed = (last_seen-first_seen).days + 1
+                    daysSeen = db_handler.getTotalDaysASNSeen(asn)
+                        
+                    # We define the "relative used time" as the percentage of
+                    # days the ASN was used from the total number of days
+                    # the ASN could have been used (Usable time)
+                    statsForAS['relUsedTime'] = 100*float(daysUsed)/daysUsable
+                    
+                    # We define the "effective usage" as the percentage of days
+                    # the ASN was seen from the number of days the ASN was used
+                    statsForAS['effectiveUsage'] = 100*float(daysSeen)/daysUsed
+                    
+                    # We define the "time fragmentation" as the average number
+                    # of periods in a 60 days (aprox 2 months) time lapse.
+                    # We chose to use 60 days to be coherent with the
+                    # considered interval of time used to analyze visibility
+                    # stability in [1]
+                    statsForAS['timeFragmentation'] = numOfPeriods/(float(daysUsed)/60)
+                                                    
+                    periodsLengths = []
+                    for period in periodsActive:
+                        periodsLengths.append((period[1] - period[0]).days + 1)
+                    
+                    if len(periodsLengths) > 0:
+                        periodsLengths = np.array(periodsLengths)
+                        statsForAS['avgPeriodLength'] = periodsLengths.mean()
+                        statsForAS['stdPeriodLength'] = periodsLengths.std()
+                        statsForAS['minPeriodLength'] = periodsLengths.min()
+                        statsForAS['maxPeriodLength'] = periodsLengths.max()
 
         writeStatsLineToFile(statsForAS, routingStatsObj.allVar_ases, stats_filename)
         
