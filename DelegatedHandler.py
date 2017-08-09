@@ -19,7 +19,8 @@ class DelegatedHandler:
     delegated_df = pd.DataFrame()
     fullASN_df = pd.DataFrame()    
 
-    def __init__(self, DEBUG, EXTENDED, del_file, startDate, endDate, INCREMENTAL, final_existing_date, KEEP):
+    def __init__(self, DEBUG, EXTENDED, del_file, INCREMENTAL,
+                 final_existing_date, KEEP):
          
         if EXTENDED:
             download_url = 'ftp://ftp.apnic.net/pub/stats/apnic/delegated-apnic-extended-latest'
@@ -46,13 +47,12 @@ class DelegatedHandler:
                         ]
         
         dataOK = self.getAndTidyData(DEBUG, EXTENDED, download_url, del_file, col_names,
-                                startDate, endDate, INCREMENTAL, final_existing_date,
-                                KEEP)
+                                     INCREMENTAL, final_existing_date, KEEP)
         if dataOK:
             sys.stderr.write("DelegatedHandler instantiated and loaded successfully!\n")
     
     def getAndTidyData(self, DEBUG, EXTENDED, download_url, del_file, col_names,\
-                        startDate, endDate, INCREMENTAL, final_existing_date, KEEP):
+                        INCREMENTAL, final_existing_date, KEEP):
                             
         summary_records = pd.DataFrame()
         AP_regions = ['Eastern Asia', 'Oceania', 'Southern Asia', 'South-Eastern Asia']
@@ -112,15 +112,6 @@ class DelegatedHandler:
         # The delegations made today will be considered tomorrow :)
         today = datetime.date.today()
         delegated_df = delegated_df[delegated_df['date'] < today]
-        
-        
-        if startDate != '':  
-            delegated_df = delegated_df[delegated_df['date'] >= startDate]
-        
-        # endDate will never be null. The script that instantiates this class
-        # assigns the date of today to endDate if an endDate is not provided
-        # by the user.
-        delegated_df = delegated_df[delegated_df['date'] <= endDate]            
             
         if delegated_df.empty:
             print 'Data Frame is empty after aplying filters!\n'

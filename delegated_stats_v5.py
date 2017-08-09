@@ -118,7 +118,9 @@ def main(argv):
             host = arg
         else:
             assert False, 'Unhandled option'
-            
+    
+    startDate_date = None
+    
     if startDate != '':
         try:
             if len(startDate) == 4:
@@ -212,9 +214,13 @@ def main(argv):
         with open(stats_file, 'w') as csv_file:
             csv_file.write('GeographicArea,ResourceType,Status,Organization,Date,NumOfDelegations,NumOfResources,IPCount,IPSpace\n')
         
-    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, startDate_date,
-                                   endDate_date, INCREMENTAL,
+    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,
                                    final_existing_date, KEEP)
+
+    del_handler.delegated_df = del_handler.delegated_df[del_handler.delegated_df['date'] <= endDate_date] 
+    
+    if startDate_date is not None:
+        del_handler.delegated_df = del_handler.delegated_df[del_handler.delegated_df['date'] >= startDate_date]
         
     if not del_handler.delegated_df.empty:
         start_time = time()

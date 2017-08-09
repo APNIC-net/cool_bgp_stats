@@ -14,6 +14,7 @@ import os, sys, getopt
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 from datetime import date, datetime, timedelta
 from dailyInsertion import insertionForDate
+from DelegatedHandler import DelegatedHandler
 from BulkWHOISParser import BulkWHOISParser
 from BGPDataHandler import BGPDataHandler
 from RoutingStats import RoutingStats
@@ -25,18 +26,13 @@ from contextlib import closing
 
 
 def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
-                   bgp_handler, es_host):
-    KEEP = False
-    EXTENDED = True
-    del_file = '{}/extended_apnic_{}.txt'.format(files_path, date.today())
-    startDate_date = ''
+                   bgp_handler, del_handler, es_host):
+
     dateStr = 'Delegated_BEFORE{}'.format(date_to_work_with)
     dateStr = '{}_AsOf{}'.format(dateStr, date_to_work_with)
     file_name = '{}/RoutingStats/RoutingStats_{}'.format(files_path, dateStr)
     TEMPORAL_DATA = True
-    routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
-                                        del_file, startDate_date, date_to_work_with,
-                                        date_to_work_with, TEMPORAL_DATA)
+    routingStatsObj = RoutingStats(files_path, TEMPORAL_DATA)
                                         
     if es_host != '':
         esImporter = ElasticSearchImporter(es_host)
@@ -59,9 +55,9 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
         # we compute stats for prefixes
         sys.stdout.write('{}: Starting to compute routing stats for prefixes.\n'.format(datetime.now()))
         
-        delegatedNetworks = routingStatsObj.del_handler.delegated_df[\
-                                (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv4') |\
-                                (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')].reset_index()
+        delegatedNetworks = del_handler.delegated_df[\
+                                (del_handler.delegated_df['resource_type'] == 'ipv4') |\
+                                (del_handler.delegated_df['resource_type'] == 'ipv6')].reset_index()
 
         # TODO Remove after debugging
         delegatedNetworks = delegatedNetworks[0:10]
@@ -92,6 +88,7 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
                                     'bgp_handler' : bgp_handler,
                                     'files_path' : files_path,
                                     'delegatedNetworks' : delegatedNetworks[pref_pos:pref_pos+pref_parts_size],
+                                    'fullASN_df' : del_handler.fullASN_df,
                                     'prefixes_stats_file' : partial_pref_stats_file,
                                     'TEMPORAL_DATA' : TEMPORAL_DATA,
                                     'dateStr' : dateStr,
@@ -109,7 +106,7 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
     else:
         # If we are in the parent process of the third fork,
         # we compute stats for ASes
-        expanded_del_asns_df = routingStatsObj.del_handler.getExpandedASNsDF()
+        expanded_del_asns_df = del_handler.getExpandedASNsDF()
     
         # TODO Remove after debugging
         expanded_del_asns_df = expanded_del_asns_df[0:10]
@@ -154,7 +151,8 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
         
         
 def computeStatsForDate(date_to_work_with, numOfProcs, files_path, routing_file,
-                        ROUTING, STABILITY, DEAGG_PROB, BulkWHOIS, ELASTIC):
+                        del_handler, ROUTING, STABILITY, DEAGG_PROB, BulkWHOIS,
+                        ELASTIC):
     DEBUG = False
     
     sys.stdout.write('{}: Initializing variables and classes.\n'.format(datetime.now()))
@@ -235,13 +233,13 @@ def computeStatsForDate(date_to_work_with, numOfProcs, files_path, routing_file,
                 
         else:
             computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG,
-                           BulkWHOIS, bgp_handler, es_host)
+                           BulkWHOIS, bgp_handler, del_handler, es_host)
             
             os.waitpid(fork1_pid, 0)
 
     elif ROUTING:
         computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG,
-                       BulkWHOIS, bgp_handler, es_host)
+                       BulkWHOIS, bgp_handler, del_handler, es_host)
     
     elif STABILITY and DEAGG_PROB:
         fork2_pid = os.fork()
@@ -325,12 +323,25 @@ def main(argv):
     insertionForDate(date.today())
 
     files_path = '/home/sofia/BGP_stats_files'
+    
+    yesterday = date.today() - timedelta(1)
+    
+    DEBUG = False
+    EXTENDED = True
+    del_file = '{}/delegated_extended_apnic_{}.txt'.format(files_path, date.today())
+    INCREMENTAL = False
+    final_existing_date = ''
+    KEEP = False
+    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,
+                                   final_existing_date, KEEP)
+                                   
+    del_handler.delegated_df = del_handler.delegated_df[del_handler.delegated_df['date'] <= yesterday] 
 
     # We call this function with BulkWHOIS = True because we want the Bulk WHOIS
     # data to be updated daily.
     # When this function is called by pastDatesComputation, it is called with
     # BulkWHOIS = False
-    computeStatsForDate(date.today() - timedelta(1), numOfProcs, files_path, '',
+    computeStatsForDate(yesterday, numOfProcs, files_path, '', del_handler,
                         ROUTING, STABILITY, DEAGG_PROB, True, ELASTIC)
 
 if __name__ == "__main__":

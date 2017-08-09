@@ -10,6 +10,7 @@ import sys, os, getopt
 from datetime import date, datetime, timedelta
 from dailyExecution import computeStatsForDate
 from BGPDataHandler import BGPDataHandler
+from DelegatedHandler import DelegatedHandler
 
 yearsForProcNums = {1:[2007, 2008, 2009], 2:[2010, 2011], 3:[2012, 2013],
                         4:[2014, 2015], 5:[2016, 2017]}
@@ -158,6 +159,17 @@ def main(argv):
     readables_folder = '/home/sofia/BGP_stats_files/hist_part{}'.format(proc_num)
     files_path = '/home/sofia/BGP_stats_files'
     
+    DEBUG = False
+    EXTENDED = True
+    del_file = '{}/delegated_extended_{}.txt'.format(date.today())
+    INCREMENTAL = False
+    final_existing_date = ''
+    KEEP = False
+    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,
+                                   final_existing_date, KEEP)
+                                   
+    original_delegated_df = del_handler.delegated_df.copy(deep=True)
+    
     for past_date in dates_set:
         sys.stdout.write("{}: Starting to compute stats for {}\n".format(datetime.now(), past_date))
         routing_file = ''
@@ -182,8 +194,11 @@ def main(argv):
             
             sys.stdout.write('{}: Working with routing file {}\n'.format(datetime.now(), routing_file))
     
+        del_handler.delegated_df = original_delegated_df[original_delegated_df['date'] <= past_date]
+        
         computeStatsForDate(past_date, numOfProcs, files_path, routing_file,
-                            ROUTING, STABILITY, DEAGG_PROB, False, ELASTIC)
+                            del_handler, ROUTING, STABILITY, DEAGG_PROB, False,
+                            ELASTIC)
         
         # Lo llamamos con BulkWHOIS = False porque no es necesario que cada vez parsee el Bulk WHOIS
         # Las estructuras disponibles van a estar actualizadas porque BulkWHOISParser se va a instanciar a diario

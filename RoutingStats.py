@@ -8,8 +8,6 @@ import os, bz2
 os.chdir(os.path.dirname(os.path.realpath(__file__)))
 #Just for DEBUG
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
-from DelegatedHandler import DelegatedHandler
-from DBHandler import DBHandler
 from OrgHeuristics import OrgHeuristics
 from get_file import get_file
 import pandas as pd
@@ -17,17 +15,9 @@ import numpy as np
 
 class RoutingStats:
     
-    def __init__(self, files_path, DEBUG, KEEP, EXTENDED, del_file,\
-                startDate, endDate, routing_date, TEMPORAL_DATA):
+    def __init__(self, files_path, TEMPORAL_DATA):
         
         self.files_path = files_path
-        
-        self.del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file,
-                                            startDate, endDate, False,
-                                            '', KEEP)
-
-        if TEMPORAL_DATA:
-            self.db_handler = DBHandler(routing_date)
         
         # We just declare the orgHeuristics variable
         # The class will be instantiated the first time it is needed

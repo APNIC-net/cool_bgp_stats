@@ -8,6 +8,8 @@ os.chdir(os.path.dirname(os.path.realpath(__file__)))
 #os.chdir('/Users/sofiasilva/GitHub/cool_bgp_stats')
 from RoutingStats import RoutingStats
 from BGPDataHandler import BGPDataHandler
+from DelegatedHandler import DelegatedHandler
+from DBHandler import DBHandler
 from netaddr import IPSet, IPNetwork
 import pandas as pd
 import numpy as np
@@ -262,12 +264,10 @@ def computeNetworkUsageLatency(prefix, statsForPrefix, db_handler):
     
     return first_seen_intact
 
-def getASNOpaqueID(asn, del_handler):
-    asn_del = del_handler.fullASN_df
-    
-    opaque_id = asn_del[(pd.to_numeric(asn_del['initial_resource']) <= long(asn)) &\
-                            (pd.to_numeric(asn_del['initial_resource'])+\
-                            pd.to_numeric(asn_del['count/prefLen'])>\
+def getASNOpaqueID(asn, fullASN_df):
+    opaque_id = fullASN_df[(pd.to_numeric(fullASN_df['initial_resource']) <= long(asn)) &\
+                            (pd.to_numeric(fullASN_df['initial_resource'])+\
+                            pd.to_numeric(fullASN_df['count/prefLen'])>\
                             long(asn))]['opaque_id'].get_values()
     if len(opaque_id) == 1:
         return opaque_id[0]
@@ -277,14 +277,15 @@ def getASNOpaqueID(asn, del_handler):
     else:
         return 'UNKNOWN'
         
-def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, routingStatsObj):
+def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, routingStatsObj,
+                   fullASN_df):
     nirs_opaque_ids = ['A91A7381', 'A9186214', 'A9162E3D', 'A918EDB2',
                        'A9149F3E', 'A91BDB29', 'A91A560A']
                        
     sameOrgs = True
               
     for blockOriginAS in blockOriginASes:
-        originASorg = getASNOpaqueID(blockOriginAS, routingStatsObj.del_handler)
+        originASorg = getASNOpaqueID(blockOriginAS, fullASN_df)
         if prefix_org in nirs_opaque_ids or\
             originASorg in nirs_opaque_ids:
                 # TODO Pensar si no sería mejor tener una estructura donde
@@ -333,7 +334,7 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
                                         numsOfASPathsList, ASPathLengthsList,
                                         numsOfAnnouncementsList, numsOfWithdrawsList,
                                         levenshteinDists, routingStatsObj,
-                                        bgp_handler, files_path):
+                                        bgp_handler, fullASN_df, files_path):
     
     routedNetwork = IPNetwork(routedPrefix)
 
@@ -389,7 +390,8 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
         statsForPrefix[diffOrg_var] = not checkIfSameOrg(routedPrefix,
                                                             blockOriginASes,
                                                             statsForPrefix['opaque_id'],
-                                                            routingStatsObj)
+                                                            routingStatsObj,
+                                                            fullASN_df)
         
                     
     # Find routed blocks related to the prefix of interest 
@@ -502,7 +504,10 @@ def writeStatsLineToFile(stats_dict, vars_names, stats_filename):
         stats_file.write(line)
 
 def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
-                          stats_filename, files_path, TEMPORAL_DATA):
+                          fullASN_df, stats_filename, files_path, TEMPORAL_DATA):
+                              
+    db_handler = DBHandler(bgp_handler.routingDate)
+    
     for i in delegatedNetworks.index:
         prefix_row = delegatedNetworks.ix[i]
         prefix = '{}/{}'.format(prefix_row['initial_resource'],\
@@ -522,8 +527,8 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
         delNetwork = IPNetwork(prefix)
         
         if TEMPORAL_DATA:
-            first_seen_intact = computeNetworkUsageLatency(prefix, statsForPrefix, routingStatsObj.db_handler)
-            computeNetworkHistoryOfVisibility(delNetwork, statsForPrefix, routingStatsObj.db_handler, first_seen_intact)
+            first_seen_intact = computeNetworkUsageLatency(prefix, statsForPrefix, db_handler)
+            computeNetworkHistoryOfVisibility(delNetwork, statsForPrefix, db_handler, first_seen_intact)
 
         ips_delegated = delNetwork.size 
 
@@ -561,7 +566,7 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
                                                  numsOfWithdrawsLessSpec,
                                                  levenshteinDists,
                                                  routingStatsObj, bgp_handler,
-                                                 files_path)
+                                                 fullASN_df, files_path)
             
             if len(numsOfOriginASesLessSpec) > 0:
                 numsOfOriginASesLessSpec = np.array(numsOfOriginASesLessSpec)
@@ -627,7 +632,7 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
                                                  None, None, None, None,
                                                  levenshteinDists,
                                                  routingStatsObj, bgp_handler,
-                                                 files_path)
+                                                 fullASN_df, files_path)
                 
                 if len(levenshteinDists) > 0:
                     levenshteinDists = np.array(levenshteinDists)
@@ -703,6 +708,7 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
                                                  levenshteinDists,
                                                  routingStatsObj,
                                                  bgp_handler,
+                                                 fullASN_df,
                                                  files_path)
             
             if len(numsOfOriginASesMoreSpec) > 0:
@@ -749,6 +755,9 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
             
         writeStatsLineToFile(statsForPrefix, routingStatsObj.allVar_pref, stats_filename)
         
+    if TEMPORAL_DATA:
+        db_handler.close()
+        
 # This function determines whether the allocated ASNs are active
 # either as middle AS, origin AS or both
 # Returns dictionary with an ASN as key and a dictionary containing:
@@ -756,7 +765,10 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
 # (BGP announcements for which the AS appears in the middle of the AS path)
 # * a numeric variable (numOfPrefixesOriginated) specifying the number of prefixes originated by the AS
 def computeASesStats(routingStatsObj, bgp_handler, expanded_del_asns_df,
-                     stats_filename, TEMPORAL_DATA):        
+                     stats_filename, TEMPORAL_DATA):  
+
+    db_handler = DBHandler(bgp_handler.routingDate)
+    
     for i in expanded_del_asns_df.index:
         statsForAS = routingStatsObj.def_dict_ases.copy()
         
@@ -802,7 +814,7 @@ def computeASesStats(routingStatsObj, bgp_handler, expanded_del_asns_df,
             # We define usage latency of an ASN as the time interval between
             # the delegation date and the first date the ASN is seen as an origin AS
             # or as a middle AS in the BGP routing table being analyzed
-            first_seen = routingStatsObj.db_handler.getDateASNFirstSeen(asn)
+            first_seen = db_handler.getDateASNFirstSeen(asn)
                         
             if first_seen is not None:
                 statsForAS['UsageLatency'] = (first_seen-del_date).days + 1
@@ -810,16 +822,16 @@ def computeASesStats(routingStatsObj, bgp_handler, expanded_del_asns_df,
                 statsForAS['UsageLatency'] = float('inf')               
                 
             # History of Activity
-            periodsActive = routingStatsObj.db_handler.getPeriodsASNSeen(asn)
+            periodsActive = db_handler.getPeriodsASNSeen(asn)
             numOfPeriods = len(periodsActive)
                 
             if numOfPeriods > 0:
-                last_seen = routingStatsObj.db_handler.getDateASNLastSeen(asn)
+                last_seen = db_handler.getDateASNLastSeen(asn)
                 statsForAS['lastSeen'] = last_seen
                 statsForAS['isDead'] = ((bgp_handler.routingDate-last_seen).days > 365)
                 
                 daysUsed = (last_seen-first_seen).days + 1
-                daysSeen = routingStatsObj.db_handler.getTotalDaysASNSeen(asn)
+                daysSeen = db_handler.getTotalDaysASNSeen(asn)
                     
                 # We define the "relative used time" as the percentage of
                 # days the ASN was used from the total number of days
@@ -849,11 +861,15 @@ def computeASesStats(routingStatsObj, bgp_handler, expanded_del_asns_df,
                     statsForAS['maxPeriodLength'] = periodsLengths.max()
 
         writeStatsLineToFile(statsForAS, routingStatsObj.allVar_ases, stats_filename)
+        
+    if TEMPORAL_DATA:
+        db_handler.close()
 
 def partialPrefixStats(argsDict):
     computeAndSavePerPrefixStats(argsDict['routingStatsObj'],
                                  argsDict['bgp_handler'],
                                  argsDict['delegatedNetworks'],
+                                 argsDict['fullASN_df'],
                                  argsDict['prefixes_stats_file'],
                                  argsDict['TEMPORAL_DATA'],
                                  argsDict['files_path'],
@@ -862,12 +878,13 @@ def partialPrefixStats(argsDict):
                                  argsDict['esImporter'])
                                  
 def computeAndSavePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
-                                 prefixes_stats_file, TEMPORAL_DATA, files_path,
-                                 dateStr, es_host, esImporter):
+                                 fullASN_df, prefixes_stats_file, TEMPORAL_DATA,
+                                 files_path, dateStr, es_host, esImporter):
                                      
     start_time = time()    
     computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
-                          prefixes_stats_file, files_path, TEMPORAL_DATA)
+                          fullASN_df, prefixes_stats_file, files_path,
+                          TEMPORAL_DATA)
     end_time = time()
     sys.stderr.write("Stats for prefixes computed successfully!\n")
     sys.stderr.write("Prefixes statistics computation took {} seconds\n".format(end_time-start_time))
@@ -928,10 +945,7 @@ def computeAndSavePerASStats(routingStatsObj, bgp_handler, expanded_ases_df,
                      ases_stats_file, TEMPORAL_DATA)
     end_time = time()
     sys.stderr.write("Stats for ASes computed successfully!\n")
-    sys.stderr.write("ASes statistics computation took {} seconds\n".format(end_time-start_time))   
-
-    if TEMPORAL_DATA:
-        routingStatsObj.db_handler.close()
+    sys.stderr.write("ASes statistics computation took {} seconds\n".format(end_time-start_time))
 
     ases_stats_df = pd.read_csv(ases_stats_file, sep = ',')
     ases_json_filename = '{}.json'.format('.'.join(ases_stats_file.split('.')[:-1]))
@@ -1080,7 +1094,7 @@ def main(argv):
             print 'You must provide a date in the format YYYY or YYYYmm or YYYYmmdd.'
             sys.exit()
     else:
-        startDate_date = ''
+        startDate_date = None
 
     today = date.today()
 
@@ -1145,9 +1159,7 @@ def main(argv):
         file_name = '%s/routing_stats_test_%s' % (files_path, dateStr)
         
     
-    routingStatsObj = RoutingStats(files_path, DEBUG, KEEP, EXTENDED,
-                                    del_file, startDate_date, endDate_date,
-                                    routing_date, TEMPORAL_DATA)
+    routingStatsObj = RoutingStats(files_path, TEMPORAL_DATA)
 
     bgp_handler = BGPDataHandler(DEBUG, files_path)
     
@@ -1170,15 +1182,24 @@ def main(argv):
         esImporter = ElasticSearchImporter(es_host)
     else:
         esImporter = None
+    
+    INCREMENTAL = False
+    final_existing_date = ''
+    del_handler = DelegatedHandler(DEBUG, EXTENDED, del_file, INCREMENTAL,
+                                   final_existing_date, KEEP)
 
-
+    if startDate_date is not None:
+        del_handler.delegated_df = del_handler.delegated_df[del_handler.delegated_df['date'] >= startDate_date]
+    
+    del_handler.delegated_df = del_handler.delegated_df[del_handler.delegated_df['date'] <= endDate_date]
+    
     fork_pid = os.fork()
     
     if fork_pid == 0:
         
-        delegatedNetworks = routingStatsObj.del_handler.delegated_df[\
-                                (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv4') |\
-                                (routingStatsObj.del_handler.delegated_df['resource_type'] == 'ipv6')].reset_index()
+        delegatedNetworks = del_handler.delegated_df[\
+                                (del_handler.delegated_df['resource_type'] == 'ipv4') |\
+                                (del_handler.delegated_df['resource_type'] == 'ipv6')].reset_index()
 
         pref_parts_size = int(round(float(delegatedNetworks.shape[0])/numOfParts))
 
@@ -1195,6 +1216,7 @@ def main(argv):
                                     'bgp_handler' : bgp_handler,
                                     'files_path' : files_path,
                                     'delegatedNetworks' : delegatedNetworks[pref_pos:pref_pos+pref_parts_size],
+                                    'fullASN_df' : del_handler.fullASN_df,
                                     'prefixes_stats_file' : partial_pref_stats_file,
                                     'TEMPORAL_DATA' : TEMPORAL_DATA,
                                     'dateStr': dateStr,
@@ -1210,7 +1232,7 @@ def main(argv):
         sys.exit(0)
 
     else:
-        expanded_del_asns_df = routingStatsObj.del_handler.getExpandedASNsDF()
+        expanded_del_asns_df = del_handler.getExpandedASNsDF()
     
         ases_parts_size = int(round(float(expanded_del_asns_df.shape[0])/numOfParts))
     
