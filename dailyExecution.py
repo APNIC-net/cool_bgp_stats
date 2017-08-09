@@ -61,46 +61,47 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
 
         # TODO Remove after debugging
         delegatedNetworks = delegatedNetworks[0:10]
-#        prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
-#        partialPrefixStats({'routingStatsObj' : routingStatsObj,
-#                            'bgp_handler' : bgp_handler,
-#                            'files_path' : files_path,
-#                            'delegatedNetworks' : delegatedNetworks,
-#                            'prefixes_stats_file' : prefixes_stats_file,
-#                            'TEMPORAL_DATA' : TEMPORAL_DATA,
-#                            'dateStr': dateStr,
-#                            'es_host' : es_host,
-#                            'esImporter' : esImporter})
+        prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
+        partialPrefixStats({'routingStatsObj' : routingStatsObj,
+                            'bgp_handler' : bgp_handler,
+                            'files_path' : files_path,
+                            'delegatedNetworks' : delegatedNetworks,
+                            'fullASN_df' : del_handler.fullASN_df,
+                            'prefixes_stats_file' : prefixes_stats_file,
+                            'TEMPORAL_DATA' : TEMPORAL_DATA,
+                            'dateStr': dateStr,
+                            'es_host' : es_host,
+                            'esImporter' : esImporter})
         
         
-        pref_parts_size = int(round(float(delegatedNetworks.shape[0])/numOfProcs))
-
-        argsDicts = []
-        pref_pos = 0
-        
-        for i in range(numOfProcs+1):
-            partial_pref_stats_file = '{}_prefixes_{}.csv'.format(file_name, i)
-            if not os.path.exists(partial_pref_stats_file):
-                routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref,
-                                                     partial_pref_stats_file)
-    
-                argsDicts.append({'routingStatsObj' : routingStatsObj,
-                                    'bgp_handler' : bgp_handler,
-                                    'files_path' : files_path,
-                                    'delegatedNetworks' : delegatedNetworks[pref_pos:pref_pos+pref_parts_size],
-                                    'fullASN_df' : del_handler.fullASN_df,
-                                    'prefixes_stats_file' : partial_pref_stats_file,
-                                    'TEMPORAL_DATA' : TEMPORAL_DATA,
-                                    'dateStr' : dateStr,
-                                    'es_host' : es_host,
-                                    'esImporter' : esImporter})
-
-                pref_pos = pref_pos + pref_parts_size
-                
-        with closing(Pool(numOfProcs)) as pref_pool:
-            pref_pool.map(partialPrefixStats, argsDicts)
-            pref_pool.terminate()
-            
+#        pref_parts_size = int(round(float(delegatedNetworks.shape[0])/numOfProcs))
+#
+#        argsDicts = []
+#        pref_pos = 0
+#        
+#        for i in range(numOfProcs+1):
+#            partial_pref_stats_file = '{}_prefixes_{}.csv'.format(file_name, i)
+#            if not os.path.exists(partial_pref_stats_file):
+#                routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref,
+#                                                     partial_pref_stats_file)
+#    
+#                argsDicts.append({'routingStatsObj' : routingStatsObj,
+#                                    'bgp_handler' : bgp_handler,
+#                                    'files_path' : files_path,
+#                                    'delegatedNetworks' : delegatedNetworks[pref_pos:pref_pos+pref_parts_size],
+#                                    'fullASN_df' : del_handler.fullASN_df,
+#                                    'prefixes_stats_file' : partial_pref_stats_file,
+#                                    'TEMPORAL_DATA' : TEMPORAL_DATA,
+#                                    'dateStr' : dateStr,
+#                                    'es_host' : es_host,
+#                                    'esImporter' : esImporter})
+#
+#                pref_pos = pref_pos + pref_parts_size
+#                
+#        with closing(Pool(numOfProcs)) as pref_pool:
+#            pref_pool.map(partialPrefixStats, argsDicts)
+#            pref_pool.terminate()
+#            
         sys.exit(0)
 
     else:
