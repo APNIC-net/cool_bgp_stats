@@ -42,32 +42,29 @@ class DBHandler:
         self.conn.close()
 
     def getDateFirstSeen(self, prefix):
-        try:
-            if self.routing_date != '':
-                self.cur.execute("""select dateSeen from prefixes where prefix <<= %s and dateSeen < %s::date order by dateSeen asc limit 1;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
-            else:
-                self.cur.execute("""select dateSeen from prefixes where prefix <<= %s order by dateSeen asc limit 1;""",
-                                 (psycopg2.extras.Inet(prefix),))
+        if self.routing_date != '':
+            self.cur.execute("""select dateSeen from prefixes where prefix <<= %s and dateSeen < %s::date order by dateSeen asc limit 1;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date,))
+        else:
+            self.cur.execute("""select dateSeen from prefixes where prefix <<= %s order by dateSeen asc limit 1;""",
+                             (psycopg2.extras.Inet(prefix),))
 
+        if self.cur.fetchone() is not None:
             return self.cur.fetchone()[0]
-        except:
-            sys.stderr.write("Unable to get the date the prefix {} or any of its fragments were first seen.\n".format(prefix))
+        else:
             return None
             
     def getDateFirstSeenExact(self, prefix):
-        try:
-            if self.routing_date != '':
-                self.cur.execute("""select dateSeen from prefixes where prefix = %s and dateSeen < %s::date order by dateSeen asc limit 1;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
-            else:
-                self.cur.execute("""select dateSeen from prefixes where prefix = %s order by dateSeen asc limit 1;""",
-                                 (psycopg2.extras.Inet(prefix),))
-                                 
+        if self.routing_date != '':
+            self.cur.execute("""select dateSeen from prefixes where prefix = %s and dateSeen < %s::date order by dateSeen asc limit 1;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date,))
+        else:
+            self.cur.execute("""select dateSeen from prefixes where prefix = %s order by dateSeen asc limit 1;""",
+                             (psycopg2.extras.Inet(prefix),))
+
+        if self.cur.fetchone() is not None:
             return self.cur.fetchone()[0]
-        except:
-            sys.stderr.write("Unable to get the date the prefix {} was first seen\n."\
-                            .format(prefix))
+        else:
             return None
             
     def getPeriodsSeenExact(self, prefix):
@@ -101,73 +98,66 @@ class DBHandler:
             return dict()
             
     def getTotalDaysSeen(self, prefix):
-        try:
-            if self.routing_date != '':
-                self.cur.execute("""select count(dateSeen) from prefixes where prefix <<= %s and dateSeen < %s::date;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
-            else:
-                self.cur.execute("""select count(dateSeen) from prefixes where prefix <<= %s;""",
-                                 (psycopg2.extras.Inet(prefix),))
-                                 
-            return self.cur.fetchone()[0]
-        except:
-            sys.stderr.write("Unable to get the number of days during which the prefix {} or its fragments were seen.\n".format(prefix))
+        if self.routing_date != '':
+            self.cur.execute("""select count(dateSeen) from prefixes where prefix <<= %s and dateSeen < %s::date;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date,))
+        else:
+            self.cur.execute("""select count(dateSeen) from prefixes where prefix <<= %s;""",
+                             (psycopg2.extras.Inet(prefix),))
+
+        if self.cur.fetchone() is not None:
+            return int(self.cur.fetchone()[0])
+        else:
             return -1
                              
     def getTotalDaysSeenExact(self, prefix):
-        try:
-            if self.routing_date != '':
-                self.cur.execute("""select count(dateSeen) from prefixes where prefix = %s and dateSeen < %s::date;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
-            else:
-                self.cur.execute("""select count(dateSeen) from prefixes where prefix = %s;""",
-                                 (psycopg2.extras.Inet(prefix),))
-                                 
-            return self.cur.fetchone()[0]
-        except:
-            sys.stderr.write("Unable to get the number of days during which the prefix {} was seen.\n".format(prefix))
+        if self.routing_date != '':
+            self.cur.execute("""select count(dateSeen) from prefixes where prefix = %s and dateSeen < %s::date;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date,))
+        else:
+            self.cur.execute("""select count(dateSeen) from prefixes where prefix = %s;""",
+                             (psycopg2.extras.Inet(prefix),))
+
+        if self.cur.fetchone() is not None:
+            return int(self.cur.fetchone()[0])
+        else:
             return -1
                              
     def getDateLastSeenExact(self, prefix):
-        try:
-            if self.routing_date != '':
-                self.cur.execute("""select dateSeen from prefixes where prefix = %s and dateSeen < %s::date order by dateSeen desc limit 1;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
-            else:
-                self.cur.execute("""select dateSeen from prefixes where prefix = %s order by dateSeen desc limit 1;""",
-                                 (psycopg2.extras.Inet(prefix),))
-                                 
+        if self.routing_date != '':
+            self.cur.execute("""select dateSeen from prefixes where prefix = %s and dateSeen < %s::date order by dateSeen desc limit 1;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date,))
+        else:
+            self.cur.execute("""select dateSeen from prefixes where prefix = %s order by dateSeen desc limit 1;""",
+                             (psycopg2.extras.Inet(prefix),))
+
+        if self.cur.fetchone() is not None:
             return self.cur.fetchone()[0]
-        except:
-            sys.stderr.write("Unable to get the date the prefix {} was last seen.\n"\
-                            .format(prefix))
+        else:
             return None
             
     def getDateLastSeen(self, prefix):
-        try:
-            if self.routing_date != '':
-                self.cur.execute("""select dateSeen from prefixes where prefix <<= %s and dateSeen < %s::date order by dateSeen desc limit 1;""",
-                                 (psycopg2.extras.Inet(prefix), self.routing_date,))
-            else:
-                self.cur.execute("""select dateSeen from prefixes where prefix <<= %s order by dateSeen desc limit 1;""",
-                                 (psycopg2.extras.Inet(prefix),))
-                                 
+        if self.routing_date != '':
+            self.cur.execute("""select dateSeen from prefixes where prefix <<= %s and dateSeen < %s::date order by dateSeen desc limit 1;""",
+                             (psycopg2.extras.Inet(prefix), self.routing_date,))
+        else:
+            self.cur.execute("""select dateSeen from prefixes where prefix <<= %s order by dateSeen desc limit 1;""",
+                             (psycopg2.extras.Inet(prefix),))
+
+        if self.cur.fetchone() is not None:
             return self.cur.fetchone()[0]
-        except:
-            sys.stderr.write("Unable to get the date the prefix {} or any of its fragments were last seen.\n".format(prefix))
+        else:
             return None
         
     def getDateASNFirstSeen(self, asn):
-        try:
-            if self.routing_date != '':
-                self.cur.execute("""select dateSeen from asns where asn = %s and dateSeen < %s::date order by dateSeen asc limit 1;""", (asn, self.routing_date,))
-            else:
-                self.cur.execute("""select dateSeen from asns where asn = %s order by dateSeen asc limit 1;""", (asn,))
-                
+        if self.routing_date != '':
+            self.cur.execute("""select dateSeen from asns where asn = %s and dateSeen < %s::date order by dateSeen asc limit 1;""", (asn, self.routing_date,))
+        else:
+            self.cur.execute("""select dateSeen from asns where asn = %s order by dateSeen asc limit 1;""", (asn,))
+            
+        if self.cur.fetchone() is not None:
             return self.cur.fetchone()[0]
-        except:
-            sys.stderr.write("Unable to get the date the ASN {} was first seen.\n"\
-                            .format(asn))
+        else:
             return None
         
     def getPeriodsASNSeen(self, asn):
@@ -184,27 +174,25 @@ class DBHandler:
             return []
             
     def getTotalDaysASNSeen(self, asn):
-        try:
-            if self.routing_date != '':
-                self.cur.execute("""select count(*) from (select distinct dateseen from asns where asn = %s and dateSeen < %s::date) as temp;""", (asn, self.routing_date,))
-            else:
-                self.cur.execute("""select count(*) from (select distinct dateseen from asns where asn = %s) as temp;""", (asn,))
-                
-            return self.cur.fetchone()[0]
-        except:
-            sys.stderr.write("Unable to get the number of days during which the ASN {} was seen.\n".format(asn))
+        if self.routing_date != '':
+            self.cur.execute("""select count(*) from (select distinct dateseen from asns where asn = %s and dateSeen < %s::date) as temp;""", (asn, self.routing_date,))
+        else:
+            self.cur.execute("""select count(*) from (select distinct dateseen from asns where asn = %s) as temp;""", (asn,))
+
+        if self.cur.fetchone() is not None:
+            return int(self.cur.fetchone()[0])
+        else:
             return -1
             
     def getDateASNLastSeen(self, asn):
-        try:
-            if self.routing_date != '':
-                self.cur.execute("""select dateSeen from asns where asn = %s and dateSeen < %s::date order by dateSeen desc limit 1;""", (asn, self.routing_date,))
-            else:
-                self.cur.execute("""select dateSeen from asns where asn = %s order by dateSeen desc limit 1;""", (asn,))
-                
+        if self.routing_date != '':
+            self.cur.execute("""select dateSeen from asns where asn = %s and dateSeen < %s::date order by dateSeen desc limit 1;""", (asn, self.routing_date,))
+        else:
+            self.cur.execute("""select dateSeen from asns where asn = %s order by dateSeen desc limit 1;""", (asn,))
+
+        if self.cur.fetchone() is not None:
             return self.cur.fetchone()[0]
-        except:
-            sys.stderr.write("Unable to get the date the ASN {} was last seen.\n".format(asn))
+        else:
             return None
     
     def getListOfDatesForPrefixes(self):
@@ -346,18 +334,16 @@ class DBHandler:
             return dict()
             
     def getPathsToMostRecentRoutingFiles(self):
-        try:
-            self.cur.execute("""SELECT distinct(routing_date) from archive_index 
-                                order by routing_date desc limit 1""")
+        self.cur.execute("""SELECT distinct(routing_date) from archive_index 
+                            order by routing_date desc limit 1""")
 
+        if self.cur.fetchone() is not None:
             mostRecentDate = self.cur.fetchone()[0]
-            
+        
             return self.getPathsToRoutingFilesForDate(mostRecentDate)
-
-        except:
-            sys.stderr.write("Unable to get the list of paths to most recent \
-                                routing files\n")
+        else:
             return dict()
+
             
     def getUpdatesDF_prefix(self, updates_date):
         try:

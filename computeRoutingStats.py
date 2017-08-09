@@ -96,13 +96,15 @@ def computeNetworkHistoryOfVisibility(network, statsForPrefix, db_handler, first
     if numOfPeriods > 0:
         last_seen_intact = db_handler.getDateLastSeenExact(prefix)
         statsForPrefix['lastSeenIntact'] = last_seen_intact
-        statsForPrefix['isDeadIntact'] = ((statsForPrefix['routing_date']-last_seen_intact).days > 365)
-        daysUsed = (last_seen_intact-first_seen_intact).days + 1
-        daysSeen = db_handler.getTotalDaysSeenExact(prefix)
         
-        statsForPrefix['relUsedTimeIntact'] = 100*float(daysUsed)/daysUsable
-        statsForPrefix['effectiveUsageIntact'] = 100*float(daysSeen)/daysUsed
-        statsForPrefix['timeFragmentationIntact'] = numOfPeriods/(float(daysUsed)/60)
+        if last_seen_intact is not None:
+            statsForPrefix['isDeadIntact'] = ((statsForPrefix['routing_date']-last_seen_intact).days > 365)
+            daysUsed = (last_seen_intact-first_seen_intact).days + 1
+            daysSeen = db_handler.getTotalDaysSeenExact(prefix)
+            
+            statsForPrefix['relUsedTimeIntact'] = 100*float(daysUsed)/daysUsable
+            statsForPrefix['effectiveUsageIntact'] = 100*float(daysSeen)/daysUsed
+            statsForPrefix['timeFragmentationIntact'] = numOfPeriods/(float(daysUsed)/60)
                         
         periodsLengths = []
         for period in periodsIntact:
