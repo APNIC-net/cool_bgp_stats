@@ -50,7 +50,7 @@ class DBHandler:
                 self.cur.execute("""select dateSeen from prefixes where prefix <<= %s order by dateSeen asc limit 1;""",
                                  (psycopg2.extras.Inet(prefix),))
 
-            return self.cur.fetchone()
+            return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the date the prefix {} or any of its fragments were first seen.\n".format(prefix))
             return None
@@ -64,7 +64,7 @@ class DBHandler:
                 self.cur.execute("""select dateSeen from prefixes where prefix = %s order by dateSeen asc limit 1;""",
                                  (psycopg2.extras.Inet(prefix),))
                                  
-            return self.cur.fetchone()
+            return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the date the prefix {} was first seen\n."\
                             .format(prefix))
@@ -137,7 +137,7 @@ class DBHandler:
                 self.cur.execute("""select dateSeen from prefixes where prefix = %s order by dateSeen desc limit 1;""",
                                  (psycopg2.extras.Inet(prefix),))
                                  
-            return self.cur.fetchone()
+            return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the date the prefix {} was last seen.\n"\
                             .format(prefix))
@@ -152,7 +152,7 @@ class DBHandler:
                 self.cur.execute("""select dateSeen from prefixes where prefix <<= %s order by dateSeen desc limit 1;""",
                                  (psycopg2.extras.Inet(prefix),))
                                  
-            return self.cur.fetchone()
+            return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the date the prefix {} or any of its fragments were last seen.\n".format(prefix))
             return None
@@ -164,7 +164,7 @@ class DBHandler:
             else:
                 self.cur.execute("""select dateSeen from asns where asn = %s order by dateSeen asc limit 1;""", (asn,))
                 
-            return self.cur.fetchone()
+            return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the date the ASN {} was first seen.\n"\
                             .format(asn))
@@ -202,7 +202,7 @@ class DBHandler:
             else:
                 self.cur.execute("""select dateSeen from asns where asn = %s order by dateSeen desc limit 1;""", (asn,))
                 
-            return self.cur.fetchone()
+            return self.cur.fetchone()[0]
         except:
             sys.stderr.write("Unable to get the date the ASN {} was last seen.\n".format(asn))
             return None
