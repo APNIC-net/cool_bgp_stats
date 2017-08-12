@@ -61,6 +61,8 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
         # TODO Remove after debugging
         delegatedNetworks = delegatedNetworks[0:10]
         prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
+        routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref,
+                                             prefixes_stats_file)
         partialPrefixStats({'routingStatsObj' : routingStatsObj,
                             'bgp_handler' : bgp_handler,
                             'files_path' : files_path,

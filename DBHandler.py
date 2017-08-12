@@ -375,7 +375,7 @@ class DBHandler:
             engine = sq.create_engine("postgresql+psycopg2://{}@{}/{}"\
                                     .format(self.user, self.host, self.dbname))
             
-            return pd.read_sql_query("select update_date, upd_type, peeras, count(*) from updates where update_date = '{}' group by (update_date, upd_type, peeras);".format(updates_date), engine)
+            return pd.read_sql_query("select update_date, upd_type, peeras, count(*) as updates_count from updates where update_date = '{}' group by (update_date, upd_type, peeras);".format(updates_date), engine)
 
         except:
             sys.stderr.write("Unable to get updates DataFrame for date {}.\n".format(updates_date))

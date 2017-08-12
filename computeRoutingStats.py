@@ -377,8 +377,8 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
                 ASPathLengthsList.append(len(path.split()))
         
         if len(updates_subset) > 0:
-            numsOfAnnouncementsList.append(updates_subset[updates_subset['upd_type'] == 'A']['count'])
-            numsOfWithdrawsList.append(updates_subset[updates_subset['upd_type'] == 'W']['count'])
+            numsOfAnnouncementsList.append(updates_subset[updates_subset['upd_type'] == 'A']['updates_count'])
+            numsOfWithdrawsList.append(updates_subset[updates_subset['upd_type'] == 'W']['updates_count'])
         
     # If the delegated prefix is not already marked as being
     # announced by an AS delegated to an organization different from the
@@ -806,8 +806,8 @@ def computeASesStats(routingStatsObj, bgp_handler, expanded_del_asns_df,
                         bgp_handler.updates_peerASes['peeras'] == asn]
                         
         if len(asn_subset['peeras'].tolist()) > 0:
-            statsForAS['numOfAnnouncements'] = asn_subset[asn_subset['upd_type'] == 'A']['count']
-            statsForAS['numOfWithdraws'] = asn_subset[asn_subset['upd_type'] == 'W']['count']
+            statsForAS['numOfAnnouncements'] = asn_subset[asn_subset['upd_type'] == 'A']['updates_count']
+            statsForAS['numOfWithdraws'] = asn_subset[asn_subset['upd_type'] == 'W']['updates_count']
                 
         if TEMPORAL_DATA:
             daysUsable = (bgp_handler.routingDate-del_date).days + 1
