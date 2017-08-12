@@ -42,7 +42,7 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
         # If we are in the parent process of the first fork, we call BulkWHOISParser
         # Instantiation of the BulkWHOISParser class
         sys.stdout.write('{}: Executing BulkWHOISParser.\n'.format(datetime.now()))
-        BulkWHOISParser(files_path, DEBUG)
+        BulkWHOISParser('{}/BulkWHOIS'.format(files_path), DEBUG)
 
     # Computation of routing stats
     sys.stdout.write('{}: Starting to compute routing stats.\n'.format(datetime.now()))

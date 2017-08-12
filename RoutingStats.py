@@ -264,7 +264,7 @@ class RoutingStats:
             csv_file.write(line)
             
     def instantiateOrgHeuristics(self):
-        self.orgHeuristics = OrgHeuristics(self.files_path)
+        self.orgHeuristics = OrgHeuristics('{}/BulkWHOISParser'.format(self.files_path))
         
     # This function downloads information about relationships between ASes inferred
     # by CAIDA and stores it in a dictionary in which all the active ASes appear as keys
