@@ -361,7 +361,7 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
             statsForPrefix['maxASPathLengthIntact'] = ASpathsLengths.max()
            
         # If there are updates for this prefix in the DataFrame
-        if len(updates_subset['prefix'].tolist()) > 0:
+        if updates_subset.shape[0] > 0:
             statsForPrefix['numOfAnnouncements'] = updates_subset[updates_subset['upd_type'] == 'A']['updates_count']
             statsForPrefix['numOfWithdraws'] = updates_subset[updates_subset['upd_type'] == 'W']['updates_count']
 
@@ -376,7 +376,7 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
             for path in blockASpaths:
                 ASPathLengthsList.append(len(path.split()))
         
-        if len(updates_subset) > 0:
+        if updates_subset.shape[0] > 0:
             numsOfAnnouncementsList.append(updates_subset[updates_subset['upd_type'] == 'A']['updates_count'])
             numsOfWithdrawsList.append(updates_subset[updates_subset['upd_type'] == 'W']['updates_count'])
         
