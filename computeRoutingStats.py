@@ -362,8 +362,8 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
            
         # If there are updates for this prefix in the DataFrame
         if updates_subset.shape[0] > 0:
-            statsForPrefix['numOfAnnouncements'] = updates_subset[updates_subset['upd_type'] == 'A']['updates_count']
-            statsForPrefix['numOfWithdraws'] = updates_subset[updates_subset['upd_type'] == 'W']['updates_count']
+            statsForPrefix['numOfAnnouncements'] = int(updates_subset[updates_subset['upd_type'] == 'A']['updates_count'])
+            statsForPrefix['numOfWithdraws'] = int(updates_subset[updates_subset['upd_type'] == 'W']['updates_count'])
 
     else:
         if numsOfOriginASesList is not None:
@@ -377,8 +377,8 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
                 ASPathLengthsList.append(len(path.split()))
         
         if updates_subset.shape[0] > 0:
-            numsOfAnnouncementsList.append(updates_subset[updates_subset['upd_type'] == 'A']['updates_count'])
-            numsOfWithdrawsList.append(updates_subset[updates_subset['upd_type'] == 'W']['updates_count'])
+            numsOfAnnouncementsList.append(int(updates_subset[updates_subset['upd_type'] == 'A']['updates_count']))
+            numsOfWithdrawsList.append(int(updates_subset[updates_subset['upd_type'] == 'W']['updates_count']))
         
     # If the delegated prefix is not already marked as being
     # announced by an AS delegated to an organization different from the
@@ -806,8 +806,8 @@ def computeASesStats(routingStatsObj, bgp_handler, expanded_del_asns_df,
                         bgp_handler.updates_peerASes['peeras'] == asn]
                         
         if len(asn_subset['peeras'].tolist()) > 0:
-            statsForAS['numOfAnnouncements'] = asn_subset[asn_subset['upd_type'] == 'A']['updates_count']
-            statsForAS['numOfWithdraws'] = asn_subset[asn_subset['upd_type'] == 'W']['updates_count']
+            statsForAS['numOfAnnouncements'] = int(asn_subset[asn_subset['upd_type'] == 'A']['updates_count'])
+            statsForAS['numOfWithdraws'] = int(asn_subset[asn_subset['upd_type'] == 'W']['updates_count'])
                 
         if TEMPORAL_DATA:
             daysUsable = (bgp_handler.routingDate-del_date).days + 1
