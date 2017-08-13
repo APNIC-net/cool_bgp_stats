@@ -362,8 +362,8 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
            
         # If there are updates for this prefix in the DataFrame
         if len(updates_subset['prefix'].tolist()) > 0:
-            statsForPrefix['numOfAnnouncements'] = updates_subset[updates_subset['upd_type'] == 'A']['count']
-            statsForPrefix['numOfWithdraws'] = updates_subset[updates_subset['upd_type'] == 'W']['count']
+            statsForPrefix['numOfAnnouncements'] = updates_subset[updates_subset['upd_type'] == 'A']['updates_count']
+            statsForPrefix['numOfWithdraws'] = updates_subset[updates_subset['upd_type'] == 'W']['updates_count']
 
     else:
         if numsOfOriginASesList is not None:
