@@ -57,70 +57,41 @@ def computeRouting(date_to_work_with, numOfProcs, files_path, DEBUG, BulkWHOIS,
         delegatedNetworks = del_handler.delegated_df[\
                                 (del_handler.delegated_df['resource_type'] == 'ipv4') |\
                                 (del_handler.delegated_df['resource_type'] == 'ipv6')].reset_index()
+        
+        pref_parts_size = int(round(float(delegatedNetworks.shape[0])/numOfProcs))
 
-        # TODO Remove after debugging
-        delegatedNetworks = delegatedNetworks[0:10]
-        prefixes_stats_file = '{}_prefixes.csv'.format(file_name)
-        routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref,
-                                             prefixes_stats_file)
-        partialPrefixStats({'routingStatsObj' : routingStatsObj,
-                            'bgp_handler' : bgp_handler,
-                            'files_path' : files_path,
-                            'delegatedNetworks' : delegatedNetworks,
-                            'fullASN_df' : del_handler.fullASN_df,
-                            'prefixes_stats_file' : prefixes_stats_file,
-                            'TEMPORAL_DATA' : TEMPORAL_DATA,
-                            'dateStr': dateStr,
-                            'es_host' : es_host,
-                            'esImporter' : esImporter})
+        argsDicts = []
+        pref_pos = 0
         
-        
-#        pref_parts_size = int(round(float(delegatedNetworks.shape[0])/numOfProcs))
-#
-#        argsDicts = []
-#        pref_pos = 0
-#        
-#        for i in range(numOfProcs+1):
-#            partial_pref_stats_file = '{}_prefixes_{}.csv'.format(file_name, i)
-#            if not os.path.exists(partial_pref_stats_file):
-#                routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref,
-#                                                     partial_pref_stats_file)
-#    
-#                argsDicts.append({'routingStatsObj' : routingStatsObj,
-#                                    'bgp_handler' : bgp_handler,
-#                                    'files_path' : files_path,
-#                                    'delegatedNetworks' : delegatedNetworks[pref_pos:pref_pos+pref_parts_size],
-#                                    'fullASN_df' : del_handler.fullASN_df,
-#                                    'prefixes_stats_file' : partial_pref_stats_file,
-#                                    'TEMPORAL_DATA' : TEMPORAL_DATA,
-#                                    'dateStr' : dateStr,
-#                                    'es_host' : es_host,
-#                                    'esImporter' : esImporter})
-#
-#                pref_pos = pref_pos + pref_parts_size
-#                
-#        with closing(Pool(numOfProcs)) as pref_pool:
-#            pref_pool.map(partialPrefixStats, argsDicts)
-#            pref_pool.terminate()
-#            
+        for i in range(numOfProcs+1):
+            partial_pref_stats_file = '{}_prefixes_{}.csv'.format(file_name, i)
+            if not os.path.exists(partial_pref_stats_file):
+                routingStatsObj.writeStatsFileHeader(routingStatsObj.allVar_pref,
+                                                     partial_pref_stats_file)
+    
+                argsDicts.append({'routingStatsObj' : routingStatsObj,
+                                    'bgp_handler' : bgp_handler,
+                                    'files_path' : files_path,
+                                    'delegatedNetworks' : delegatedNetworks[pref_pos:pref_pos+pref_parts_size],
+                                    'fullASN_df' : del_handler.fullASN_df,
+                                    'prefixes_stats_file' : partial_pref_stats_file,
+                                    'TEMPORAL_DATA' : TEMPORAL_DATA,
+                                    'dateStr' : dateStr,
+                                    'es_host' : es_host,
+                                    'esImporter' : esImporter})
+
+                pref_pos = pref_pos + pref_parts_size
+                
+        with closing(Pool(numOfProcs)) as pref_pool:
+            pref_pool.map(partialPrefixStats, argsDicts)
+            pref_pool.terminate()
+            
         sys.exit(0)
 
     else:
         # If we are in the parent process of the third fork,
         # we compute stats for ASes
         expanded_del_asns_df = del_handler.getExpandedASNsDF()
-    
-        # TODO Remove after debugging
-        expanded_del_asns_df = expanded_del_asns_df[0:10]
-#        ases_stats_file = '{}_ases.csv'.format(file_name)
-#        partialASesStats({'routingStatsObj' : routingStatsObj,
-#                         'bgp_handler' : bgp_handler,
-#                         'expanded_ases_df' : expanded_del_asns_df,
-#                         'ases_stats_file' : ases_stats_file,
-#                         'TEMPORAL_DATA' : TEMPORAL_DATA,
-#                         'dateStr' : dateStr,
-#                         'es_host' : es_host,
-#                         'esImporter' : esImporter})
 
         ases_parts_size = int(round(float(expanded_del_asns_df.shape[0])/numOfProcs))
     
