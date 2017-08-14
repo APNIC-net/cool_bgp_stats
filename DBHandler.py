@@ -52,7 +52,6 @@ class DBHandler:
 
             return self.cur.fetchone()[0]
         except TypeError:
-            sys.stderr.write("Unable to get the date the prefix {} or any of its fragments were first seen.\n".format(prefix))
             return None
             
     def getDateFirstSeenExact(self, prefix):
@@ -66,8 +65,6 @@ class DBHandler:
                                  
             return self.cur.fetchone()[0]
         except TypeError:
-            sys.stderr.write("Unable to get the date the prefix {} was first seen\n."\
-                            .format(prefix))
             return None
             
     def getPeriodsSeenExact(self, prefix):
@@ -111,7 +108,6 @@ class DBHandler:
                                  
             return int(self.cur.fetchone()[0])
         except TypeError:
-            sys.stderr.write("Unable to get the number of days during which the prefix {} or its fragments were seen.\n".format(prefix))
             return -1
                              
     def getTotalDaysSeenExact(self, prefix):
@@ -125,7 +121,6 @@ class DBHandler:
                                  
             return int(self.cur.fetchone()[0])
         except TypeError:
-            sys.stderr.write("Unable to get the number of days during which the prefix {} was seen.\n".format(prefix))
             return -1
                              
     def getDateLastSeenExact(self, prefix):
@@ -139,8 +134,6 @@ class DBHandler:
                                  
             return self.cur.fetchone()[0]
         except TypeError:
-            sys.stderr.write("Unable to get the date the prefix {} was last seen.\n"\
-                            .format(prefix))
             return None
             
     def getDateLastSeen(self, prefix):
@@ -154,7 +147,6 @@ class DBHandler:
                                  
             return self.cur.fetchone()[0]
         except TypeError:
-            sys.stderr.write("Unable to get the date the prefix {} or any of its fragments were last seen.\n".format(prefix))
             return None
         
     def getDateASNFirstSeen(self, asn):
@@ -166,8 +158,6 @@ class DBHandler:
                 
             return self.cur.fetchone()[0]
         except TypeError:
-            sys.stderr.write("Unable to get the date the ASN {} was first seen.\n"\
-                            .format(asn))
             return None
         
     def getPeriodsASNSeen(self, asn):
@@ -192,7 +182,6 @@ class DBHandler:
                 
             return int(self.cur.fetchone()[0])
         except TypeError:
-            sys.stderr.write("Unable to get the number of days during which the ASN {} was seen.\n".format(asn))
             return -1
             
     def getDateASNLastSeen(self, asn):
@@ -204,7 +193,6 @@ class DBHandler:
                 
             return self.cur.fetchone()[0]
         except TypeError:
-            sys.stderr.write("Unable to get the date the ASN {} was last seen.\n".format(asn))
             return None
     
     def getListOfDatesForPrefixes(self):
