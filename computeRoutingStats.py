@@ -334,7 +334,7 @@ def checkIfSameOrg(routedPrefix, blockOriginASes, prefix_org, routingStatsObj,
 def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
                                         variables, diffOrg_var, numsOfOriginASesList,
                                         numsOfASPathsList, ASPathLengthsList,
-                                        numsOfAnnouncementsList, numsOfWithdrawsList,
+                                        numsOfAnnouncementsList, numsOfWithdrawalsList,
                                         levenshteinDists, routingStatsObj,
                                         bgp_handler, fullASN_df, files_path):
     
@@ -362,8 +362,19 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
            
         # If there are updates for this prefix in the DataFrame
         if updates_subset.shape[0] > 0:
-            statsForPrefix['numOfAnnouncements'] = int(updates_subset[updates_subset['upd_type'] == 'A']['updates_count'])
-            statsForPrefix['numOfWithdraws'] = int(updates_subset[updates_subset['upd_type'] == 'W']['updates_count'])
+            announcements_subset = updates_subset[updates_subset['upd_type'] == 'A']
+            
+            if announcements_subset.shape[0] > 0:
+                statsForPrefix['numOfAnnouncements'] = int(announcements_subset['updates_count'])
+            else:
+                statsForPrefix['numOfAnnouncements'] = 0
+                
+            withdrawals_subset = updates_subset[updates_subset['upd_type'] == 'W']
+            
+            if withdrawals_subset.shape[0] > 0:
+                statsForPrefix['numOfWithdrawals'] = int(withdrawals_subset['updates_count'])
+            else:
+                statsForPrefix['numOfWithdrawals'] = 0
 
     else:
         if numsOfOriginASesList is not None:
@@ -377,8 +388,19 @@ def classifyPrefixAndUpdateVariables(routedPrefix, isDelegated, statsForPrefix,
                 ASPathLengthsList.append(len(path.split()))
         
         if updates_subset.shape[0] > 0:
-            numsOfAnnouncementsList.append(int(updates_subset[updates_subset['upd_type'] == 'A']['updates_count']))
-            numsOfWithdrawsList.append(int(updates_subset[updates_subset['upd_type'] == 'W']['updates_count']))
+            announcements_subset = updates_subset[updates_subset['upd_type'] == 'A']
+            
+            if announcements_subset.shape[0] > 0:
+                numsOfAnnouncementsList.append(int(announcements_subset['updates_count']))
+            else:
+                numsOfAnnouncementsList.append(0)
+                
+            withdrawals_subset = updates_subset[updates_subset['upd_type'] == 'W']
+            
+            if withdrawals_subset.shape[0] > 0:
+                numsOfWithdrawalsList.append(int(withdrawals_subset['updates_count']))
+            else:
+                numsOfWithdrawalsList.append(0)
         
     # If the delegated prefix is not already marked as being
     # announced by an AS delegated to an organization different from the
@@ -551,7 +573,7 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
             numsOfASPathsLessSpec = []
             ASPathLengthsLessSpec = []
             numsOfAnnouncementsLessSpec = []
-            numsOfWithdrawsLessSpec = []
+            numsOfWithdrawalsLessSpec = []
             levenshteinDists = []
             for lessSpec in less_specifics.values():
                 # For less specific prefixes we are not interested in the number
@@ -565,7 +587,7 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
                                                  numsOfASPathsLessSpec,
                                                  ASPathLengthsLessSpec,
                                                  numsOfAnnouncementsLessSpec,
-                                                 numsOfWithdrawsLessSpec,
+                                                 numsOfWithdrawalsLessSpec,
                                                  levenshteinDists,
                                                  routingStatsObj, bgp_handler,
                                                  fullASN_df, files_path)
@@ -605,12 +627,12 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
                 statsForPrefix['minNumOfAnnouncementsLessSpec'] = numsOfAnnouncementsLessSpec.min()
                 statsForPrefix['maxNumOfAnnouncementsLessSpec'] = numsOfAnnouncementsLessSpec.max()
             
-            if len(numsOfWithdrawsLessSpec) > 0:
-                numsOfWithdrawsLessSpec = np.array(numsOfWithdrawsLessSpec)
-                statsForPrefix['avgNumOfWithdrawsLessSpec'] = numsOfWithdrawsLessSpec.mean()
-                statsForPrefix['stdNumOfWithdrawsLessSpec'] = numsOfWithdrawsLessSpec.std()
-                statsForPrefix['minNumOfWithdrawsLessSpec'] = numsOfWithdrawsLessSpec.min()
-                statsForPrefix['maxNumOfWithdrawsLessSpec'] = numsOfWithdrawsLessSpec.max()
+            if len(numsOfWithdrawalsLessSpec) > 0:
+                numsOfWithdrawalsLessSpec = np.array(numsOfWithdrawalsLessSpec)
+                statsForPrefix['avgNumOfWithdrawalsLessSpec'] = numsOfWithdrawalsLessSpec.mean()
+                statsForPrefix['stdNumOfWithdrawalsLessSpec'] = numsOfWithdrawalsLessSpec.std()
+                statsForPrefix['minNumOfWithdrawalsLessSpec'] = numsOfWithdrawalsLessSpec.min()
+                statsForPrefix['maxNumOfWithdrawalsLessSpec'] = numsOfWithdrawalsLessSpec.max()
             
         if len(more_specifics) > 0:
             more_specifics_wo_prefix = copy.copy(more_specifics.values())
@@ -623,7 +645,7 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
                 levenshteinDists = []
                 # For the delegated prefix it doesn't make sense to have a list
                 # of numbers of Origin ASes, numbers of AS paths, AS paths
-                # lengths, number of announcements or number of withdraws
+                # lengths, number of announcements or number of Withdrawals
                 # to compute average, standard deviation, minimum and
                 # maximum because it is a single prefix,
                 # that's why we use None for the parameters corresponding to the
@@ -695,7 +717,7 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
             numsOfASPathsMoreSpec = []
             ASPathLengthsMoreSpec = [] 
             numsOfAnnouncementsMoreSpec = []
-            numsOfWithdrawsMoreSpec = []
+            numsOfWithdrawalsMoreSpec = []
             levenshteinDists = []
             for moreSpec in more_specifics_wo_prefix:
                 classifyPrefixAndUpdateVariables(moreSpec, False,
@@ -706,7 +728,7 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
                                                  numsOfASPathsMoreSpec,
                                                  ASPathLengthsMoreSpec,
                                                  numsOfAnnouncementsMoreSpec,
-                                                 numsOfWithdrawsMoreSpec,
+                                                 numsOfWithdrawalsMoreSpec,
                                                  levenshteinDists,
                                                  routingStatsObj,
                                                  bgp_handler,
@@ -748,12 +770,12 @@ def computePerPrefixStats(routingStatsObj, bgp_handler, delegatedNetworks,
                 statsForPrefix['minNumOfAnnouncementsMoreSpec'] = numsOfAnnouncementsMoreSpec.min()
                 statsForPrefix['maxNumOfAnnouncementsMoreSpec'] = numsOfAnnouncementsMoreSpec.max()
             
-            if len(numsOfWithdrawsMoreSpec) > 0:
-                numsOfWithdrawsMoreSpec = np.array(numsOfWithdrawsMoreSpec)
-                statsForPrefix['avgNumOfWithdrawsMoreSpec'] = numsOfWithdrawsMoreSpec.mean()
-                statsForPrefix['stdNumOfWithdrawsMoreSpec'] = numsOfWithdrawsMoreSpec.std()
-                statsForPrefix['minNumOfWithdrawsMoreSpec'] = numsOfWithdrawsMoreSpec.min()
-                statsForPrefix['maxNumOfWithdrawsMoreSpec'] = numsOfWithdrawsMoreSpec.max()
+            if len(numsOfWithdrawalsMoreSpec) > 0:
+                numsOfWithdrawalsMoreSpec = np.array(numsOfWithdrawalsMoreSpec)
+                statsForPrefix['avgNumOfWithdrawalsMoreSpec'] = numsOfWithdrawalsMoreSpec.mean()
+                statsForPrefix['stdNumOfWithdrawalsMoreSpec'] = numsOfWithdrawalsMoreSpec.std()
+                statsForPrefix['minNumOfWithdrawalsMoreSpec'] = numsOfWithdrawalsMoreSpec.min()
+                statsForPrefix['maxNumOfWithdrawalsMoreSpec'] = numsOfWithdrawalsMoreSpec.max()
             
         writeStatsLineToFile(statsForPrefix, routingStatsObj.allVar_pref, stats_filename)
         
@@ -806,8 +828,19 @@ def computeASesStats(routingStatsObj, bgp_handler, expanded_del_asns_df,
                         bgp_handler.updates_peerASes['peeras'] == asn]
                         
         if len(asn_subset['peeras'].tolist()) > 0:
-            statsForAS['numOfAnnouncements'] = int(asn_subset[asn_subset['upd_type'] == 'A']['updates_count'])
-            statsForAS['numOfWithdraws'] = int(asn_subset[asn_subset['upd_type'] == 'W']['updates_count'])
+            announcements_subset = asn_subset[asn_subset['upd_type'] == 'A']
+
+            if announcements_subset.shape[0] > 0:
+                statsForAS['numOfAnnouncements'] = int(announcements_subset['updates_count'])
+            else:
+                statsForAS['numOfAnnouncements'] = 0
+                
+            withdrawals_subset = asn_subset[asn_subset['upd_type'] == 'W']
+
+            if withdrawals_subset.shape[0] > 0:            
+                statsForAS['numOfWithdrawals'] = int(withdrawals_subset['updates_count'])
+            else:
+                statsForAS['numOfWithdrawals'] = 0
                 
         if TEMPORAL_DATA:
             daysUsable = (bgp_handler.routingDate-del_date).days + 1
