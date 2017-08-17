@@ -376,6 +376,7 @@ class OrgHeuristics:
     def filterIRTs(self, data_dict, filtered_data_dict):
         if 'mnt-irt' in data_dict:
             for irt in data_dict['mnt-irt']:
+                irt = irt.lower()
                 if self.isIRTofInterest(irt):
                     filtered_data_dict['irts'].add(irt)
                     
@@ -402,6 +403,7 @@ class OrgHeuristics:
         for mntner_type in ['mnt-by', 'mnt-lower', 'mnt-routes']:
             if mntner_type in data_dict:
                 for mntner in data_dict[mntner_type]:
+                    mntner = mntner.lower()
                     if self.isMntnerOfInterest(mntner):
                         filtered_data_dict['mntners'].add(mntner)
                         

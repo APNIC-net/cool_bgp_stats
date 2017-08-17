@@ -129,7 +129,7 @@ class BulkWHOISParser:
             asn = -1
             
         else:
-            current_structure[contact_id] = current_dict
+            current_structure[contact_id.lower()] = current_dict
             contact_id = ''
             
         return ip_blocks, asn, as_block, contact_id            
