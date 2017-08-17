@@ -53,7 +53,8 @@ class BulkWHOISParser:
     
     def __init__(self, files_path, DEBUG):
         
-        files_path = '{}/BulkWHOISParser'.format(files_path)
+        if not files_path.endswith('/BulkWHOISParser'):
+            files_path = '{}/BulkWHOISParser'.format(files_path)
 
         if not DEBUG:
             for item in self.whois_data:
