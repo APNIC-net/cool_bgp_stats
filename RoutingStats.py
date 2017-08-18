@@ -105,11 +105,11 @@ class RoutingStats:
         # just from the most recent routing file being considered, we compute
         # the current visibility of the delegated prefix.
 
-        # numOfAnnouncements and numOfWithdraws count the number of BGP
-        # announcements and BGP withdraws during the updatesDate for a routed
+        # numOfAnnouncements and numOfWithdrawals count the number of BGP
+        # announcements and BGP Withdrawals during the updatesDate for a routed
         # prefix or for an origin AS. We also compute the average, standard
         # deviation, maximum and minimum number of announcements and number of
-        # withdraws amongst the values for the routed more specific prefixes and
+        # Withdrawals amongst the values for the routed more specific prefixes and
         # for the routed less specific prefixes of a delegated prefix.
 
         
@@ -159,12 +159,12 @@ class RoutingStats:
                           'currentVisibility',
                           'avgNumOfAnnouncementsLessSpec', 'stdNumOfAnnouncementsLessSpec',
                           'minNumOfAnnouncementsLessSpec', 'maxNumOfAnnouncementsLessSpec',
-                          'avgNumOfWithdrawsLessSpec', 'stdNumOfWithdrawsLessSpec',
-                          'maxNumOfWithdrawsLessSpec', 'minNumOfWithdrawsLessSpec',
+                          'avgNumOfWithdrawalsLessSpec', 'stdNumOfWithdrawalsLessSpec',
+                          'maxNumOfWithdrawalsLessSpec', 'minNumOfWithdrawalsLessSpec',
                           'avgNumOfAnnouncementsMoreSpec', 'stdNumOfAnnouncementsMoreSpec',
                           'minNumOfAnnouncementsMoreSpec', 'maxNumOfAnnouncementsMoreSpec',
-                          'avgNumOfWithdrawsMoreSpec', 'stdNumOfWithdrawsMoreSpec',
-                          'maxNumOfWithdrawsMoreSpec', 'minNumOfWithdrawsMoreSpec']
+                          'avgNumOfWithdrawalsMoreSpec', 'stdNumOfWithdrawalsMoreSpec',
+                          'maxNumOfWithdrawalsMoreSpec', 'minNumOfWithdrawalsMoreSpec']
         
         valueKeysTemp_pref = ['UsageLatencyGral', 'UsageLatencyIntact',
                               'relUsedTimeIntact', 'avgRelUsedTimeGral',
@@ -182,7 +182,7 @@ class RoutingStats:
                           
         gralCounterKeys_pref = ['numOfOriginASesIntact', 'numOfASPathsIntact',
                             'numOfLessSpecificsRouted', 'numOfMoreSpecificsRouted',
-                            'numOfAnnouncements', 'numOfWithdraws']
+                            'numOfAnnouncements', 'numOfWithdrawals']
                                    
         self.moreSpec_variables = {'lonely': 'numOfLonelyMoreSpec',
                                    'holePunching': 'numOfHolePunchingMoreSpec',
@@ -230,7 +230,7 @@ class RoutingStats:
         counterKeys_ases = ['numOfPrefixesOriginated',
                             'numOfPrefixesPropagated',
                             'numOfAnnouncements',
-                            'numOfWithdraws']
+                            'numOfWithdrawals']
         
         if TEMPORAL_DATA:                   
             booleanKeys_ases = ['isDead']

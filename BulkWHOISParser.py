@@ -53,7 +53,8 @@ class BulkWHOISParser:
     
     def __init__(self, files_path, DEBUG):
         
-        files_path = '{}/BulkWHOISParser'.format(files_path)
+        if not files_path.endswith('/BulkWHOISParser'):
+            files_path = '{}/BulkWHOISParser'.format(files_path)
 
         if not DEBUG:
             for item in self.whois_data:
@@ -129,7 +130,7 @@ class BulkWHOISParser:
             asn = -1
             
         else:
-            current_structure[contact_id] = current_dict
+            current_structure[contact_id.lower()] = current_dict
             contact_id = ''
             
         return ip_blocks, asn, as_block, contact_id            
