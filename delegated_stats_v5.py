@@ -242,8 +242,9 @@ def main(argv):
             numOfDocs = esImporter.ES.count(delStats_ES_properties.index_name)['count']
             
             if INCREMENTAL:
-                stats_df['Date'] = pd.to_datetime(stats_df['Date'], format='%Y%m%d')
-                plain_df = stats_df[stats_df['Date'] > final_existing_date]
+                stats_df['Date_date'] = pd.to_datetime(stats_df['Date'], format='%Y%m%d')
+                plain_df = stats_df[stats_df['Date_date'] > final_existing_date]
+                del plain_df['Date_date']
             else:
                 plain_df = stats_df
             
