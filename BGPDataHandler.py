@@ -752,7 +752,18 @@ class BGPDataHandler:
 
         pref_node = prefixes_radix.search_exact(str(network))
         if pref_node is not None:
-            return set(pref_node.data['OriginASes'])
+            originASes = set()
+            for item in set(pref_node.data['OriginASes']):
+                if '{' in item:
+                    originASes = originASes.union(set(item.replace('{', '').replace('}', '').split(',')))
+                elif '(' in item:
+                    originASes = originASes.union(set(item.replace('(', '').replace(')', '').split(',')))
+                elif '.' in item:
+                    left, right= item.split('.')
+                    originASes.add(str(int(left) * 65536 + int(right)))
+                else:
+                    originASes.add(item)
+            return originASes
         else:
             return set()
     
