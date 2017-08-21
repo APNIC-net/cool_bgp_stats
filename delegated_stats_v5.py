@@ -167,8 +167,7 @@ def main(argv):
     
 
     if DEBUG and del_file == '':
-        print "If you choose to run in DEBUG mode you must provide the path to\
-                    a delegated file that has already been downloaded."
+        print "If you choose to run in DEBUG mode you must provide the path to a delegated file that has already been downloaded."
         sys.exit()
         
     if files_path == '':
